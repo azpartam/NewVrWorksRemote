@@ -50,6 +50,14 @@ public:
 	// @param Count >0
 	// @param Data must not be 0
 	virtual void RHISetMultipleViewports(uint32 Count, const FViewportBounds* Data) final override;
+
+	// Useful when used with geometry shader (emit polygons to different viewports), otherwise SetScissorRect() is simpler
+	// @param Count >0
+	// @param Data must not be 0
+	virtual void RHISetMultipleScissorRects(bool bEnable, uint32 Num, const FIntRect* Rects) final override;
+	virtual void RHISetModifiedWMode(const FLensMatchedShading::Configuration& Conf, const bool bWarpForward, const bool bEnable) final override;
+	virtual void RHISetModifiedWModeStereo(const FLensMatchedShading::StereoConfiguration& Conf, const bool bWarpForward, const bool bEnable) final override;
+
 	
 	/** Clears a UAV to the multi-component value provided. */
 	virtual void RHIClearUAV(FUnorderedAccessViewRHIParamRef UnorderedAccessViewRHI, const uint32* Values) final override;
@@ -304,6 +312,8 @@ public:
 	 */
 	virtual void RHIEnableDepthBoundsTest(bool bEnable, float MinDepth, float MaxDepth) final override;
 	
+	virtual void RHISetSinglePassStereoParameters(bool bEnable, uint32 RenderTargetIndexOffset, uint8 IndependentViewportMaskEnable) final override;
+
 	virtual void RHIPushEvent(const TCHAR* Name) final override;
 	
 	virtual void RHIPopEvent() final override;

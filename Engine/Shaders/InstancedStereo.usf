@@ -44,6 +44,36 @@ struct ViewDependentState {
 	float4x4 PrevInvViewProj;
 	float4x4 PrevScreenToTranslatedWorld;
 	float4x4 ClipToPrevClip;
+
+	// MultiRes additions
+	float4 RenderTargetToViewRectUVScaleBias;
+	float4 ViewRectToRenderTargetUVScaleBias;
+
+	float4 NDCSplitsX;
+	float4 NDCSplitsY;
+	float4 StereoNDCSplitsX;
+	float4 StereoNDCSplitsY;
+
+	float2 LinearToVRProjectSplitsX;
+	float2 LinearToVRProjectSplitsY;
+	float2 LinearToVRProjectX0;
+	float2 LinearToVRProjectX1;
+	float2 LinearToVRProjectX2;
+	float2 LinearToVRProjectY0;
+	float2 LinearToVRProjectY1;
+	float2 LinearToVRProjectY2;
+	float2 VRProjectToLinearSplitsX;
+	float2 VRProjectToLinearSplitsY;
+	float2 VRProjectToLinearX0;
+	float2 VRProjectToLinearX1;
+	float2 VRProjectToLinearX2;
+	float2 VRProjectToLinearY0;
+	float2 VRProjectToLinearY1;
+	float2 VRProjectToLinearY2;
+	// additional lens matched shading params
+	float2 BoundingRectOrigin;
+	float2 BoundingRectSize;
+	float2 BoundingRectSizeInv;
 };
 
 // Used when instanced stereo is disabled and for shaders which don't support or need it.
@@ -90,6 +120,33 @@ ViewDependentState ResolveView()
 	Result.PrevScreenToTranslatedWorld = View.PrevScreenToTranslatedWorld;
 	Result.ClipToPrevClip = View.ClipToPrevClip;
 
+	Result.RenderTargetToViewRectUVScaleBias = View.RenderTargetToViewRectUVScaleBias;
+	Result.ViewRectToRenderTargetUVScaleBias = View.ViewRectToRenderTargetUVScaleBias;
+	Result.NDCSplitsX = View.NDCSplitsX;
+	Result.NDCSplitsY = View.NDCSplitsY;
+	Result.StereoNDCSplitsX = View.StereoNDCSplitsX;
+	Result.StereoNDCSplitsY = View.StereoNDCSplitsY;
+	Result.LinearToVRProjectSplitsX = View.LinearToVRProjectSplitsX;
+	Result.LinearToVRProjectSplitsY = View.LinearToVRProjectSplitsY;
+	Result.LinearToVRProjectX0 = View.LinearToVRProjectX0;
+	Result.LinearToVRProjectX1 = View.LinearToVRProjectX1;
+	Result.LinearToVRProjectX2 = View.LinearToVRProjectX2;
+	Result.LinearToVRProjectY0 = View.LinearToVRProjectY0;
+	Result.LinearToVRProjectY1 = View.LinearToVRProjectY1;
+	Result.LinearToVRProjectY2 = View.LinearToVRProjectY2;
+	Result.VRProjectToLinearSplitsX = View.VRProjectToLinearSplitsX;
+	Result.VRProjectToLinearSplitsY = View.VRProjectToLinearSplitsY;
+	Result.VRProjectToLinearX0 = View.VRProjectToLinearX0;
+	Result.VRProjectToLinearX1 = View.VRProjectToLinearX1;
+	Result.VRProjectToLinearX2 = View.VRProjectToLinearX2;
+	Result.VRProjectToLinearY0 = View.VRProjectToLinearY0;
+	Result.VRProjectToLinearY1 = View.VRProjectToLinearY1;
+	Result.VRProjectToLinearY2 = View.VRProjectToLinearY2;
+
+	Result.BoundingRectOrigin = View.BoundingRectOrigin;
+	Result.BoundingRectSize = View.BoundingRectSize;
+	Result.BoundingRectSizeInv = View.BoundingRectSizeInv;
+
 	return Result;
 }
 
@@ -109,19 +166,27 @@ uint GetEyeIndex(uint PackedIndex)
 
 bool IsInstancedStereo(uint PackedIndex)
 {
-	return (PackedIndex >> 1) > 0;
+	return (PackedIndex & (1 << 31)) != 0;
 }
 
 #if !COMPILER_HLSLCC
 static ViewDependentState ResolvedView;
+	#if SINGLE_PASS_STEREO
+static ViewDependentState ResolvedViewRight;
+	#endif
 #endif
 
-#if INSTANCED_STEREO
+#if INSTANCED_STEREO || SINGLE_PASS_STEREO
 static const float EyeOffsetScale[2] = { -1.0, 1.0 };
 static const float4 EyeClipEdge[2] = { float4(-1.0, 0.0, 0.0, 1.0), float4(1.0, 0.0, 0.0, 1.0) };
 
 // Used to resolve precision issues when comparing depth values rendered with instanced stereo and without (pre-shadows)
+#if SINGLE_PASS_STEREO
+static const float InstancedStereoDepthBias = 0.00011;
+bool bIsSinglePassStereo;
+#else
 static const float InstancedStereoDepthBias = 0.0001;
+#endif
 
 bool bIsInstancedStereo;
 
@@ -168,6 +233,33 @@ ViewDependentState ResolveView(uint ViewIndex)
 		Result.PrevInvViewProj = View.PrevInvViewProj;
 		Result.PrevScreenToTranslatedWorld = View.PrevScreenToTranslatedWorld;
 		Result.ClipToPrevClip = View.ClipToPrevClip;
+
+		Result.RenderTargetToViewRectUVScaleBias = View.RenderTargetToViewRectUVScaleBias;
+		Result.ViewRectToRenderTargetUVScaleBias = View.ViewRectToRenderTargetUVScaleBias;
+		Result.NDCSplitsX = View.NDCSplitsX;
+		Result.NDCSplitsY = View.NDCSplitsY;
+		Result.StereoNDCSplitsX = View.StereoNDCSplitsX;
+		Result.StereoNDCSplitsY = View.StereoNDCSplitsY;
+		Result.LinearToVRProjectSplitsX = View.LinearToVRProjectSplitsX;
+		Result.LinearToVRProjectSplitsY = View.LinearToVRProjectSplitsY;
+		Result.LinearToVRProjectX0 = View.LinearToVRProjectX0;
+		Result.LinearToVRProjectX1 = View.LinearToVRProjectX1;
+		Result.LinearToVRProjectX2 = View.LinearToVRProjectX2;
+		Result.LinearToVRProjectY0 = View.LinearToVRProjectY0;
+		Result.LinearToVRProjectY1 = View.LinearToVRProjectY1;
+		Result.LinearToVRProjectY2 = View.LinearToVRProjectY2;
+		Result.VRProjectToLinearSplitsX = View.VRProjectToLinearSplitsX;
+		Result.VRProjectToLinearSplitsY = View.VRProjectToLinearSplitsY;
+		Result.VRProjectToLinearX0 = View.VRProjectToLinearX0;
+		Result.VRProjectToLinearX1 = View.VRProjectToLinearX1;
+		Result.VRProjectToLinearX2 = View.VRProjectToLinearX2;
+		Result.VRProjectToLinearY0 = View.VRProjectToLinearY0;
+		Result.VRProjectToLinearY1 = View.VRProjectToLinearY1;
+		Result.VRProjectToLinearY2 = View.VRProjectToLinearY2;
+
+		Result.BoundingRectOrigin = View.BoundingRectOrigin;
+		Result.BoundingRectSize = View.BoundingRectSize;
+		Result.BoundingRectSizeInv = View.BoundingRectSizeInv;
 	}
 	else
 	{
@@ -208,6 +300,33 @@ ViewDependentState ResolveView(uint ViewIndex)
 		Result.PrevInvViewProj = InstancedView.PrevInvViewProj;
 		Result.PrevScreenToTranslatedWorld = InstancedView.PrevScreenToTranslatedWorld;
 		Result.ClipToPrevClip = InstancedView.ClipToPrevClip;
+
+		Result.RenderTargetToViewRectUVScaleBias = InstancedView.RenderTargetToViewRectUVScaleBias;
+		Result.ViewRectToRenderTargetUVScaleBias = InstancedView.ViewRectToRenderTargetUVScaleBias;
+		Result.NDCSplitsX = InstancedView.NDCSplitsX;
+		Result.NDCSplitsY = InstancedView.NDCSplitsY;
+		Result.StereoNDCSplitsX = InstancedView.StereoNDCSplitsX;
+		Result.StereoNDCSplitsY = InstancedView.StereoNDCSplitsY;
+		Result.LinearToVRProjectSplitsX = InstancedView.LinearToVRProjectSplitsX;
+		Result.LinearToVRProjectSplitsY = InstancedView.LinearToVRProjectSplitsY;
+		Result.LinearToVRProjectX0 = InstancedView.LinearToVRProjectX0;
+		Result.LinearToVRProjectX1 = InstancedView.LinearToVRProjectX1;
+		Result.LinearToVRProjectX2 = InstancedView.LinearToVRProjectX2;
+		Result.LinearToVRProjectY0 = InstancedView.LinearToVRProjectY0;
+		Result.LinearToVRProjectY1 = InstancedView.LinearToVRProjectY1;
+		Result.LinearToVRProjectY2 = InstancedView.LinearToVRProjectY2;
+		Result.VRProjectToLinearSplitsX = InstancedView.VRProjectToLinearSplitsX;
+		Result.VRProjectToLinearSplitsY = InstancedView.VRProjectToLinearSplitsY;
+		Result.VRProjectToLinearX0 = InstancedView.VRProjectToLinearX0;
+		Result.VRProjectToLinearX1 = InstancedView.VRProjectToLinearX1;
+		Result.VRProjectToLinearX2 = InstancedView.VRProjectToLinearX2;
+		Result.VRProjectToLinearY0 = InstancedView.VRProjectToLinearY0;
+		Result.VRProjectToLinearY1 = InstancedView.VRProjectToLinearY1;
+		Result.VRProjectToLinearY2 = InstancedView.VRProjectToLinearY2;
+
+		Result.BoundingRectOrigin = InstancedView.BoundingRectOrigin;
+		Result.BoundingRectSize = InstancedView.BoundingRectSize;
+		Result.BoundingRectSizeInv = InstancedView.BoundingRectSizeInv;
 	}
 
 	return Result;

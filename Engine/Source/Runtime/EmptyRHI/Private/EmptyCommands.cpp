@@ -55,6 +55,21 @@ void FEmptyDynamicRHI::RHISetScissorRect(bool bEnable,uint32 MinX,uint32 MinY,ui
 
 }
 
+void FEmptyDynamicRHI::RHISetMultipleScissorRects(bool bEnable, uint32 Num, const FIntRect* Rects)
+{
+
+}
+
+void FEmptyDynamicRHI::RHISetModifiedWMode(const FLensMatchedShading::Configuration& Conf, const bool bWarpForward, const bool bEnable)
+{
+
+}
+
+void FEmptyDynamicRHI::RHISetModifiedWModeStereo(const FLensMatchedShading::StereoConfiguration& Conf, const bool bWarpForward, const bool bEnable)
+{
+
+}
+
 void FEmptyDynamicRHI::RHISetBoundShaderState( FBoundShaderStateRHIParamRef BoundShaderStateRHI)
 {
 	FEmptyBoundShaderState* BoundShaderState = ResourceCast(BoundShaderStateRHI);
@@ -418,5 +433,9 @@ void FEmptyDynamicRHI::RHIExecuteCommandList(FRHICommandList* CmdList)
 }
 
 void FEmptyDynamicRHI::RHIEnableDepthBoundsTest(bool bEnable, float MinDepth, float MaxDepth)
+{
+}
+
+void FEmptyDynamicRHI::RHISetSinglePassStereoParameters(bool bEnable, uint32 RenderTargetIndexOffset, uint8 IndependentViewportMaskEnable)
 {
 }

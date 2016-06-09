@@ -684,6 +684,11 @@ void FRCPassPostProcessDeferredDecals::Process(FRenderingCompositePassContext& C
 					TargetsToTransitionWritable[CurrentRenderTargetMode] = false;
 					Context.SetViewportAndCallRHI(DestRect);
 
+					if (View.bVRProjectEnabled)
+					{
+						View.BeginVRProjectionStates(RHICmdList);
+					}
+
 					// we need to reset the stream source after any call to SetRenderTarget (at least for Metal, which doesn't queue up VB assignments)
 					RHICmdList.SetStreamSource(0, GetUnitCubeVertexBuffer(), sizeof(FVector4), 0);
 				}
@@ -754,6 +759,13 @@ void FRCPassPostProcessDeferredDecals::Process(FRenderingCompositePassContext& C
 			if (bGufferADirty)
 			{
 				TargetsToResolve[GBufferAIndex] = SceneContext.GBufferA->GetRenderTargetItem().TargetableTexture;
+			}
+
+			if (View.bVRProjectEnabled)
+			{
+				// Reset viewport and scissor after rendering to vr projection view
+				Context.SetViewportAndCallRHI(DestRect);
+				View.EndVRProjectionStates(RHICmdList);
 			}
 
 			// we don't modify stencil but if out input was having stencil for us (after base pass - we need to clear)

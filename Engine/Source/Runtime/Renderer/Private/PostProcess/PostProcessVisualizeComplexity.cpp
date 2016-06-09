@@ -49,18 +49,14 @@ void FVisualizeComplexityApplyPS::SetParameters(
 
 	PostprocessParameter.SetPS(ShaderRHI, Context, TStaticSamplerState<SF_Bilinear, AM_Clamp, AM_Clamp, AM_Clamp>::GetRHI());
 
-	int32 NumColors = FMath::Min<int32>(Colors.Num(), MaxNumShaderComplexityColors);
-	if (NumColors > 0)
-	{	//pass the complexity -> color mapping into the pixel shader
-		for (int32 ColorIndex = 0; ColorIndex < NumColors; ColorIndex++)
-		{
-			SetShaderValue(Context.RHICmdList, ShaderRHI, ShaderComplexityColors, Colors[ColorIndex], ColorIndex);
-		}
-	}
-	else // Otherwise fallback to a safe value.
+	//Make sure there are at least NumShaderComplexityColors colors specified in the ini.
+	//If there are more than NumShaderComplexityColors they will be ignored.
+	check(Colors.Num() >= 1 && Colors.Num() <= MaxNumShaderComplexityColors);
+
+	//pass the complexity -> color mapping into the pixel shader
+	for(int32 ColorIndex = 0; ColorIndex < Colors.Num(); ColorIndex ++)
 	{
-		NumColors = 1;
-		SetShaderValue(Context.RHICmdList, ShaderRHI, ShaderComplexityColors, FLinearColor::Gray, 0);
+		SetShaderValue(Context.RHICmdList, ShaderRHI, ShaderComplexityColors, Colors[ColorIndex], ColorIndex);
 	}
 
 	SetTextureParameter(Context.RHICmdList, ShaderRHI, MiniFontTexture, GEngine->MiniFontTexture ? GEngine->MiniFontTexture->Resource->TextureRHI : GSystemTextures.WhiteDummy->GetRenderTargetItem().TargetableTexture);
@@ -84,7 +80,7 @@ void FVisualizeComplexityApplyPS::SetParameters(
 	}
 
 	SetShaderValue(Context.RHICmdList, ShaderRHI, ShaderComplexityParams, FVector4(bLegend, QuadOverdrawMode, ColorSampling, ComplexityScale));
-	SetShaderValue(Context.RHICmdList, ShaderRHI, NumComplexityColors, NumColors);
+	SetShaderValue(Context.RHICmdList, ShaderRHI, NumComplexityColors, Colors.Num());
 }
 
 IMPLEMENT_SHADER_TYPE(,FVisualizeComplexityApplyPS,TEXT("ShaderComplexityApplyPixelShader"),TEXT("Main"),SF_Pixel);

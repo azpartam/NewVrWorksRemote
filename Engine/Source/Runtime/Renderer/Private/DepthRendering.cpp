@@ -23,6 +23,7 @@ protected:
 		InstancedEyeIndexParameter.Bind(Initializer.ParameterMap, TEXT("InstancedEyeIndex"));
 		IsInstancedStereoParameter.Bind(Initializer.ParameterMap, TEXT("bIsInstancedStereo"));
 		NeedsInstancedStereoBiasParameter.Bind(Initializer.ParameterMap, TEXT("bNeedsInstancedStereoBias"));
+		IsSinglePassStereoParameter.Bind(Initializer.ParameterMap, TEXT("bIsSinglePassStereo"));
 	}
 
 private:
@@ -30,6 +31,7 @@ private:
 	FShaderParameter InstancedEyeIndexParameter;
 	FShaderParameter IsInstancedStereoParameter;
 	FShaderParameter NeedsInstancedStereoBiasParameter;
+	FShaderParameter IsSinglePassStereoParameter;
 
 public:
 
@@ -51,6 +53,7 @@ public:
 		Ar << InstancedEyeIndexParameter;
 		Ar << IsInstancedStereoParameter;
 		Ar << NeedsInstancedStereoBiasParameter;
+		Ar << IsSinglePassStereoParameter;
 		return result;
 	}
 
@@ -60,7 +63,8 @@ public:
 		const FMaterial& MaterialResource, 
 		const FSceneView& View, 
 		const bool bIsInstancedStereo, 
-		const bool bNeedsInstancedStereoBias
+		const bool bNeedsInstancedStereoBias,
+		const bool bIsSinglePassStereo
 		)
 	{
 		FMeshMaterialShader::SetParameters(RHICmdList, GetVertexShader(),MaterialRenderProxy,MaterialResource,View,ESceneRenderTargetsMode::DontSet);
@@ -73,6 +77,11 @@ public:
 		if (NeedsInstancedStereoBiasParameter.IsBound())
 		{
 			SetShaderValue(RHICmdList, GetVertexShader(), NeedsInstancedStereoBiasParameter, bNeedsInstancedStereoBias);
+		}
+
+		if (IsSinglePassStereoParameter.IsBound())
+		{
+			SetShaderValue(RHICmdList, GetVertexShader(), IsSinglePassStereoParameter, bIsSinglePassStereo);
 		}
 	}
 
@@ -87,6 +96,38 @@ public:
 			SetShaderValue(RHICmdList, GetVertexShader(), InstancedEyeIndexParameter, EyeIndex);
 		}
 	}
+};
+
+// Fast geometry shader for multi-res depth rendering
+template <bool bUsePositionOnlyStream>
+class TDepthOnlyFastGS : public FMeshMaterialShader
+{
+	DECLARE_SHADER_TYPE(TDepthOnlyFastGS, MeshMaterial);
+protected:
+
+	TDepthOnlyFastGS() {}
+	TDepthOnlyFastGS(const FMeshMaterialShaderType::CompiledShaderInitializerType& Initializer) :
+		FMeshMaterialShader(Initializer)
+	{}
+
+public:
+
+	static bool ShouldCache(EShaderPlatform Platform, const FMaterial* Material, const FVertexFactoryType* VertexFactoryType)
+	{
+		return IsFeatureLevelSupported(Platform, ERHIFeatureLevel::SM5) && TDepthOnlyVS<bUsePositionOnlyStream>::ShouldCache(Platform, Material, VertexFactoryType);
+	}
+
+	void SetParameters(FRHICommandList& RHICmdList, const FMaterialRenderProxy* MaterialRenderProxy, const FMaterial& MaterialResource, const FSceneView& View)
+	{
+		FMeshMaterialShader::SetParameters(RHICmdList, (FGeometryShaderRHIParamRef)GetGeometryShader(), MaterialRenderProxy, MaterialResource, View, ESceneRenderTargetsMode::DontSet);
+	}
+
+	void SetMesh(FRHICommandList& RHICmdList, const FVertexFactory* VertexFactory, const FSceneView& View, const FPrimitiveSceneProxy* Proxy, const FMeshBatchElement& BatchElement, const FMeshDrawingRenderState& DrawRenderState)
+	{
+		FMeshMaterialShader::SetMesh(RHICmdList, (FGeometryShaderRHIParamRef)GetGeometryShader(), VertexFactory, View, Proxy, BatchElement, DrawRenderState);
+	}
+
+	static const bool IsFastGeometryShader = true;
 };
 
 /**
@@ -135,6 +176,9 @@ IMPLEMENT_MATERIAL_SHADER_TYPE(template<>,TDepthOnlyVS<true>,TEXT("PositionOnlyD
 IMPLEMENT_MATERIAL_SHADER_TYPE(template<>,TDepthOnlyVS<false>,TEXT("DepthOnlyVertexShader"),TEXT("Main"),SF_Vertex);
 IMPLEMENT_MATERIAL_SHADER_TYPE(,FDepthOnlyHS,TEXT("DepthOnlyVertexShader"),TEXT("MainHull"),SF_Hull);	
 IMPLEMENT_MATERIAL_SHADER_TYPE(,FDepthOnlyDS,TEXT("DepthOnlyVertexShader"),TEXT("MainDomain"),SF_Domain);
+IMPLEMENT_MATERIAL_SHADER_TYPE(template<>, TDepthOnlyFastGS<true>, TEXT("PositionOnlyDepthVertexShader"), TEXT("VRProjectFastGS"), SF_Geometry);
+IMPLEMENT_MATERIAL_SHADER_TYPE(template<>, TDepthOnlyFastGS<false>, TEXT("DepthOnlyVertexShader"), TEXT("VRProjectFastGS"), SF_Geometry);
+
 
 /**
 * A pixel shader for rendering the depth of a mesh.
@@ -240,6 +284,9 @@ FDepthDrawingPolicy::FDepthDrawingPolicy(
 			}
 		}
 	}
+
+	// EHartNV ToDo : Need to support shader pipelines?
+	FastGeometryShader = InMaterialResource.GetShader<TDepthOnlyFastGS<false> >(InVertexFactory->GetType());
 }
 
 void FDepthDrawingPolicy::SetInstancedEyeIndex(FRHICommandList& RHICmdList, const uint32 EyeIndex) const {
@@ -249,7 +296,8 @@ void FDepthDrawingPolicy::SetInstancedEyeIndex(FRHICommandList& RHICmdList, cons
 void FDepthDrawingPolicy::SetSharedState(FRHICommandList& RHICmdList, const FSceneView* View, const ContextDataType PolicyContext) const
 {
 	// Set the depth-only shader parameters for the material.
-	VertexShader->SetParameters(RHICmdList, MaterialRenderProxy, *MaterialResource, *View, PolicyContext.bIsInstancedStereo, PolicyContext.bNeedsInstancedStereoBias);
+	VertexShader->SetParameters(RHICmdList, MaterialRenderProxy, *MaterialResource, *View, PolicyContext.bIsInstancedStereo, PolicyContext.bNeedsInstancedStereoBias, PolicyContext.bIsSinglePassStereo);
+
 	if(HullShader && DomainShader)
 	{
 		HullShader->SetParameters(RHICmdList, MaterialRenderProxy,*View);
@@ -259,6 +307,11 @@ void FDepthDrawingPolicy::SetSharedState(FRHICommandList& RHICmdList, const FSce
 	if (bNeedsPixelShader)
 	{
 		PixelShader->SetParameters(RHICmdList, MaterialRenderProxy,*MaterialResource,View);
+	}
+
+	if (View->bVRProjectEnabled || PolicyContext.bIsSinglePassStereo)
+	{
+		FastGeometryShader->SetParameters(RHICmdList, MaterialRenderProxy, *MaterialResource, *View);
 	}
 
 	// Set the shared mesh resources.
@@ -298,7 +351,7 @@ FORCEINLINE bool SetDitheredLODDepthStencilState(FRHICommandList& RHICmdList, co
 * as well as the shaders needed to draw the mesh
 * @return new bound shader state object
 */
-FBoundShaderStateInput FDepthDrawingPolicy::GetBoundShaderStateInput(ERHIFeatureLevel::Type InFeatureLevel)
+FBoundShaderStateInput FDepthDrawingPolicy::GetBoundShaderStateInput(ERHIFeatureLevel::Type InFeatureLevel, bool bMultiRes /* = false */)
 {
 	return FBoundShaderStateInput(
 		FMeshDrawingPolicy::GetVertexDeclaration(), 
@@ -306,7 +359,12 @@ FBoundShaderStateInput FDepthDrawingPolicy::GetBoundShaderStateInput(ERHIFeature
 		GETSAFERHISHADER_HULL(HullShader), 
 		GETSAFERHISHADER_DOMAIN(DomainShader),
 		bNeedsPixelShader ? PixelShader->GetPixelShader() : NULL,
-		NULL);
+		(bMultiRes ? GetMultiResFastGS() : FGeometryShaderRHIRef()));
+}
+
+FGeometryShaderRHIRef FDepthDrawingPolicy::GetMultiResFastGS()
+{
+	return GETSAFERHISHADER_GEOMETRY(FastGeometryShader);
 }
 
 void FDepthDrawingPolicy::SetMeshRenderState(
@@ -333,6 +391,12 @@ void FDepthDrawingPolicy::SetMeshRenderState(
 	{
 		PixelShader->SetMesh(RHICmdList, VertexFactory,View,PrimitiveSceneProxy,BatchElement,DrawRenderState);
 	}
+
+	if (View.bVRProjectEnabled)
+	{
+		FastGeometryShader->SetMesh(RHICmdList, VertexFactory, View, PrimitiveSceneProxy, BatchElement, DrawRenderState);
+	}
+
 	FMeshDrawingPolicy::SetMeshRenderState(RHICmdList, View,PrimitiveSceneProxy,Mesh,BatchElementIndex,bBackFace,DrawRenderState,ElementData,PolicyContext);
 	
 	SetDitheredLODDepthStencilState(RHICmdList, DrawRenderState);
@@ -342,6 +406,7 @@ int32 CompareDrawingPolicy(const FDepthDrawingPolicy& A,const FDepthDrawingPolic
 {
 	COMPAREDRAWINGPOLICYMEMBERS(VertexShader);
 	COMPAREDRAWINGPOLICYMEMBERS(HullShader);
+	COMPAREDRAWINGPOLICYMEMBERS(FastGeometryShader);
 	COMPAREDRAWINGPOLICYMEMBERS(DomainShader);
 	COMPAREDRAWINGPOLICYMEMBERS(bNeedsPixelShader);
 	COMPAREDRAWINGPOLICYMEMBERS(PixelShader);
@@ -365,15 +430,22 @@ FPositionOnlyDepthDrawingPolicy::FPositionOnlyDepthDrawingPolicy(
 		? ShaderPipeline->GetShader<TDepthOnlyVS<true> >()
 		: InMaterialResource.GetShader<TDepthOnlyVS<true> >(InVertexFactory->GetType());
 	bUsePositionOnlyVS = true;
+
+	FastGeometryShader = InMaterialResource.GetShader<TDepthOnlyFastGS<true> >(InVertexFactory->GetType());
 }
 
 void FPositionOnlyDepthDrawingPolicy::SetSharedState(FRHICommandList& RHICmdList, const FSceneView* View, const ContextDataType PolicyContext) const
 {
 	// Set the depth-only shader parameters for the material.
-	VertexShader->SetParameters(RHICmdList, MaterialRenderProxy, *MaterialResource, *View, PolicyContext.bIsInstancedStereo, PolicyContext.bNeedsInstancedStereoBias);
+	VertexShader->SetParameters(RHICmdList, MaterialRenderProxy, *MaterialResource, *View, PolicyContext.bIsInstancedStereo, PolicyContext.bNeedsInstancedStereoBias, PolicyContext.bIsSinglePassStereo);
 
 	// Set the shared mesh resources.
 	VertexFactory->SetPositionStream(RHICmdList);
+
+	if (View->bVRProjectEnabled || PolicyContext.bIsSinglePassStereo)
+	{
+		FastGeometryShader->SetParameters(RHICmdList, MaterialRenderProxy, *MaterialResource, *View);
+	}
 }
 
 /** 
@@ -381,13 +453,18 @@ void FPositionOnlyDepthDrawingPolicy::SetSharedState(FRHICommandList& RHICmdList
 * as well as the shaders needed to draw the mesh
 * @return new bound shader state object
 */
-FBoundShaderStateInput FPositionOnlyDepthDrawingPolicy::GetBoundShaderStateInput(ERHIFeatureLevel::Type InFeatureLevel)
+FBoundShaderStateInput FPositionOnlyDepthDrawingPolicy::GetBoundShaderStateInput(ERHIFeatureLevel::Type InFeatureLevel, bool bMultiRes /* = false */)
 {
 	FVertexDeclarationRHIParamRef VertexDeclaration;
 	VertexDeclaration = VertexFactory->GetPositionDeclaration();
 
 	checkSlow(MaterialRenderProxy->GetMaterial(InFeatureLevel)->GetBlendMode() == BLEND_Opaque);
-	return FBoundShaderStateInput(VertexDeclaration, VertexShader->GetVertexShader(), FHullShaderRHIRef(), FDomainShaderRHIRef(), FPixelShaderRHIRef(), FGeometryShaderRHIRef());
+	return FBoundShaderStateInput(VertexDeclaration, VertexShader->GetVertexShader(), FHullShaderRHIRef(), FDomainShaderRHIRef(), FPixelShaderRHIRef(), (bMultiRes ? GetMultiResFastGS() : FGeometryShaderRHIRef()));
+}
+
+FGeometryShaderRHIRef FPositionOnlyDepthDrawingPolicy::GetMultiResFastGS()
+{
+	return GETSAFERHISHADER_GEOMETRY(FastGeometryShader);
 }
 
 void FPositionOnlyDepthDrawingPolicy::SetMeshRenderState(
@@ -403,7 +480,13 @@ void FPositionOnlyDepthDrawingPolicy::SetMeshRenderState(
 	) const
 {
 	VertexShader->SetMesh(RHICmdList, VertexFactory,View,PrimitiveSceneProxy,Mesh.Elements[BatchElementIndex],DrawRenderState);
-	FMeshDrawingPolicy::SetMeshRenderState(RHICmdList, View,PrimitiveSceneProxy,Mesh,BatchElementIndex,bBackFace,DrawRenderState,ElementData,PolicyContext);
+
+	if (View.bVRProjectEnabled)
+	{
+		FastGeometryShader->SetMesh(RHICmdList, VertexFactory, View, PrimitiveSceneProxy, Mesh.Elements[BatchElementIndex], DrawRenderState);
+	}
+
+	FMeshDrawingPolicy::SetMeshRenderState(RHICmdList, View, PrimitiveSceneProxy, Mesh, BatchElementIndex, bBackFace, DrawRenderState, ElementData, PolicyContext);
 	
 	SetDitheredLODDepthStencilState(RHICmdList, DrawRenderState);
 }
@@ -415,6 +498,7 @@ void FPositionOnlyDepthDrawingPolicy::SetInstancedEyeIndex(FRHICommandList& RHIC
 int32 CompareDrawingPolicy(const FPositionOnlyDepthDrawingPolicy& A,const FPositionOnlyDepthDrawingPolicy& B)
 {
 	COMPAREDRAWINGPOLICYMEMBERS(VertexShader);
+	COMPAREDRAWINGPOLICYMEMBERS(FastGeometryShader);
 	COMPAREDRAWINGPOLICYMEMBERS(VertexFactory);
 	COMPAREDRAWINGPOLICYMEMBERS(MaterialRenderProxy);
 	COMPAREDRAWINGPOLICYMEMBERS(bIsTwoSidedMaterial);
@@ -501,7 +585,8 @@ bool FDepthDrawingPolicyFactory::DrawMesh(
 	const FPrimitiveSceneProxy* PrimitiveSceneProxy,
 	FHitProxyId HitProxyId, 
 	const bool bIsInstancedStereo, 
-	const bool bNeedsInstancedStereoBias
+	const bool bNeedsInstancedStereoBias,
+	const bool bIsSinglePassStereo
 	)
 {
 	bool bDirty = false;
@@ -527,8 +612,8 @@ bool FDepthDrawingPolicyFactory::DrawMesh(
 			//render opaque primitives that support a separate position-only vertex buffer
 			const FMaterialRenderProxy* DefaultProxy = UMaterial::GetDefaultMaterial(MD_Surface)->GetRenderProxy(false);
 			FPositionOnlyDepthDrawingPolicy DrawingPolicy(Mesh.VertexFactory, DefaultProxy, *DefaultProxy->GetMaterial(View.GetFeatureLevel()), Material->IsTwoSided(), Material->IsWireframe());
-			RHICmdList.BuildAndSetLocalBoundShaderState(DrawingPolicy.GetBoundShaderStateInput(View.GetFeatureLevel()));
-			DrawingPolicy.SetSharedState(RHICmdList, &View, FDepthDrawingPolicy::ContextDataType(bIsInstancedStereo, bNeedsInstancedStereoBias));
+			RHICmdList.BuildAndSetLocalBoundShaderState(DrawingPolicy.GetBoundShaderStateInput(View.GetFeatureLevel(), View.bVRProjectEnabled || bIsSinglePassStereo));
+			DrawingPolicy.SetSharedState(RHICmdList, &View, FDepthDrawingPolicy::ContextDataType(bIsInstancedStereo, bNeedsInstancedStereoBias, bIsSinglePassStereo));
 
 			int32 BatchElementIndex = 0;
 			uint64 Mask = BatchElementMask;
@@ -576,8 +661,8 @@ bool FDepthDrawingPolicyFactory::DrawMesh(
 				}
 
 				FDepthDrawingPolicy DrawingPolicy(Mesh.VertexFactory, MaterialRenderProxy, *MaterialRenderProxy->GetMaterial(View.GetFeatureLevel()), Material->IsTwoSided(), View.GetFeatureLevel());
-				RHICmdList.BuildAndSetLocalBoundShaderState(DrawingPolicy.GetBoundShaderStateInput(View.GetFeatureLevel()));
-				DrawingPolicy.SetSharedState(RHICmdList, &View, FDepthDrawingPolicy::ContextDataType(bIsInstancedStereo, bNeedsInstancedStereoBias));
+				RHICmdList.BuildAndSetLocalBoundShaderState(DrawingPolicy.GetBoundShaderStateInput(View.GetFeatureLevel(), View.bVRProjectEnabled || bIsSinglePassStereo));
+				DrawingPolicy.SetSharedState(RHICmdList, &View, FDepthDrawingPolicy::ContextDataType(bIsInstancedStereo, bNeedsInstancedStereoBias, bIsSinglePassStereo));
 
 				int32 BatchElementIndex = 0;
 				uint64 Mask = BatchElementMask;
@@ -613,7 +698,8 @@ bool FDepthDrawingPolicyFactory::DrawDynamicMesh(
 	const FPrimitiveSceneProxy* PrimitiveSceneProxy,
 	FHitProxyId HitProxyId, 
 	const bool bIsInstancedStereo, 
-	const bool bNeedsInstancedStereoBias
+	const bool bNeedsInstancedStereoBias,
+	const bool bIsSinglePassStereo
 	)
 {
 	return DrawMesh(
@@ -628,7 +714,9 @@ bool FDepthDrawingPolicyFactory::DrawDynamicMesh(
 		PrimitiveSceneProxy,
 		HitProxyId, 
 		bIsInstancedStereo, 
-		bNeedsInstancedStereoBias);
+		bNeedsInstancedStereoBias,
+		bIsSinglePassStereo
+		);
 }
 
 
@@ -661,7 +749,8 @@ bool FDepthDrawingPolicyFactory::DrawStaticMesh(
 		PrimitiveSceneProxy,
 		HitProxyId, 
 		false, 
-		bNeedsInstancedStereoBias
+		bNeedsInstancedStereoBias,
+		false
 		);
 
 	return bDirty;

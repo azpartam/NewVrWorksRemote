@@ -8,7 +8,7 @@
 #include "Material.usf"
 #include "VertexFactory.usf"
 
-#if INSTANCED_STEREO
+#if INSTANCED_STEREO || SINGLE_PASS_STEREO
 bool bNeedsInstancedStereoBias;
 #endif
 
@@ -16,12 +16,15 @@ bool bNeedsInstancedStereoBias;
 
 struct FDepthOnlyVSToPS
 {
-	#if !MATERIALBLENDING_SOLID || OUTPUT_PIXEL_DEPTH_OFFSET
+	#if !MATERIALBLENDING_SOLID || OUTPUT_PIXEL_DEPTH_OFFSET || ((MULTIRES || LENS_MATCHED) && INSTANCED_STEREO)
 		FVertexFactoryInterpolantsVSToPS FactoryInterpolants;
 		float4 PixelPosition : TEXCOORD6;
 	#endif
 
 	float4 Position : SV_POSITION;
+#if SINGLE_PASS_STEREO
+	float4 NvXRight : NV_X_RIGHT;
+#endif
 };
 
 #if USING_TESSELLATION	
@@ -29,6 +32,9 @@ struct FDepthOnlyVSToPS
 	{
 		FVertexFactoryInterpolantsVSToDS FactoryInterpolants;
 		float4 Position : VS_To_DS_Position;
+		#if SINGLE_PASS_STEREO
+		float4 vIsSinglePassStereo : VS_To_DS_SinglePassStereo;
+		#endif
 		OPTIONAL_VertexID_VS_To_DS
 	};
 	
@@ -49,6 +55,10 @@ struct FDepthOnlyVSToPS
 		
 		O.FactoryInterpolants = VertexFactoryInterpolate(a.FactoryInterpolants, aInterp, b.FactoryInterpolants, bInterp);
 
+		#if SINGLE_PASS_STEREO
+		O.vIsSinglePassStereo = a.vIsSinglePassStereo;
+		#endif
+
 		return O;
 	}
 
@@ -64,6 +74,24 @@ struct FDepthOnlyVSToPS
 		ISOLATE
 		{
 			O.Position = mul(WorldPosition, ResolvedView.TranslatedWorldToClip);
+
+			#if SINGLE_PASS_STEREO
+			BRANCH
+			if (Interpolants.vIsSinglePassStereo.x > 0)
+			{
+				float4 WorldPositionRight = WorldPosition;
+				WorldPositionRight.xyz -= ResolvedView.PreViewTranslation.xyz;
+				WorldPositionRight.xyz += ResolvedViewRight.PreViewTranslation.xyz;
+				O.NvXRight = mul(WorldPositionRight, ResolvedViewRight.TranslatedWorldToClip).x;
+			}
+			else
+			{
+				O.NvXRight = 0;
+			}
+
+			// Bias the depth
+			O.Position.z += O.Position.w * Interpolants.vIsSinglePassStereo.y;
+			#endif
 		}
 			
 		#if !MATERIALBLENDING_SOLID || OUTPUT_PIXEL_DEPTH_OFFSET
@@ -97,6 +125,10 @@ void Main(
 	ResolvedView = ResolveView();
 #endif
 
+#if SINGLE_PASS_STEREO
+	ResolvedViewRight = ResolveView(1);
+#endif
+
 	FVertexFactoryIntermediates VFIntermediates = GetVertexFactoryIntermediates(Input);
 	float4 WorldPos = VertexFactoryGetWorldPosition(Input, VFIntermediates);
 
@@ -114,15 +146,38 @@ void Main(
 #if USING_TESSELLATION
 	// Transformation is done in Domain shader when tessellating
 	Output.Position = WorldPos; 
+	#if SINGLE_PASS_STEREO
+	Output.vIsSinglePassStereo.x = bIsSinglePassStereo ? 1 : 0;
+	Output.vIsSinglePassStereo.y = InstancedStereoDepthBias * (float)bNeedsInstancedStereoBias;
+	#endif
 #else
 	ISOLATE
 	{
 		float4 RasterizedWorldPosition = VertexFactoryGetRasterizedWorldPosition(Input, VFIntermediates, WorldPos);
 		Output.Position = mul(RasterizedWorldPosition, ResolvedView.TranslatedWorldToClip);
+	
+		#if SINGLE_PASS_STEREO
+		BRANCH
+		if (bIsSinglePassStereo)
+		{
+			float4 WorldPositionRight = WorldPos;
+			WorldPositionRight.xyz -= ResolvedView.PreViewTranslation.xyz;
+			WorldPositionRight.xyz += ResolvedViewRight.PreViewTranslation.xyz;
+			RasterizedWorldPosition = VertexFactoryGetRasterizedWorldPosition(Input, VFIntermediates, WorldPositionRight);
+			Output.NvXRight = mul(RasterizedWorldPosition, ResolvedViewRight.TranslatedWorldToClip).x;
+		}
+		else
+		{
+			Output.NvXRight = 0;
+		}
+
+		// Bias the depth
+		Output.Position.z += InstancedStereoDepthBias * Output.Position.w * (float)bNeedsInstancedStereoBias;
+		#endif
 
 		#if INSTANCED_STEREO
-		BRANCH 
-		if (bIsInstancedStereo)  
+		BRANCH
+		if (bIsInstancedStereo && !LensMatchedShadingIsActive())
 		{
 			// Clip at the center of the screen
 			OutCullDistance.x = OutClipDistance.x = dot(Output.Position, EyeClipEdge[EyeIndex]);
@@ -136,17 +191,11 @@ void Main(
 		
 		// Bias the depth
 		Output.Position.z += InstancedStereoDepthBias * Output.Position.w * (float)bNeedsInstancedStereoBias;
-		#elif IOSMETALZBIASWORKAROUND
-			// Z bias is needed here for ios metal (UE-26765)
-			// with metal compiler we cannot guarantee the order of operations across different shaders.
-			// Access to a fused multiply add intrinsic would solve this. In the meantime we add a small bias.
-			// This can be done here as the forward renderer's only use of the depth only shader is for modulated shadows.
-			Output.Position.z += 0.0001 * Output.Position.w;
 		#endif
 	}
 #endif
 
-#if !MATERIALBLENDING_SOLID || USING_TESSELLATION || OUTPUT_PIXEL_DEPTH_OFFSET
+#if !MATERIALBLENDING_SOLID || USING_TESSELLATION || OUTPUT_PIXEL_DEPTH_OFFSET || ((MULTIRES || LENS_MATCHED) && INSTANCED_STEREO)
 	// Masked and transparent materials need texture coords to clip, and tessellated
 	// materials need texture coords to displace
 	Output.FactoryInterpolants = VertexFactoryGetInterpolants(Input, VFIntermediates, VertexParameters);
@@ -172,3 +221,11 @@ void Main(
 }
 
 #endif // VERTEXSHADER
+
+#if SINGLE_PASS_STEREO
+VRPROJECT_CREATE_FASTGS_SPS(VRProjectFastGS, FDepthOnlyVSToPS, Position, NvXRight)
+#elif INSTANCED_STEREO
+VRPROJECT_CREATE_FASTGS_INSTANCED_STEREO(VRProjectFastGS, FDepthOnlyVSToPS, Position, FactoryInterpolants.PackedEyeIndex)
+#else
+VRPROJECT_CREATE_FASTGS(VRProjectFastGS, FDepthOnlyVSToPS, Position)
+#endif

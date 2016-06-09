@@ -61,6 +61,7 @@ int32 FOcclusionQueryHelpers::GetNumBufferedFrames()
 
 // default, non-instanced shader implementation
 IMPLEMENT_SHADER_TYPE(,FOcclusionQueryVS,TEXT("OcclusionQueryVertexShader"),TEXT("Main"),SF_Vertex);
+IMPLEMENT_SHADER_TYPE(,FOcclusionQueryMultiResGS, TEXT("OcclusionQueryVertexShader"), TEXT("VRProjectFastGS"), SF_Geometry);
 
 FRenderQueryPool::~FRenderQueryPool()
 {
@@ -101,6 +102,7 @@ void FRenderQueryPool::ReleaseQuery(FRenderQueryRHIRef &Query)
 }
 
 FGlobalBoundShaderState FDeferredShadingSceneRenderer::OcclusionTestBoundShaderState;
+FGlobalBoundShaderState FDeferredShadingSceneRenderer::OcclusionTestMultiResBoundShaderState;
 
 /** 
  * Returns an array of visibility data for the given view position, or NULL if none exists. 
@@ -1107,6 +1109,8 @@ void FDeferredShadingSceneRenderer::BeginOcclusionTests(FRHICommandListImmediate
 
 			if (bUseDownsampledDepth)
 			{
+				// EHartNVV : ToDo
+				//   How do we make downsampled depth compatible with MultiRes, is it necessary?
 				const uint32 DownsampledX = FMath::TruncToInt(View.ViewRect.Min.X / SceneContext.GetSmallColorDepthDownsampleFactor());
 				const uint32 DownsampledY = FMath::TruncToInt(View.ViewRect.Min.Y / SceneContext.GetSmallColorDepthDownsampleFactor());
 				const uint32 DownsampledSizeX = FMath::TruncToInt(View.ViewRect.Width() / SceneContext.GetSmallColorDepthDownsampleFactor());
@@ -1117,7 +1121,14 @@ void FDeferredShadingSceneRenderer::BeginOcclusionTests(FRHICommandListImmediate
 			}
 			else
 			{
-				RHICmdList.SetViewport(View.ViewRect.Min.X, View.ViewRect.Min.Y, 0.0f, View.ViewRect.Max.X, View.ViewRect.Max.Y, 1.0f);
+				if (View.bVRProjectEnabled)
+				{
+					View.BeginVRProjectionStates(RHICmdList);
+				}
+				else
+				{
+					RHICmdList.SetViewport(View.ViewRect.Min.X, View.ViewRect.Min.Y, 0.0f, View.ViewRect.Max.X, View.ViewRect.Max.Y, 1.0f);
+				}
 			}
 
 			FSceneViewState* ViewState = (FSceneViewState*)View.State;
@@ -1132,7 +1143,19 @@ void FDeferredShadingSceneRenderer::BeginOcclusionTests(FRHICommandListImmediate
 
 				// Lookup the vertex shader.
 				TShaderMapRef<FOcclusionQueryVS> VertexShader(View.ShaderMap);
-				SetGlobalBoundShaderState(RHICmdList, View.GetFeatureLevel(), OcclusionTestBoundShaderState, GetVertexDeclarationFVector3(), *VertexShader, NULL);
+
+				// EHartNV : ToDo - May need to refactor this for the case of running on platforms with no multires support
+				TShaderMapRef<FOcclusionQueryMultiResGS> GeometryShader(View.ShaderMap);
+
+				if (View.bVRProjectEnabled)
+				{
+					SetGlobalBoundShaderState(RHICmdList, View.GetFeatureLevel(), OcclusionTestMultiResBoundShaderState, GetVertexDeclarationFVector3(), *VertexShader, NULL, *GeometryShader);
+					GeometryShader->SetParameters(RHICmdList, View);
+				}
+				else
+				{
+					SetGlobalBoundShaderState(RHICmdList, View.GetFeatureLevel(), OcclusionTestBoundShaderState, GetVertexDeclarationFVector3(), *VertexShader, NULL);
+				}
 				VertexShader->SetParameters(RHICmdList, View);
 
 				// Issue this frame's occlusion queries (occlusion queries from last frame may still be in flight)
@@ -1216,6 +1239,11 @@ void FDeferredShadingSceneRenderer::BeginOcclusionTests(FRHICommandListImmediate
 				{
 					VertexShader->SetParameters(RHICmdList, View);
 
+					if (View.bVRProjectEnabled)
+					{
+						GeometryShader->SetParameters(RHICmdList, View);
+					}
+
 					{
 						SCOPED_DRAW_EVENT(RHICmdList, IndividualQueries);
 						View.IndividualOcclusionQueries.Flush(RHICmdList);
@@ -1225,6 +1253,12 @@ void FDeferredShadingSceneRenderer::BeginOcclusionTests(FRHICommandListImmediate
 						View.GroupedOcclusionQueries.Flush(RHICmdList);
 					}
 				}
+			}
+
+			// Reset scissor after rendering to multi-res view
+			if (!bUseDownsampledDepth && View.bVRProjectEnabled)
+			{
+				View.EndVRProjectionStates(RHICmdList);
 			}
 		}
 

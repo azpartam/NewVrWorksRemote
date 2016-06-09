@@ -92,6 +92,8 @@
 
 #include "Definitions.usf"
 
+#include "VRProjection.usf"
+
 #define FEATURE_LEVEL_ES2	1
 #define FEATURE_LEVEL_ES3_1	2
 #define FEATURE_LEVEL_SM3	3
@@ -955,14 +957,25 @@ float ConvertToDeviceZ(float SceneDepth)
 }
 
 /** Returns clip space W, which is world space distance along the View Z axis. Note if you need DeviceZ LookupDeviceZ() is the faster option */
-float CalcSceneDepth( float2 ScreenUV )
+float CalcSceneDepth(float2 ScreenUV)
 {
 #if SCENE_TEXTURES_DISABLED
 	return 0.0f;
 #else
 
 #if FEATURE_LEVEL > FEATURE_LEVEL_ES3_1
-	return ConvertFromDeviceZ(Texture2DSampleLevel(SceneDepthTexture, SceneDepthTextureSampler, ScreenUV, 0).r);
+	if (LensMatchedShadingIsActive())
+	{
+		float3 wPos;
+		wPos.z = (Texture2DSampleLevel(SceneDepthTexture, SceneDepthTextureSampler, ScreenUV, 0).r);
+		wPos.xy = Frame.BufferSizeAndInvSize.xy * ScreenUV;
+		float4 corrected = ModifiedWMapWindowToClip(GetModifiedWConfigurationView(), wPos);
+		return ConvertFromDeviceZ(corrected.z);
+	}
+	else
+	{
+		return ConvertFromDeviceZ(Texture2DSampleLevel(SceneDepthTexture, SceneDepthTextureSampler, ScreenUV, 0).r);
+	}
 #else
 	#if COMPILER_GLSL_ES2
 		#if IOS
@@ -984,11 +997,22 @@ float CalcSceneDepth( float2 ScreenUV )
 }
 
 /** Returns DeviceZ which is the z value storesd in the depth buffer. Perfer this over CalcSceneDepth() on most hardware. */
-float LookupDeviceZ( float2 ScreenUV )
+float LookupDeviceZ(float2 ScreenUV)
 {
 #if FEATURE_LEVEL > FEATURE_LEVEL_ES3_1
-	// native Depth buffer lookup
-	return Texture2DSampleLevel(SceneDepthTexture, SceneDepthTextureSampler, ScreenUV, 0).r;
+	if (LensMatchedShadingIsActive())
+	{
+		float3 wPos;
+		wPos.z = (Texture2DSampleLevel(SceneDepthTexture, SceneDepthTextureSampler, ScreenUV, 0).r);
+		wPos.xy = Frame.BufferSizeAndInvSize.xy * ScreenUV;
+		float4 corrected = ModifiedWMapWindowToClip(GetModifiedWConfigurationView(), wPos);
+		return corrected.z;
+	}
+	else
+	{
+		// native Depth buffer lookup
+		return Texture2DSampleLevel(SceneDepthTexture, SceneDepthTextureSampler, ScreenUV, 0).r;
+	}
 #else
 	#if COMPILER_GLSL_ES2
 		// todo: can be optimized
@@ -1016,8 +1040,19 @@ float LookupDeviceZ( float2 ScreenUV )
 #else
 		float DeviceZ = SceneDepthTextureNonMS.Load(int3(PixelPos, 0));
 
-		// Fetch the depth buffer Z / W value, solve for W
-		return ConvertFromDeviceZ(DeviceZ);
+		if (LensMatchedShadingIsActive())
+		{
+			float3 wPos;
+			wPos.z = DeviceZ;
+			wPos.xy = float2(PixelPos.x, PixelPos.y);
+			float4 corrected = ModifiedWMapWindowToClip(GetModifiedWConfigurationView(), wPos);
+			return ConvertFromDeviceZ(corrected.z);
+		}
+		else
+		{
+			// Fetch the depth buffer Z / W value, solve for W
+			return ConvertFromDeviceZ(DeviceZ);
+		}
 #endif
 	}
 #endif
@@ -1057,12 +1092,25 @@ float2 ScreenPositionToBufferUV(float4 ScreenPosition)
 
 float2 SvPositionToBufferUV(float4 SvPosition)
 {
-	return SvPosition.xy * Frame.BufferSizeAndInvSize.zw;
+	float2 UV = SvPosition.xy * Frame.BufferSizeAndInvSize.zw;
+
+	return UV;
+}
+
+float4 SvPositionToLinearSvPosition(float4 SvPosition)
+{
+	if (VRProjectionIsActive())
+	{
+		SvPosition.xy = VRProjMapRenderTargetVRProjToLinear(SvPosition.xy * Frame.BufferSizeAndInvSize.zw) * Frame.BufferSizeAndInvSize.xy;
+	}
+	return SvPosition;
 }
 
 // Used for post process shaders which don't need to resolve the view	
 float3 SvPositionToTranslatedWorld(float4 SvPosition)
 {
+	SvPosition = SvPositionToLinearSvPosition(SvPosition);
+
 	float4 HomWorldPos = mul(float4(SvPosition.xyz, 1), View.SVPositionToTranslatedWorld);
 
 	return HomWorldPos.xyz / HomWorldPos.w;
@@ -1071,6 +1119,12 @@ float3 SvPositionToTranslatedWorld(float4 SvPosition)
 // Used for vertex factory shaders which need to use the resolved view
 float3 SvPositionToResolvedTranslatedWorld(float4 SvPosition)
 {
+	if (VRProjectionIsActive())
+	{
+		// Remap for warped viewports, no-op for regular viewports
+		SvPosition.xy = VRProjMapResolvedRenderTargetVRProjToLinear(SvPosition.xy * Frame.BufferSizeAndInvSize.zw) * Frame.BufferSizeAndInvSize.xy;
+	}
+
 	float4 HomWorldPos = mul(float4(SvPosition.xyz, 1), ResolvedView.SVPositionToTranslatedWorld);
 
 	return HomWorldPos.xyz / HomWorldPos.w;
@@ -1090,8 +1144,29 @@ float4 SvPositionToScreenPosition(float4 SvPosition)
 
 	float2 PixelPos = SvPosition.xy - Frame.ViewRectMin.xy;	
 
+	// account for framebuffer distortion
+	float2 LinearPos = VRProjMapVRProjToLinear(PixelPos * Frame.ViewSizeAndInvSize.zw);
+
 	// NDC (NormalizedDeviceCoordinates, after the perspective divide)
-	float3 NDCPos = float3( (PixelPos * Frame.ViewSizeAndInvSize.zw - 0.5f) * float2(2, -2), SvPosition.z);
+	float3 NDCPos = float3((LinearPos - 0.5f) * float2(2, -2), SvPosition.z);
+
+	// SvPosition.w: so .w has the SceneDepth, some mobile code and the DepthFade material expression wants that
+	return float4(NDCPos.xyz, 1) * SvPosition.w;
+}
+
+// Return a ScreenPosition in the warped multiRes space, instead of linear
+float4 SvPositionToMultiResScreenPosition(float4 SvPosition)
+{
+	// todo: is already in .w or needs to be reconstructed like this:
+	//	SvPosition.w = ConvertFromDeviceZ(SvPosition.z);
+
+	float2 PixelPos = SvPosition.xy - Frame.ViewRectMin.xy;
+
+	// account for framebuffer distortion
+	float2 LinearPos = PixelPos * Frame.ViewSizeAndInvSize.zw;
+
+	// NDC (NormalizedDeviceCoordinates, after the perspective divide)
+	float3 NDCPos = float3((LinearPos - 0.5f) * float2(2, -2), SvPosition.z);
 
 	// SvPosition.w: so .w has the SceneDepth, some mobile code and the DepthFade material expression wants that
 	return float4(NDCPos.xyz, 1) * SvPosition.w;
@@ -1102,7 +1177,7 @@ float2 SvPositionToViewportUV(float4 SvPosition)
 	// can be optimized from 2SUB+2MUL to 2MAD
 	float2 PixelPos = SvPosition.xy - Frame.ViewRectMin.xy;	
 
-	return PixelPos.xy * Frame.ViewSizeAndInvSize.zw;
+	return VRProjMapVRProjToLinear(PixelPos.xy * Frame.ViewSizeAndInvSize.zw);
 }
 
 float2 BufferUVToViewportUV(float2 BufferUV)
@@ -1135,6 +1210,22 @@ MaterialFloat2 ScreenAlignedUV( MaterialFloat2 UV )
 MaterialFloat2 GetViewportCoordinates(MaterialFloat2 InFragmentCoordinates)
 {
 	return InFragmentCoordinates;
+}
+
+float CalcPixelDepth(float4 ScreenPos)
+{
+	if (LensMatchedShadingIsActive())
+	{
+		float2 ScreenUV = ScreenAlignedPosition(ScreenPos);
+		float ScreenZ = ScreenPos.z / ScreenPos.w;
+		float3 wPos = float3(Frame.BufferSizeAndInvSize.xy * ScreenUV, ScreenZ);
+		float4 corrected = ModifiedWMapWindowToClip(GetModifiedWConfigurationView(), wPos);
+		return ConvertFromDeviceZ(corrected.z);
+	}
+	else
+	{
+		return ScreenPos.w;
+	}
 }
 
 /**

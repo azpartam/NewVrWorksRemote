@@ -166,6 +166,9 @@ SamplerState RandomNormalTextureSampler;
 // .xy:mul .zw:add   scale and bias to convert between BufferUV and HZB-UV
 float4 HZBRemapping;
 
+// .xy: hardware viewport origin, .zw: hardware viewport inverse size
+float4 ViewPortRectMinAndInvSize;
+
 // could be moved to a more central spot
 // @param ScreenPos -1 .. 1
 float3 ReconstructCSPos(float SceneDepth, float2 ScreenPos)
@@ -365,6 +368,17 @@ float acosApproxNormAngle(float x)
 // @param In -1..1
 float2 ScreenPosToHZBUV(float2 In)
 {
+	if (VRProjectionIsActive())
+	{
+		float2 NDCPos = In;
+
+		float2 UV = NDCPos.xy * float2(0.5f, -0.5f) + 0.5f;
+		UV = VRProjMapLinearToVRProj(UV);
+		NDCPos = (UV * float2(2.f, -2.f)) + float2(-1.f, 1.f);
+
+		return HZBRemapping.xy * NDCPos + HZBRemapping.zw;
+	}
+
 	// MAD instruction
 	return HZBRemapping.xy * In + HZBRemapping.zw;
 }
@@ -515,6 +529,17 @@ void MainPSandCS(in float4 UVAndScreenPos, float4 SvPosition, out float4 OutColo
 //	float HzbStepMipLevelFactorValue = ScreenSpaceAOParams[4].z;
 	// use a constant to get better performance
 	float HzbStepMipLevelFactorValue = 0.5f;
+
+	if (VRProjectionIsActive())
+	{
+		float2 PixelPos = SvPosition.xy - ViewPortRectMinAndInvSize.xy;
+
+		float2 UV = PixelPos * ViewPortRectMinAndInvSize.zw;
+		UV = VRProjMapVRProjToLinear(UV);
+		float2 NDCPos = (UV - 0.5f) * float2(2.f, -2.f);
+
+		UVAndScreenPos.zw = NDCPos.xy;
+	}
 
 	float2 UV = UVAndScreenPos.xy;
 	float2 ScreenPos = UVAndScreenPos.zw;

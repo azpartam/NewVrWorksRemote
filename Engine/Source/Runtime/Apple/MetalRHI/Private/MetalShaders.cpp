@@ -247,6 +247,36 @@ FGeometryShaderRHIRef FMetalDynamicRHI::RHICreateGeometryShaderWithStreamOutput(
 	return NULL;
 }
 
+FGeometryShaderRHIRef FMetalDynamicRHI::RHICreateFastGeometryShader(const TArray<uint8>& Code)
+{
+	checkf(0, TEXT("Not supported yet"));
+	return NULL;
+}
+
+FVertexShaderRHIRef  FMetalDynamicRHI::RHICreateVertexShaderWithSinglePassStereo(const TArray<uint8>& Code)
+{
+	checkf(0, TEXT("Not supported yet"));
+	return NULL;
+}
+
+FHullShaderRHIRef  FMetalDynamicRHI::RHICreateHullShaderWithSinglePassStereo(const TArray<uint8>& Code)
+{
+	checkf(0, TEXT("Not supported yet"));
+	return NULL;
+}
+
+FDomainShaderRHIRef  FMetalDynamicRHI::RHICreateDomainShaderWithSinglePassStereo(const TArray<uint8>& Code)
+{
+	checkf(0, TEXT("Not supported yet"));
+	return NULL;
+}
+
+FGeometryShaderRHIRef  FMetalDynamicRHI::RHICreateFastGeometryShader_2(const TArray<uint8>& Code, uint32 Usage)
+{
+	checkf(0, TEXT("Not supported yet"));
+	return NULL;
+}
+
 FComputeShaderRHIRef FMetalDynamicRHI::RHICreateComputeShader(const TArray<uint8>& Code) 
 { 
 	FMetalComputeShader* Shader = new FMetalComputeShader(Code);

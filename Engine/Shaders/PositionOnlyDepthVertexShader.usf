@@ -8,13 +8,22 @@
 #include "Material.usf"
 #include "VertexFactory.usf"
 
-#if INSTANCED_STEREO
+struct FPositionOnlyDepthVSToPS
+{
+	float4 Position : SV_POSITION;
+#if SINGLE_PASS_STEREO
+	float4 NvXRight : NV_X_RIGHT;
+#endif
+	nointerpolation uint PackedEyeIndex : PACKED_EYE_INDEX;
+};
+
+#if INSTANCED_STEREO || SINGLE_PASS_STEREO
 bool bNeedsInstancedStereoBias;
 #endif
 
 void Main(
 	FPositionOnlyVertexFactoryInput Input,
-	out float4 OutPosition : SV_POSITION
+	out FPositionOnlyDepthVSToPS Output
 #if INSTANCED_STEREO
 	, uint InstanceId : SV_InstanceID
 	, out float4 OutClipDistance : SV_ClipDistance
@@ -30,27 +39,64 @@ void Main(
 	ResolvedView = ResolveView();
 #endif
 
+#if SINGLE_PASS_STEREO
+	ResolvedViewRight = ResolveView(1);
+#endif
+
 	float4 WorldPos = VertexFactoryGetWorldPosition(Input);
 	ISOLATE
 	{
-		OutPosition = mul(WorldPos, ResolvedView.TranslatedWorldToClip);
+		Output.Position = mul(WorldPos, ResolvedView.TranslatedWorldToClip);
+	
+		#if SINGLE_PASS_STEREO
+		BRANCH
+		if (bIsSinglePassStereo)
+		{
+			float4 WorldPositionRight = WorldPos;
+			WorldPositionRight.xyz -= ResolvedView.PreViewTranslation.xyz;
+			WorldPositionRight.xyz += ResolvedViewRight.PreViewTranslation.xyz;
+			Output.NvXRight = mul(WorldPositionRight, ResolvedViewRight.TranslatedWorldToClip).x;
+		}
+		else
+		{
+			Output.NvXRight = 0;
+		}
+
+		// Bias the depth
+		Output.Position.z += InstancedStereoDepthBias * Output.Position.w * (float)bNeedsInstancedStereoBias;
+		#endif
 
 		#if INSTANCED_STEREO
-		BRANCH 
-		if (bIsInstancedStereo)  
+		BRANCH
+		if (bIsInstancedStereo && !LensMatchedShadingIsActive())
 		{
 			// Clip at the center of the screen
-			OutCullDistance.x = OutClipDistance.x = dot(OutPosition, EyeClipEdge[EyeIndex]);
+			OutCullDistance.x = OutClipDistance.x = dot(Output.Position, EyeClipEdge[EyeIndex]);
 
 			// Scale to the width of a single eye viewport
-			OutPosition.x *= 0.5 * Frame.HMDEyePaddingOffset;
+			Output.Position.x *= 0.5 * Frame.HMDEyePaddingOffset;
 
 			// Shift to the eye viewport
-			OutPosition.x += (EyeOffsetScale[EyeIndex] * OutPosition.w) * (1.0f - 0.5 * Frame.HMDEyePaddingOffset);
+			Output.Position.x += (EyeOffsetScale[EyeIndex] * Output.Position.w) * (1.0f - 0.5 * Frame.HMDEyePaddingOffset);
 		}
 		
 		// Bias the depth	
-		OutPosition.z += InstancedStereoDepthBias * OutPosition.w * (float)bNeedsInstancedStereoBias;
+		Output.Position.z += InstancedStereoDepthBias * Output.Position.w * (float)bNeedsInstancedStereoBias;
 		#endif
 	}
+
+#if INSTANCED_STEREO
+	{
+		Output.PackedEyeIndex = PackEyeIndex(EyeIndex, bIsInstancedStereo);
+	}
+#endif
 }
+
+#if SINGLE_PASS_STEREO
+VRPROJECT_CREATE_FASTGS_SPS(VRProjectFastGS, FPositionOnlyDepthVSToPS, Position, NvXRight)
+#elif INSTANCED_STEREO
+VRPROJECT_CREATE_FASTGS_INSTANCED_STEREO(VRProjectFastGS, FPositionOnlyDepthVSToPS, Position, PackedEyeIndex)
+#else
+VRPROJECT_CREATE_FASTGS(VRProjectFastGS, FPositionOnlyDepthVSToPS, Position)
+#endif
+

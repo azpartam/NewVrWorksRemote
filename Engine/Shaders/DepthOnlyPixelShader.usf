@@ -9,6 +9,9 @@
 #include "VertexFactory.usf"
 
 void Main(
+#if SINGLE_PASS_STEREO
+	in uint InViewportIndex : SV_ViewportArrayIndex,
+#endif
 #if !MATERIALBLENDING_SOLID || OUTPUT_PIXEL_DEPTH_OFFSET
 	FVertexFactoryInterpolantsVSToPS FactoryInterpolants,
 	float4 PixelPosition : TEXCOORD6,
@@ -20,8 +23,13 @@ void Main(
 	)
 {
 #if !MATERIALBLENDING_SOLID || OUTPUT_PIXEL_DEPTH_OFFSET
-	#if INSTANCED_STEREO
-		ResolvedView = ResolveView(GetEyeIndex(FactoryInterpolants.PackedEyeIndex));
+	#if INSTANCED_STEREO || SINGLE_PASS_STEREO
+		#if SINGLE_PASS_STEREO
+		uint InEyeIndex = GetEyeIndexFromViewportIndex(InViewportIndex);
+		#else
+		uint InEyeIndex = GetEyeIndex(FactoryInterpolants.PackedEyeIndex);
+		#endif
+		ResolvedView = ResolveView(InEyeIndex);
 	#else
 		ResolvedView = ResolveView();
 	#endif

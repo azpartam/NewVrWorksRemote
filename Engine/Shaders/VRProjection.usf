@@ -1,0 +1,870 @@
+// Copyright 1998-2016 Epic Games, Inc. All Rights Reserved.
+
+/*=============================================================================
+VRProjection.usf: Utility functions for NVIDIA's VR Projection
+=============================================================================*/
+
+#pragma once
+
+
+#define VR_PROJ_MODE_MULTIRES	1
+#define VR_PROJ_MODE_LENS_MATCHED	2
+
+
+bool MultiResIsActive()
+{
+	return MULTIRES && Frame.VRProjectionMode == VR_PROJ_MODE_MULTIRES;
+}
+
+bool LensMatchedShadingIsActive()
+{
+	return LENS_MATCHED && Frame.VRProjectionMode == VR_PROJ_MODE_LENS_MATCHED;
+}
+
+bool VRProjectionIsActive()
+{
+	return MultiResIsActive() || LensMatchedShadingIsActive();
+}
+
+int VRProjectionMode()
+{
+	if (MULTIRES || LENS_MATCHED)
+		return Frame.VRProjectionMode;
+	else
+		return 0;
+}
+
+#if SINGLE_PASS_STEREO
+bool SinglePassStereoIsActive()
+{
+	return Frame.bIsSinglePassStereo > 0;
+}
+#endif
+
+// Compare a vertex position against all the viewports' side planes,
+// and generate a set of bitmasks of all the results
+uint2 VRProjectCalculateVertexSideMasks(const uint MultiResWidth, const uint MultiResHeight, const float4 NDCSplitsX, const float4 NDCSplitsY, const float2 CullBoundsX, float4 Position)
+{
+	// MultiRes splits are packed in View uniform buffer
+	// Both are float2, could in theory pack into singl float4
+
+	// Check if point is to the left of each of the X planes, left to right
+	uint XTests = 0;
+	{
+		XTests |= (int(Position.x < CullBoundsX.x * Position.w) << 0);
+		UNROLL for (uint i = 0; i < MultiResWidth - 1; ++i)
+		{
+			XTests |= (int(Position.x < NDCSplitsX[i] * Position.w) << (i + 1));
+		}
+		XTests |= (int(Position.x < CullBoundsX.y * Position.w) << MultiResWidth);
+	}
+
+	// Check if point is above each of the Y planes, top to bottom.
+	// Note that the bits are spaced out in the mask for later convenience.
+	// E.g. if MultiResWidth == 3 then we set bits 0, 3, 6, 9, ...
+	uint YTests = 0;
+	{
+		YTests |= (int(Position.y > Position.w) << 0);
+		UNROLL for (uint i = 0; i < MultiResHeight - 1; ++i)
+		{
+			YTests |= (int(Position.y > NDCSplitsY[i] * Position.w) << (MultiResWidth * (i + 1)));
+		}
+		YTests |= (int(Position.y > -Position.w) << (MultiResWidth * MultiResHeight));
+	}
+
+	// Combine results into masks that check left/right sides of each column of viewports
+	// (left is low 16 bits; right is high 16 bits)
+	uint InsideLeftRight = (~XTests & ((1 << MultiResWidth) - 1)) |
+		((XTests & 0xfffe) << 15);
+
+	// Combine results into masks that check top/bottom sides of each row of viewports
+	// (top is low 16 bits; bottom is high 16 bits)
+	uint BitsToInvert = 0;
+	{
+		UNROLL for (uint i = 0; i < MultiResHeight; ++i)
+		{
+			BitsToInvert |= 1 << (MultiResWidth * i);
+		}
+	}
+	uint InsideTopBottom = ((YTests ^ BitsToInvert) & ((1 << (MultiResWidth * MultiResHeight)) - 1)) |
+		((YTests & (0xffff ^ ((1 << MultiResWidth) - 1))) << (16 - MultiResWidth));
+
+	// Expand out into a mask of all individual viewports
+	// Note: each loop has extra braces around it because the HLSL compiler doesn't scope the loop counter correctly.
+	uint2 Result = { 0, 0 };
+	{
+		UNROLL for (uint i = 0; i < MultiResHeight; ++i)
+		{
+			Result.x |= InsideLeftRight << (MultiResWidth * i);
+		}
+	}
+	{
+		UNROLL for (uint i = 0; i < MultiResWidth; ++i)
+		{
+			Result.y |= InsideTopBottom << i;
+		}
+	}
+
+	return Result;
+}
+
+// Take three vertex positions in clip space, and calculate the
+// (conservative) mask of viewports the triangle touches
+uint VRProjectCalculateViewportMask(const uint MultiResWidth, const uint MultiResHeight, const float4 NDCSplitsX, const float4 NDCSplitsY, const float2 CullBoundsX, float4 Position0, float4 Position1, float4 Position2)
+{
+	// Cull triangles entirely behind the near plane
+	if (Position0.z < 0 && Position1.z < 0 && Position2.z < 0)
+	{
+		return 0;
+	}
+	// Cull triangles entirely behind the reversed near plane
+	else if (Position0.z > Position0.w && Position1.z > Position1.w && Position2.z > Position2.w)
+	{
+		return 0;
+	}
+	// If triangle has any vertices behind the camera, just give up and send it to all viewports.
+	// After culling triangles entirely behind the near plane, this shouldn't be many.
+	else if (Position0.w <= 0.0 || Position1.w <= 0.0 || Position2.w <= 0.0)
+	{
+		return (1 << (MultiResWidth * MultiResHeight)) - 1;
+	}
+	else
+	{
+		// Compare the triangle's verts against the frustum side planes
+		uint2 VertexSideMasks0 = VRProjectCalculateVertexSideMasks(MultiResWidth, MultiResHeight, NDCSplitsX, NDCSplitsY, CullBoundsX, Position0);
+		uint2 VertexSideMasks1 = VRProjectCalculateVertexSideMasks(MultiResWidth, MultiResHeight, NDCSplitsX, NDCSplitsY, CullBoundsX, Position1);
+		uint2 VertexSideMasks2 = VRProjectCalculateVertexSideMasks(MultiResWidth, MultiResHeight, NDCSplitsX, NDCSplitsY, CullBoundsX, Position2);
+
+		// OR together the side masks for each vertex; that tells us if at least one of the vertices
+		// is inside each side of each viewport
+		uint2 SideMasks = VertexSideMasks0 | VertexSideMasks1 | VertexSideMasks2;
+
+		// AND together all four sides; that tells us if every side has at least one vertex inside it,
+		// for each viewport
+		return (SideMasks.x & (SideMasks.x >> 16)) & (SideMasks.y & (SideMasks.y >> 16));
+	}
+}
+
+uint VRProjectCalculateNormalViewportMask(float4 Position0, float4 Position1, float4 Position2)
+{
+	uint Ret = 0xff;
+	if (MultiResIsActive())
+	{
+		Ret = VRProjectCalculateViewportMask(3, 3, View.NDCSplitsX, View.NDCSplitsY, float2(-1.0f, 1.0f), Position0, Position1, Position2);
+	}
+	else if (LensMatchedShadingIsActive())
+	{
+		Ret = VRProjectCalculateViewportMask(2, 2, View.NDCSplitsX, View.NDCSplitsY, float2(-1.0f, 1.0f), Position0, Position1, Position2);
+	}
+
+	return Ret;
+}
+
+uint VRProjectCalculateStereoViewportMask(uint PackedEyeIndex, float4 Position0, float4 Position1, float4 Position2)
+{
+	uint result = 0;
+
+	// checking the eye, then limiting to 3x3 culling has shown to be faster in all present tests
+#define CULL_MODE 1
+
+	if (IsInstancedStereo(PackedEyeIndex) )
+	{
+#if (CULL_MODE == 0)
+		// 5x3 culling
+		result = VRProjectCalculateViewportMask(5, 3, View.StereoNDCSplitsX, View.StereoNDCSplitsY, float2(-1.0f, 1.0f), Position0, Position1, Position2);
+#else
+		if (MultiResIsActive())
+		{
+			float2 CullBounds = (GetEyeIndex(PackedEyeIndex) == 0) ? float2(-1.0f, 0.0f) : float2(0.0f, 1.0f);
+
+			//3x3 culling
+			float4 SplitsX = (GetEyeIndex(PackedEyeIndex) == 0) ? View.StereoNDCSplitsX.xyxy : View.StereoNDCSplitsX.zwzw;
+			result = VRProjectCalculateViewportMask(3, 3, SplitsX, View.StereoNDCSplitsY, CullBounds, Position0, Position1, Position2);
+
+			// repack bits
+			result = (result & 0x7) | ((result & 0x38) << 2) | ((result & 0x1c0) << 4);
+
+			// shift for right eye 
+			result = result << (2 * GetEyeIndex(PackedEyeIndex));
+		}
+		else if (LensMatchedShadingIsActive())
+		{
+			// 2x2 culling
+			result = VRProjectCalculateViewportMask(2, 2, View.StereoNDCSplitsX, View.StereoNDCSplitsY, float2(-1.0f, 1.0f), Position0, Position1, Position2);
+
+			// shift for right eye 
+			result = result << (4 * GetEyeIndex(PackedEyeIndex));
+		}
+
+#endif
+	}
+	else
+	{
+		// Instanced stereo is compiled on, but not being used, use the normal 3x3 culling
+		if (MultiResIsActive())
+		{
+			result = VRProjectCalculateViewportMask(3, 3, View.NDCSplitsX, View.NDCSplitsY, float2(-1.0f, 1.0f), Position0, Position1, Position2);
+		}
+		else if (LensMatchedShadingIsActive())
+		{
+			result = VRProjectCalculateViewportMask(2, 2, View.NDCSplitsX, View.NDCSplitsY, float2(-1.0f, 1.0f), Position0, Position1, Position2);
+		}
+	}
+
+#undef CULL_MODE
+
+	return result;
+}
+
+uint GetEyeIndexFromViewportIndex(uint ViewportIndex)
+{
+	if (LensMatchedShadingIsActive())
+	{
+		return (ViewportIndex > 3) ? 1 : 0;
+	}
+	return ViewportIndex;
+}
+
+// Macro to create a FastGS that passes through a specified struct of vertex attributes,
+// and performs culling against the viewports.  To use this, the arguments should specify:
+//   1. the desired name of the entry point function
+//   2. the name of a struct containing all the vertex attributes
+//   3. the name of the SV_Position element of this struct
+//   4. the expression to find the NVFastGSCBData from its constant buffer
+
+#if SINGLE_PASS_STEREO
+#define VRPROJECT_CREATE_FASTGS_SPS(MainFunctionName, PassthroughStruct, PositionName, XRightName) \
+			struct PassthroughStruct##GSOutput \
+			{ \
+				PassthroughStruct Passthrough; \
+				uint4 ViewportMask : NV_VIEWPORT_MASK; \
+			}; \
+			[maxvertexcount(1)] \
+			void MainFunctionName(triangle PassthroughStruct Input[3], inout TriangleStream<PassthroughStruct##GSOutput> Output) \
+			{ \
+				PassthroughStruct##GSOutput OutputVertex; \
+				OutputVertex.Passthrough = Input[0]; \
+				if(SinglePassStereoIsActive()) \
+				{ \
+					if (LensMatchedShadingIsActive()) \
+					{ \
+						uint ViewportMaskLeft = VRProjectCalculateNormalViewportMask(Input[0].PositionName, Input[1].PositionName, Input[2].PositionName); \
+						uint ViewportMaskRight = VRProjectCalculateNormalViewportMask(float4(Input[0].XRightName.x, Input[0].PositionName.yzw), float4(Input[1].XRightName.x, Input[1].PositionName.yzw), float4(Input[2].XRightName.x, Input[2].PositionName.yzw)); \
+						OutputVertex.ViewportMask = ViewportMaskLeft | (ViewportMaskRight << 20); \
+					} \
+					else \
+					{ \
+						OutputVertex.ViewportMask = 0x20001; \
+					} \
+				} \
+				else \
+				{ \
+					OutputVertex.ViewportMask = VRProjectCalculateNormalViewportMask(Input[0].PositionName, Input[1].PositionName, Input[2].PositionName); \
+				} \
+				Output.Append(OutputVertex); \
+			}
+#endif
+
+#if MULTIRES || LENS_MATCHED
+
+#define VRPROJECT_CREATE_FASTGS(MainFunctionName, PassthroughStruct, PositionName) \
+			struct PassthroughStruct##GSOutput \
+			{ \
+				PassthroughStruct Passthrough; \
+				uint ViewportMask : SV_ViewportArrayIndex; \
+			}; \
+			[maxvertexcount(1)] \
+			void MainFunctionName(triangle PassthroughStruct Input[3], inout TriangleStream<PassthroughStruct##GSOutput> Output) \
+			{ \
+				PassthroughStruct##GSOutput OutputVertex; \
+				OutputVertex.Passthrough = Input[0]; \
+				OutputVertex.ViewportMask = VRProjectCalculateNormalViewportMask( Input[0].PositionName, Input[1].PositionName, Input[2].PositionName); \
+				Output.Append(OutputVertex); \
+			}
+
+#define VRPROJECT_CREATE_FASTGS_INSTANCED_STEREO(MainFunctionName, PassthroughStruct, PositionName, EyeIndexName) \
+			struct PassthroughStruct##GSOutput \
+			{ \
+				PassthroughStruct Passthrough; \
+				uint ViewportMask : SV_ViewportArrayIndex; \
+			}; \
+			[maxvertexcount(1)] \
+			void MainFunctionName(triangle PassthroughStruct Input[3], inout TriangleStream<PassthroughStruct##GSOutput> Output) \
+			{ \
+				PassthroughStruct##GSOutput OutputVertex; \
+				OutputVertex.Passthrough = Input[0]; \
+				OutputVertex.ViewportMask = VRProjectCalculateStereoViewportMask( Input[0].EyeIndexName, Input[0].PositionName, Input[1].PositionName, Input[2].PositionName); \
+				Output.Append(OutputVertex); \
+			}
+
+#else
+
+// create no-op geometry shader to deal with global shaders in the no multires case
+// shader should never be used, but ideally, it should be valid
+#define VRPROJECT_CREATE_FASTGS(MainFunctionName, PassthroughStruct, PositionName) \
+			struct PassthroughStruct##GSOutput \
+			{ \
+				PassthroughStruct Passthrough; \
+			}; \
+			[maxvertexcount(3)] \
+			void MainFunctionName(triangle PassthroughStruct Input[3], inout TriangleStream<PassthroughStruct##GSOutput> Output) \
+			{ \
+				PassthroughStruct##GSOutput OutputVertex; \
+				OutputVertex.Passthrough = Input[0]; \
+				Output.Append(OutputVertex); \
+				OutputVertex.Passthrough = Input[1]; \
+				Output.Append(OutputVertex); \
+				OutputVertex.Passthrough = Input[2]; \
+				Output.Append(OutputVertex); \
+			}
+
+#define VRPROJECT_CREATE_FASTGS_INSTANCED_STEREO(MainFunctionName, PassthroughStruct, PositionName, EyeIndexName) \
+			struct PassthroughStruct##GSOutput \
+			{ \
+				PassthroughStruct Passthrough; \
+			}; \
+			[maxvertexcount(3)] \
+			void MainFunctionName(triangle PassthroughStruct Input[3], inout TriangleStream<PassthroughStruct##GSOutput> Output) \
+			{ \
+				PassthroughStruct##GSOutput OutputVertex; \
+				OutputVertex.Passthrough = Input[0]; \
+				Output.Append(OutputVertex); \
+				OutputVertex.Passthrough = Input[1]; \
+				Output.Append(OutputVertex); \
+				OutputVertex.Passthrough = Input[2]; \
+				Output.Append(OutputVertex); \
+			}
+
+#endif
+
+
+// Data in View constanst buffer for converting multires
+//  Needs to integrate with instance stereo
+//	float2 LinearToVRProjectSplitsX;
+//	float2 LinearToVRProjectSplitsY;
+//	float2 LinearToVRProjectX0;
+//	float2 LinearToVRProjectX1;
+//	float2 LinearToVRProjectX2;
+//	float2 LinearToVRProjectY0;
+//	float2 LinearToVRProjectY1;
+//	float2 LinearToVRProjectY2;
+//	
+//	float2 VRProjectToLinearSplitsX;
+//	float2 VRProjectToLinearSplitsY;
+//	float2 VRProjectToLinearX0;
+//	float2 VRProjectToLinearX1;
+//	float2 VRProjectToLinearX2;
+//	float2 VRProjectToLinearY0;
+//	float2 VRProjectToLinearY1;
+//	float2 VRProjectToLinearY2;
+
+
+/*
+* "Internal" functions for conversions
+*  These have no safety on Multires enabled/disabled, used to build the functions for wider use
+*/
+
+// ToDo : presently just using View, need to move to using resolved view or similar concept
+float2 MapLinearToMultiResInternal(float2 UV)
+{
+	// Scale-bias U and V based on which viewport they're in
+	float2 Result = UV;
+
+	if (UV.x < View.LinearToVRProjectSplitsX.x)
+		Result.x = UV.x * View.LinearToVRProjectX0.x + View.LinearToVRProjectX0.y;
+	else if (UV.x < View.LinearToVRProjectSplitsX.y)
+		Result.x = UV.x * View.LinearToVRProjectX1.x + View.LinearToVRProjectX1.y;
+	else
+		Result.x = UV.x * View.LinearToVRProjectX2.x + View.LinearToVRProjectX2.y;
+
+	if (UV.y < View.LinearToVRProjectSplitsY.x)
+		Result.y = UV.y * View.LinearToVRProjectY0.x + View.LinearToVRProjectY0.y;
+	else if (UV.y < View.LinearToVRProjectSplitsY.y)
+		Result.y = UV.y * View.LinearToVRProjectY1.x + View.LinearToVRProjectY1.y;
+	else
+		Result.y = UV.y * View.LinearToVRProjectY2.x + View.LinearToVRProjectY2.y;
+
+	return Result;
+}
+
+float2 MapMultiResToLinearInternal(float2 UV)
+{
+	// Scale-bias U and V based on which viewport they're in
+	float2 Result = UV;
+
+	if (UV.x < View.VRProjectToLinearSplitsX.x)
+		Result.x = UV.x * View.VRProjectToLinearX0.x + View.VRProjectToLinearX0.y;
+	else if (UV.x < View.VRProjectToLinearSplitsX.y)
+		Result.x = UV.x * View.VRProjectToLinearX1.x + View.VRProjectToLinearX1.y;
+	else
+		Result.x = UV.x * View.VRProjectToLinearX2.x + View.VRProjectToLinearX2.y;
+
+	if (UV.y < View.VRProjectToLinearSplitsY.x)
+		Result.y = UV.y * View.VRProjectToLinearY0.x + View.VRProjectToLinearY0.y;
+	else if (UV.y < View.VRProjectToLinearSplitsY.y)
+		Result.y = UV.y * View.VRProjectToLinearY1.x + View.VRProjectToLinearY1.y;
+	else
+		Result.y = UV.y * View.VRProjectToLinearY2.x + View.VRProjectToLinearY2.y;
+
+	return Result;
+}
+
+// ToDo : presently just using View, need to move to using resolved view or similar concept
+float2 MapResolvedLinearToMultiResInternal(float2 UV)
+{
+	// Scale-bias U and V based on which viewport they're in
+	float2 Result = UV;
+
+	if (UV.x < ResolvedView.LinearToVRProjectSplitsX.x)
+		Result.x = UV.x * ResolvedView.LinearToVRProjectX0.x + ResolvedView.LinearToVRProjectX0.y;
+	else if (UV.x < ResolvedView.LinearToVRProjectSplitsX.y)
+		Result.x = UV.x * ResolvedView.LinearToVRProjectX1.x + ResolvedView.LinearToVRProjectX1.y;
+	else
+		Result.x = UV.x * ResolvedView.LinearToVRProjectX2.x + ResolvedView.LinearToVRProjectX2.y;
+
+	if (UV.y < ResolvedView.LinearToVRProjectSplitsY.x)
+		Result.y = UV.y * ResolvedView.LinearToVRProjectY0.x + ResolvedView.LinearToVRProjectY0.y;
+	else if (UV.y < ResolvedView.LinearToVRProjectSplitsY.y)
+		Result.y = UV.y * ResolvedView.LinearToVRProjectY1.x + ResolvedView.LinearToVRProjectY1.y;
+	else
+		Result.y = UV.y * ResolvedView.LinearToVRProjectY2.x + ResolvedView.LinearToVRProjectY2.y;
+
+	return Result;
+}
+
+float2 MapResolvedMultiResToLinearInternal(float2 UV)
+{
+	// Scale-bias U and V based on which viewport they're in
+	float2 Result = UV;
+
+	if (UV.x < ResolvedView.VRProjectToLinearSplitsX.x)
+		Result.x = UV.x * ResolvedView.VRProjectToLinearX0.x + ResolvedView.VRProjectToLinearX0.y;
+	else if (UV.x < ResolvedView.VRProjectToLinearSplitsX.y)
+		Result.x = UV.x * ResolvedView.VRProjectToLinearX1.x + ResolvedView.VRProjectToLinearX1.y;
+	else
+		Result.x = UV.x * ResolvedView.VRProjectToLinearX2.x + ResolvedView.VRProjectToLinearX2.y;
+
+	if (UV.y < ResolvedView.VRProjectToLinearSplitsY.x)
+		Result.y = UV.y * ResolvedView.VRProjectToLinearY0.x + ResolvedView.VRProjectToLinearY0.y;
+	else if (UV.y < ResolvedView.VRProjectToLinearSplitsY.y)
+		Result.y = UV.y * ResolvedView.VRProjectToLinearY1.x + ResolvedView.VRProjectToLinearY1.y;
+	else
+		Result.y = UV.y * ResolvedView.VRProjectToLinearY2.x + ResolvedView.VRProjectToLinearY2.y;
+
+	return Result;
+}
+
+// warp versions
+struct FModifiedWConfiguration
+{
+	float WarpLeft;
+	float WarpRight;
+	float WarpUp;
+	float WarpDown;
+	float2	ClipToWindowX[3];
+	float2	ClipToWindowY[3];
+
+	float	WindowToClipSplitsX[2];
+	float	WindowToClipSplitsY[2];
+	float2	WindowToClipX[3];
+	float2	WindowToClipY[3];
+
+	float2 BoundingRectOrigin;
+	float2 BoundingRectSize;
+	float2 BoundingRectSizeInv;
+};
+
+FModifiedWConfiguration GetModifiedWConfigurationView()
+{
+	FModifiedWConfiguration Res;
+
+	Res.WarpLeft = View.LinearToVRProjectSplitsX.x;
+	Res.WarpRight = View.LinearToVRProjectSplitsX.y;
+	Res.WarpUp = View.LinearToVRProjectSplitsY.x;
+	Res.WarpDown = View.LinearToVRProjectSplitsY.y;
+	Res.ClipToWindowX[0] = View.LinearToVRProjectX0;
+	Res.ClipToWindowX[1] = View.LinearToVRProjectX1;
+	Res.ClipToWindowX[2] = View.LinearToVRProjectX2;
+	Res.ClipToWindowY[0] = View.LinearToVRProjectY0;
+	Res.ClipToWindowY[1] = View.LinearToVRProjectY1;
+	Res.ClipToWindowY[2] = View.LinearToVRProjectY2;
+	Res.WindowToClipSplitsX[0] = View.VRProjectToLinearSplitsX.x;
+	Res.WindowToClipSplitsX[1] = View.VRProjectToLinearSplitsX.y;
+	Res.WindowToClipSplitsY[0] = View.VRProjectToLinearSplitsY.x;
+	Res.WindowToClipSplitsY[1] = View.VRProjectToLinearSplitsY.y;
+	Res.WindowToClipX[0] = View.VRProjectToLinearX0;
+	Res.WindowToClipX[1] = View.VRProjectToLinearX1;
+	Res.WindowToClipX[2] = View.VRProjectToLinearX2;
+	Res.WindowToClipY[0] = View.VRProjectToLinearY0;
+	Res.WindowToClipY[1] = View.VRProjectToLinearY1;
+	Res.WindowToClipY[2] = View.VRProjectToLinearY2;
+	Res.BoundingRectOrigin = View.BoundingRectOrigin.xy;
+	Res.BoundingRectSize = View.BoundingRectSize.xy;
+	Res.BoundingRectSizeInv = View.BoundingRectSizeInv.xy;
+
+	return Res;
+};
+
+FModifiedWConfiguration GetModifiedWConfigurationResolvedView()
+{
+	FModifiedWConfiguration Res;
+
+	Res.WarpLeft = ResolvedView.LinearToVRProjectSplitsX.x;
+	Res.WarpRight = ResolvedView.LinearToVRProjectSplitsX.y;
+	Res.WarpUp = ResolvedView.LinearToVRProjectSplitsY.x;
+	Res.WarpDown = ResolvedView.LinearToVRProjectSplitsY.y;
+	Res.ClipToWindowX[0] = ResolvedView.LinearToVRProjectX0;
+	Res.ClipToWindowX[1] = ResolvedView.LinearToVRProjectX1;
+	Res.ClipToWindowX[2] = ResolvedView.LinearToVRProjectX2;
+	Res.ClipToWindowY[0] = ResolvedView.LinearToVRProjectY0;
+	Res.ClipToWindowY[1] = ResolvedView.LinearToVRProjectY1;
+	Res.ClipToWindowY[2] = ResolvedView.LinearToVRProjectY2;
+	Res.WindowToClipSplitsX[0] = ResolvedView.VRProjectToLinearSplitsX.x;
+	Res.WindowToClipSplitsX[1] = ResolvedView.VRProjectToLinearSplitsX.y;
+	Res.WindowToClipSplitsY[0] = ResolvedView.VRProjectToLinearSplitsY.x;
+	Res.WindowToClipSplitsY[1] = ResolvedView.VRProjectToLinearSplitsY.y;
+	Res.WindowToClipX[0] = ResolvedView.VRProjectToLinearX0;
+	Res.WindowToClipX[1] = ResolvedView.VRProjectToLinearX1;
+	Res.WindowToClipX[2] = ResolvedView.VRProjectToLinearX2;
+	Res.WindowToClipY[0] = ResolvedView.VRProjectToLinearY0;
+	Res.WindowToClipY[1] = ResolvedView.VRProjectToLinearY1;
+	Res.WindowToClipY[2] = ResolvedView.VRProjectToLinearY2;
+	Res.BoundingRectOrigin = ResolvedView.BoundingRectOrigin.xy;
+	Res.BoundingRectSize = ResolvedView.BoundingRectSize.xy;
+	Res.BoundingRectSizeInv = ResolvedView.BoundingRectSizeInv.xy;
+
+	return Res;
+};
+
+// todo: we can probably just change this to work in warped clip space instead of window space
+// that probably also eliminates need for windowtoclip and cliptowindow transforms
+float4 ModifiedWMapWindowToClip(
+	FModifiedWConfiguration	Conf,
+	float3				WindowPos,
+	bool				bNormalize = true)
+{
+	float A, B;
+	float2 ViewportX, ViewportY;
+
+	if (WindowPos.x < Conf.WindowToClipSplitsX[0])
+	{
+		A = +Conf.WarpLeft;
+		ViewportX = Conf.WindowToClipX[0];
+	}
+	else
+	{
+		A = -Conf.WarpRight;
+		ViewportX = Conf.WindowToClipX[1];
+	}
+
+	if (WindowPos.y < Conf.WindowToClipSplitsY[0])
+	{
+		B = -Conf.WarpUp;
+		ViewportY = Conf.WindowToClipY[0];
+	}
+	else
+	{
+		B = +Conf.WarpDown;
+		ViewportY = Conf.WindowToClipY[1];
+	}
+
+	float4 ClipPos;
+	ClipPos.x = WindowPos.x * ViewportX.x + ViewportX.y;
+	ClipPos.y = WindowPos.y * ViewportY.x + ViewportY.y;
+	ClipPos.z = WindowPos.z;
+	ClipPos.w = 1.0 + ClipPos.x * A + ClipPos.y * B;
+
+	if (bNormalize)
+	{
+		ClipPos.xyz /= ClipPos.w;
+		ClipPos.w = 1.0;
+	}
+
+	return ClipPos;
+}
+
+float3 ModifiedWMapClipToWindow(
+	FModifiedWConfiguration	Conf,
+	float4				ClipPos,
+	bool				bNormalize = true)
+{
+	float A, B;
+	float2 ViewportX, ViewportY;
+
+	if (ClipPos.x < 0)
+	{
+		A = -Conf.WarpLeft;
+		ViewportX = Conf.ClipToWindowX[0];
+	}
+	else
+	{
+		A = +Conf.WarpRight;
+		ViewportX = Conf.ClipToWindowX[1];
+	}
+
+	if (ClipPos.y < 0)
+	{
+		B = -Conf.WarpDown;
+		ViewportY = Conf.ClipToWindowY[0];
+	}
+	else
+	{
+		B = +Conf.WarpUp;
+		ViewportY = Conf.ClipToWindowY[1];
+	}
+
+	float4 WarpedPos = ClipPos;
+	WarpedPos.w = ClipPos.w + ClipPos.x * A + ClipPos.y * B;
+	WarpedPos.xyz /= WarpedPos.w;
+	WarpedPos.w = 1.0;
+
+	float3 WindowPos;
+	WindowPos.x = WarpedPos.x * ViewportX.x + ViewportX.y;
+	WindowPos.y = WarpedPos.y * ViewportY.x + ViewportY.y;
+	WindowPos.z = WarpedPos.z;
+
+	return WindowPos;
+}
+
+// Convenience functions that operate on UV instead of ClipPos and/or WindowPos.
+// Linear UV = (0, 0) maps to clip (-1, 1) - top left corner;
+// Linear UV = (1, 1) maps to clip (1, -1) - bottom right corner.
+// VR "UV" are defined as coordinates relative to BoundingRect.
+
+float2 MapUVLinearToLensMatched(
+	FModifiedWConfiguration	Conf,
+	float2				LinearUV)
+{
+	float4 ClipPos = float4(LinearUV.x * 2 - 1, -LinearUV.y * 2 + 1, 0, 1);
+	float3 WindowPos = ModifiedWMapClipToWindow(Conf, ClipPos, false);
+	float2 LensMatchedUV = (WindowPos.xy - Conf.BoundingRectOrigin) * Conf.BoundingRectSizeInv;
+	return LensMatchedUV;
+}
+
+float2 MapUVLensMatchedToLinear(
+	FModifiedWConfiguration	Conf,
+	float2				LensMatchedUV)
+{
+	float2 WindowPos = LensMatchedUV * Conf.BoundingRectSize + Conf.BoundingRectOrigin;
+	float4 ClipPos = ModifiedWMapWindowToClip(Conf, float3(WindowPos, 0));
+	float2 LinearUV = float2(ClipPos.x * 0.5 + 0.5, -ClipPos.y * 0.5 + 0.5);
+	return LinearUV;
+}
+
+float2 MapLinearToLensMatchedInternal(float2 UV)
+{
+	return MapUVLinearToLensMatched(GetModifiedWConfigurationView(), UV);
+}
+
+float2 MapLensMatchedToLinearInternal(float2 UV)
+{
+	return MapUVLensMatchedToLinear(GetModifiedWConfigurationView(), UV);
+}
+
+float2 MapResolvedLinearToLensMatchedInternal(float2 UV)
+{
+	return MapUVLinearToLensMatched(GetModifiedWConfigurationResolvedView(), UV);
+}
+
+float2 MapResolvedLensMatchedToLinearInternal(float2 UV)
+{
+	return MapUVLensMatchedToLinear(GetModifiedWConfigurationResolvedView(), UV);
+}
+
+// Remap from render-target-relative UVs to view-rect-relative UVs
+float2 VRProjMapRenderTargetToViewRectInternal(float2 UV)
+{
+	return UV * View.RenderTargetToViewRectUVScaleBias.xy + View.RenderTargetToViewRectUVScaleBias.zw;
+}
+
+// Remap back to render-target-relative UVs
+float2 VRProjMapViewRectToRenderTargetInternal(float2 UV)
+{
+	return UV * View.ViewRectToRenderTargetUVScaleBias.xy + View.ViewRectToRenderTargetUVScaleBias.zw;
+}
+
+// Remap from render-target-relative UVs to view-rect-relative UVs
+float2 VRProjMapResolvedRenderTargetToViewRectInternal(float2 UV)
+{
+	// TODO: Need fix!!
+	return UV * ResolvedView.RenderTargetToViewRectUVScaleBias.xy + ResolvedView.RenderTargetToViewRectUVScaleBias.zw;
+}
+
+// Remap back to render-target-relative UVs
+float2 VRProjMapResolvedViewRectToRenderTargetInternal(float2 UV)
+{
+	// TODO: Need fix!!
+	return UV * ResolvedView.ViewRectToRenderTargetUVScaleBias.xy + ResolvedView.ViewRectToRenderTargetUVScaleBias.zw;
+}
+
+float2 VRProjMapLinearToVRProj(float2 UV)
+{
+	// Scale-bias U and V based on which viewport they're in
+	float2 Result = UV;
+
+	if (VRProjectionIsActive())
+	{
+		if (MultiResIsActive())
+			Result = MapLinearToMultiResInternal(UV);
+		else if (LensMatchedShadingIsActive())
+			Result = MapLinearToLensMatchedInternal(UV);
+	}
+
+	return Result;
+}
+
+float2 VRProjMapVRProjToLinear(float2 UV)
+{
+	// Scale-bias U and V based on which viewport they're in
+	float2 Result = UV;
+
+	if (VRProjectionIsActive())
+	{
+		if (MultiResIsActive())
+			Result = MapMultiResToLinearInternal(UV);
+		else if (LensMatchedShadingIsActive())
+			Result = MapLensMatchedToLinearInternal(UV);
+	}
+
+	return Result;
+}
+
+// Remap from render-target-relative UVs to view-rect-relative UVs
+float2 VRProjMapRenderTargetToViewRect(float2 UV)
+{
+	float2 Result = UV;
+
+	if (VRProjectionIsActive())
+	{
+		Result = VRProjMapRenderTargetToViewRectInternal(UV);
+	}
+
+	return Result;
+}
+
+// Remap back to render-target-relative UVs
+float2 VRProjMapViewRectToRenderTarget(float2 UV)
+{
+	float2 Result = UV;
+
+	if (VRProjectionIsActive())
+	{
+		Result = VRProjMapViewRectToRenderTargetInternal(UV);
+	}
+
+	return Result;
+}
+
+// Convert render target UV from linear space to multires space
+float2 VRProjMapRenderTargetLinearToVRProj(float2 UV)
+{
+	float2 Result = UV;
+
+	if (VRProjectionIsActive())
+	{
+		UV = VRProjMapRenderTargetToViewRectInternal(UV);
+
+		if (MultiResIsActive())
+			UV = MapLinearToMultiResInternal(UV);
+		else if (LensMatchedShadingIsActive())
+			UV = MapLinearToLensMatchedInternal(UV);
+
+		Result = VRProjMapViewRectToRenderTargetInternal(UV);
+	}
+
+	return Result;
+}
+
+// Convert render target UV from multires space to linear space
+float2 VRProjMapRenderTargetVRProjToLinear(float2 UV)
+{
+	// Scale-bias U and V based on which viewport they're in
+	float2 Result = UV;
+
+	if (VRProjectionIsActive())
+	{
+		UV = VRProjMapRenderTargetToViewRectInternal(UV);
+
+		if (MultiResIsActive())
+			UV = MapMultiResToLinearInternal(UV);
+		else if (LensMatchedShadingIsActive())
+			UV = MapLensMatchedToLinearInternal(UV);
+
+		Result = VRProjMapViewRectToRenderTargetInternal(UV);
+	}
+
+	return Result;
+}
+
+// Convert ViewRect NDC from linear space to multires space
+float2 VRProjMapNDCLinearToVRProj(float2 NDC)
+{
+	float2 Result = NDC;
+
+	if (VRProjectionIsActive())
+	{
+		if (MultiResIsActive())
+			Result = MapLinearToMultiResInternal(NDC * float2(0.5, -0.5) + 0.5) * float2(2, -2) + float2(-1, 1);
+		else if (LensMatchedShadingIsActive())
+			Result = MapLinearToLensMatchedInternal(NDC * float2(0.5, -0.5) + 0.5) * float2(2, -2) + float2(-1, 1);
+	}
+
+	return Result;
+}
+
+// Convert ViewRect NDC from multires space to linear space
+float2 VRProjMapNDCVRProjToLinear(float2 NDC)
+{
+	float2 Result = NDC;
+
+	if (VRProjectionIsActive())
+	{
+		if (MultiResIsActive())
+			Result = MapMultiResToLinearInternal(NDC * float2(0.5, -0.5) + 0.5) * float2(2, -2) + float2(-1, 1);
+		else if (LensMatchedShadingIsActive())
+			Result = MapLensMatchedToLinearInternal(NDC * float2(0.5, -0.5) + 0.5) * float2(2, -2) + float2(-1, 1);
+	}
+
+	return Result;
+}
+
+// Convert render target UV from linear space to multires space
+float2 VRProjMapResolvedRenderTargetLinearToVRProj(float2 UV)
+{
+	float2 Result = UV;
+
+	if (VRProjectionIsActive())
+	{
+		UV = VRProjMapResolvedRenderTargetToViewRectInternal(UV);
+
+		if (MultiResIsActive())
+			UV = MapResolvedLinearToMultiResInternal(UV);
+		else if (LensMatchedShadingIsActive())
+			UV = MapResolvedLinearToLensMatchedInternal(UV);
+
+		Result = VRProjMapResolvedViewRectToRenderTargetInternal(UV);
+	}
+
+	return Result;
+}
+
+// Convert render target UV from multires space to linear space
+float2 VRProjMapResolvedRenderTargetVRProjToLinear(float2 UV)
+{
+	// Scale-bias U and V based on which viewport they're in
+	float2 Result = UV;
+
+	if (VRProjectionIsActive())
+	{
+		UV = VRProjMapResolvedRenderTargetToViewRectInternal(UV);
+
+		if (MultiResIsActive())
+			UV = MapResolvedMultiResToLinearInternal(UV);
+		else if (LensMatchedShadingIsActive())
+			UV = MapResolvedLensMatchedToLinearInternal(UV);
+
+		Result = VRProjMapResolvedViewRectToRenderTargetInternal(UV);
+	}
+
+	return Result;
+}

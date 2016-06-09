@@ -702,6 +702,8 @@ IMPLEMENT_SHADER_TYPE(,FShadowProjectionNoTransformVS,TEXT("ShadowProjectionVert
 
 IMPLEMENT_SHADER_TYPE(,FShadowProjectionVS,TEXT("ShadowProjectionVertexShader"),TEXT("Main"),SF_Vertex);
 
+IMPLEMENT_SHADER_TYPE(, FShadowProjectionMultiResGS, TEXT("ShadowProjectionVertexShader"), TEXT("VRProjectFastGS"), SF_Geometry);
+
 /**
  * Implementations for TShadowProjectionPS.  
  */
@@ -2115,12 +2117,20 @@ void StencilingGeometry::DrawCone(FRHICommandList& RHICmdList)
 		FStencilConeIndexBuffer::NumVerts, 0, StencilingGeometry::GStencilConeIndexBuffer.GetIndexCount() / 3, 1);
 }
 
-/** bound shader state for stencil masking the shadow projection [0]:FShadowProjectionNoTransformVS [1]:FShadowProjectionVS */
-static FGlobalBoundShaderState MaskBoundShaderState[2];
 
-template <uint32 Quality>
-static void SetShadowProjectionShaderTemplNew(FRHICommandList& RHICmdList, int32 ViewIndex, const FViewInfo& View, const FProjectedShadowInfo* ShadowInfo, bool bForwardShading)
+/** bound shader state for stencil masking the shadow projection
+*  [0]:FShadowProjectionNoTransformVS
+*  [1]:FShadowProjectionNoTransformVS + FShadowProjectionMultiResGS
+*  [2]:FShadowProjectionVS
+*  [3]:FShadowProjectionVS + FShadowProjectionMultiResGS
+*/
+static FGlobalBoundShaderState MaskBoundShaderState[4];
+
+template <uint32 Quality, bool bVRProjectEnabled>
+static void SetShadowProjectionShaderTemplNewMultiRes(FRHICommandList& RHICmdList, int32 ViewIndex, const FViewInfo& View, const FProjectedShadowInfo* ShadowInfo, bool bForwardShading)
 {
+	FShadowProjectionMultiResGS* MultiResGS = bVRProjectEnabled ? View.ShaderMap->GetShader<FShadowProjectionMultiResGS>() : nullptr;
+
 	if (ShadowInfo->bTranslucentShadow)
 	{
 		// Get the Shadow Projection Vertex Shader (with transforms)
@@ -2131,8 +2141,8 @@ static void SetShadowProjectionShaderTemplNew(FRHICommandList& RHICmdList, int32
 
 		// Bind shader
 		static FGlobalBoundShaderState BoundShaderState;
-		
-		SetGlobalBoundShaderState(RHICmdList, View.GetFeatureLevel(), BoundShaderState, GetVertexDeclarationFVector4(), ShadowProjVS, ShadowProjPS);
+
+		SetGlobalBoundShaderState(RHICmdList, View.GetFeatureLevel(), BoundShaderState, GetVertexDeclarationFVector4(), ShadowProjVS, ShadowProjPS, MultiResGS);
 
 		// Set shader parameters
 		ShadowProjVS->SetParameters(RHICmdList, View, ShadowInfo);
@@ -2150,8 +2160,8 @@ static void SetShadowProjectionShaderTemplNew(FRHICommandList& RHICmdList, int32
 			FShadowProjectionPixelShaderInterface* ShadowProjPS = View.ShaderMap->GetShader<TShadowProjectionPS<Quality, true> >();
 
 			static FGlobalBoundShaderState BoundShaderState;
-			
-			SetGlobalBoundShaderState(RHICmdList, View.GetFeatureLevel(), BoundShaderState, GetVertexDeclarationFVector4(), ShadowProjVS, ShadowProjPS);
+
+			SetGlobalBoundShaderState(RHICmdList, View.GetFeatureLevel(), BoundShaderState, GetVertexDeclarationFVector4(), ShadowProjVS, ShadowProjPS, MultiResGS);
 
 			ShadowProjPS->SetParameters(RHICmdList, ViewIndex, View, ShadowInfo);
 		}
@@ -2161,8 +2171,8 @@ static void SetShadowProjectionShaderTemplNew(FRHICommandList& RHICmdList, int32
 			FShadowProjectionPixelShaderInterface* ShadowProjPS = View.ShaderMap->GetShader<TShadowProjectionPS<Quality, false> >();
 
 			static FGlobalBoundShaderState BoundShaderState;
-			
-			SetGlobalBoundShaderState(RHICmdList, View.GetFeatureLevel(), BoundShaderState, GetVertexDeclarationFVector4(), ShadowProjVS, ShadowProjPS);
+
+			SetGlobalBoundShaderState(RHICmdList, View.GetFeatureLevel(), BoundShaderState, GetVertexDeclarationFVector4(), ShadowProjVS, ShadowProjPS, MultiResGS);
 
 			ShadowProjPS->SetParameters(RHICmdList, ViewIndex, View, ShadowInfo);
 		}
@@ -2177,16 +2187,37 @@ static void SetShadowProjectionShaderTemplNew(FRHICommandList& RHICmdList, int32
 		// Get the Shadow Projection Pixel Shader
 		// This shader is the ordinary projection shader used by point/spot lights.		
 		FShadowProjectionPixelShaderInterface* ShadowProjPS = bForwardShading ?
-					View.ShaderMap->GetShader<TModulatedShadowProjection<Quality> >() :
-					View.ShaderMap->GetShader<TShadowProjectionPS<Quality, false> >();
+			View.ShaderMap->GetShader<TModulatedShadowProjection<Quality> >() :
+			View.ShaderMap->GetShader<TShadowProjectionPS<Quality, false> >();
 
 		static FGlobalBoundShaderState BoundShaderState;
-		
-		SetGlobalBoundShaderState(RHICmdList, View.GetFeatureLevel(), BoundShaderState, GetVertexDeclarationFVector4(), ShadowProjVS, ShadowProjPS);
+
+		SetGlobalBoundShaderState(RHICmdList, View.GetFeatureLevel(), BoundShaderState, GetVertexDeclarationFVector4(), ShadowProjVS, ShadowProjPS, MultiResGS);
 
 		ShadowProjVS->SetParameters(RHICmdList, View, ShadowInfo);
 		ShadowProjPS->SetParameters(RHICmdList, ViewIndex, View, ShadowInfo);
 	}
+
+	if (bVRProjectEnabled)
+	{
+		MultiResGS->SetParameters(RHICmdList, View);
+	}
+}
+
+template <uint32 Quality>
+static void SetShadowProjectionShaderTemplNew(FRHICommandList& RHICmdList, int32 ViewIndex, const FViewInfo& View, const FProjectedShadowInfo* ShadowInfo, bool bForwardShading)
+{
+	const bool bVRProjectEnabled = View.bVRProjectEnabled;
+
+	if (bVRProjectEnabled)
+	{
+		SetShadowProjectionShaderTemplNewMultiRes<Quality,true>(RHICmdList, ViewIndex, View, ShadowInfo, bForwardShading);
+	}
+	else
+	{
+		SetShadowProjectionShaderTemplNewMultiRes<Quality, false>(RHICmdList, ViewIndex, View, ShadowInfo, bForwardShading);
+	}
+	
 }
 
 void FProjectedShadowInfo::RenderProjection(FRHICommandListImmediate& RHICmdList, int32 ViewIndex, const FViewInfo* View, bool bForwardShading) const
@@ -2291,6 +2322,14 @@ void FProjectedShadowInfo::RenderProjection(FRHICommandListImmediate& RHICmdList
 	// Depth test wo/ writes, no color writing.
 	RHICmdList.SetDepthStencilState(TStaticDepthStencilState<false, CF_DepthNearOrEqual>::GetRHI());
 	RHICmdList.SetBlendState(TStaticBlendState<CW_NONE>::GetRHI());
+
+	if (View->bVRProjectEnabled)
+	{
+		// EHartNV : ToDo - follow-up on Nathan's optimization issue
+		// @todo: restrict rendering to the light's screen-space rectangle (as in LightSceneInfo->Proxy->SetScissorRect).
+		// Would need to map the scissor rect to multi-res coordinates, then intersect it with the vr projection scissors.
+		View->BeginVRProjectionStates(RHICmdList);
+	}
 	
 	bool bDepthBoundsTestEnabled = false;
 
@@ -2388,6 +2427,11 @@ void FProjectedShadowInfo::RenderProjection(FRHICommandListImmediate& RHICmdList
 			float DepthNear = Near.Z / Near.W;
 			float DepthFar = Far.Z / Far.W;
 
+			if (View->bVRProjectEnabled && View->VRProjMode == FSceneView::EVRProjectMode::LensMatched)
+			{
+				DepthFar = 0;// Far.Z / (FMath::Max(View->LensMatchedShadingConf.WarpUp, View->LensMatchedShadingConf.WarpDown) + FMath::Max(View->LensMatchedShadingConf.WarpLeft, View->LensMatchedShadingConf.WarpRight) + Far.W);
+			}
+
 			DepthFar = FMath::Clamp( DepthFar, 0.0f, 1.0f );
 			DepthNear = FMath::Clamp( DepthNear, 0.0f, 1.0f );
 
@@ -2420,8 +2464,18 @@ void FProjectedShadowInfo::RenderProjection(FRHICommandListImmediate& RHICmdList
 
 			// Find the projection shaders.
 			TShaderMapRef<FShadowProjectionNoTransformVS> VertexShaderNoTransform(View->ShaderMap);
+			TShaderMapRef<FShadowProjectionMultiResGS> MultiResGeometryShader(View->ShaderMap);
+
+			if (View->bVRProjectEnabled)
+			{
+				SetGlobalBoundShaderState(RHICmdList, View->GetFeatureLevel(), MaskBoundShaderState[0], GetVertexDeclarationFVector4(), *VertexShaderNoTransform, nullptr, *MultiResGeometryShader);
+				MultiResGeometryShader->SetParameters(RHICmdList, *View);
+			}
+			else
+			{
+				SetGlobalBoundShaderState(RHICmdList, View->GetFeatureLevel(), MaskBoundShaderState[1], GetVertexDeclarationFVector4(), *VertexShaderNoTransform, nullptr);
+			}
 			VertexShaderNoTransform->SetParameters(RHICmdList, *View);
-			SetGlobalBoundShaderState(RHICmdList, View->GetFeatureLevel(), MaskBoundShaderState[0], GetVertexDeclarationFVector4(), *VertexShaderNoTransform, nullptr);
 
 			FVector4 Near = View->ViewMatrices.ProjMatrix.TransformFVector4(FVector4(0, 0, CascadeSettings.SplitNear));
 			FVector4 Far = View->ViewMatrices.ProjMatrix.TransformFVector4(FVector4(0, 0, CascadeSettings.SplitFar));
@@ -2484,9 +2538,18 @@ void FProjectedShadowInfo::RenderProjection(FRHICommandListImmediate& RHICmdList
 		
 		// Find the projection shaders.
 		TShaderMapRef<FShadowProjectionVS> VertexShader(View->ShaderMap);
+		TShaderMapRef<FShadowProjectionMultiResGS> MultiResGeometryShader(View->ShaderMap);
 
 		// Cache the bound shader state
-		SetGlobalBoundShaderState(RHICmdList, View->GetFeatureLevel(), MaskBoundShaderState[1], GetVertexDeclarationFVector4(), *VertexShader, NULL);
+		if (View->bVRProjectEnabled)
+		{
+			SetGlobalBoundShaderState(RHICmdList, View->GetFeatureLevel(), MaskBoundShaderState[2], GetVertexDeclarationFVector4(), *VertexShader, nullptr, *MultiResGeometryShader);
+			MultiResGeometryShader->SetParameters(RHICmdList, *View);
+		}
+		else
+		{
+			SetGlobalBoundShaderState(RHICmdList, View->GetFeatureLevel(), MaskBoundShaderState[3], GetVertexDeclarationFVector4(), *VertexShader, nullptr);
+		}
 
 		// Set the projection vertex shader parameters
 		VertexShader->SetParameters(RHICmdList, *View, this);
@@ -2648,6 +2711,13 @@ void FProjectedShadowInfo::RenderProjection(FRHICommandListImmediate& RHICmdList
 		DrawIndexedPrimitiveUP(RHICmdList, PT_TriangleList, 0, 8, 12, GCubeIndices, sizeof(uint16), FrustumVertices, sizeof(FVector4));
 	}
 
+	if (View->bVRProjectEnabled)
+	{
+		// Reset viewport and scissor for the next pass (and before possibly clearing stencil)
+		RHICmdList.SetViewport(View->ViewRect.Min.X, View->ViewRect.Min.Y, 0.0f, View->ViewRect.Max.X, View->ViewRect.Max.Y, 1.0f);
+		View->EndVRProjectionStates(RHICmdList);
+	}
+
 	if( bDepthBoundsTestEnabled )
 	{
 		// Disable depth bounds testing
@@ -2660,19 +2730,38 @@ void FProjectedShadowInfo::RenderProjection(FRHICommandListImmediate& RHICmdList
 	}
 }
 
+template <uint32 Quality, bool bVRProjectEnabled>
+static void SetPointLightShaderTemplMultiRes(FRHICommandList& RHICmdList, int32 ViewIndex, const FViewInfo& View, const FProjectedShadowInfo* ShadowInfo)
+{
+	TShaderMapRef<FShadowProjectionVS> VertexShader(View.ShaderMap);
+	TShaderMapRef<FShadowProjectionMultiResGS> MultiResGS(View.ShaderMap);
+	TShaderMapRef<TOnePassPointShadowProjectionPS<Quality> > PixelShader(View.ShaderMap);
+
+	static FGlobalBoundShaderState BoundShaderState;
+
+	SetGlobalBoundShaderState(RHICmdList, View.GetFeatureLevel(), BoundShaderState, GetVertexDeclarationFVector4(), *VertexShader, *PixelShader, bVRProjectEnabled ? *MultiResGS : nullptr);
+
+	VertexShader->SetParameters(RHICmdList, View, ShadowInfo);
+	PixelShader->SetParameters(RHICmdList, ViewIndex, View, ShadowInfo);
+	if (bVRProjectEnabled)
+	{
+		MultiResGS->SetParameters(RHICmdList, View);
+	}
+}
 
 template <uint32 Quality>
 static void SetPointLightShaderTempl(FRHICommandList& RHICmdList, int32 ViewIndex, const FViewInfo& View, const FProjectedShadowInfo* ShadowInfo)
 {
-	TShaderMapRef<FShadowProjectionVS> VertexShader(View.ShaderMap);
-	TShaderMapRef<TOnePassPointShadowProjectionPS<Quality> > PixelShader(View.ShaderMap);
-
-	static FGlobalBoundShaderState BoundShaderState;
+	const bool bVRProjectEnabled = View.bVRProjectEnabled;
 	
-	SetGlobalBoundShaderState(RHICmdList, View.GetFeatureLevel(), BoundShaderState, GetVertexDeclarationFVector4(), *VertexShader, *PixelShader);
-
-	VertexShader->SetParameters(RHICmdList, View, ShadowInfo);
-	PixelShader->SetParameters(RHICmdList, ViewIndex, View, ShadowInfo);
+	if (bVRProjectEnabled)
+	{
+		SetPointLightShaderTemplMultiRes<Quality,true>(RHICmdList, ViewIndex, View, ShadowInfo);
+	}
+	else
+	{
+		SetPointLightShaderTemplMultiRes<Quality, false>(RHICmdList, ViewIndex, View, ShadowInfo);
+	}
 }
 
 /** Render one pass point light shadow projections. */
@@ -3120,7 +3209,14 @@ bool FDeferredShadingSceneRenderer::RenderOnePassPointLightShadows(FRHICommandLi
 					const FViewInfo& View = Views[ViewIndex];
 
 					// Set the device viewport for the view.
-					RHICmdList.SetViewport(View.ViewRect.Min.X, View.ViewRect.Min.Y, 0.0f, View.ViewRect.Max.X, View.ViewRect.Max.Y, 1.0f);
+					if (View.bVRProjectEnabled)
+					{
+						View.BeginVRProjectionStates(RHICmdList);
+					}
+					else
+					{
+						RHICmdList.SetViewport(View.ViewRect.Min.X, View.ViewRect.Min.Y, 0.0f, View.ViewRect.Max.X, View.ViewRect.Max.Y, 1.0f);
+					}
 					
 					if (ProjectedShadowInfo->CascadeSettings.bRayTracedDistanceField)
 					{
@@ -3129,6 +3225,12 @@ bool FDeferredShadingSceneRenderer::RenderOnePassPointLightShadows(FRHICommandLi
 					else
 					{
 						ProjectedShadowInfo->RenderOnePassPointLightProjection(RHICmdList, ViewIndex, View);
+					}
+
+					if (View.bVRProjectEnabled)
+					{
+						// Reset viewport and scissor after rendering to vr projection view
+						View.EndVRProjectionStates(RHICmdList);
 					}
 				}
 			}
@@ -3176,11 +3278,16 @@ void FSceneRenderer::RenderProjections(
 
 		const FViewInfo& View = Views[ViewIndex];
 
-		// Set the device viewport for the view.
-		RHICmdList.SetViewport(View.ViewRect.Min.X, View.ViewRect.Min.Y, 0.0f, View.ViewRect.Max.X, View.ViewRect.Max.Y, 1.0f);
+		// EHartNV : ToDo - determine if this is really necessary, or whether it is just a small inefficiency
+		// In multi-res mode, defer viewport/scissor setting to RenderProjection().
+		if (!View.bVRProjectEnabled)
+		{
+			// Set the device viewport for the view.
+			RHICmdList.SetViewport(View.ViewRect.Min.X, View.ViewRect.Min.Y, 0.0f, View.ViewRect.Max.X, View.ViewRect.Max.Y, 1.0f);
 
-		// Set the light's scissor rectangle.
-		LightSceneInfo->Proxy->SetScissorRect(RHICmdList, View);
+			// Set the light's scissor rectangle.
+			LightSceneInfo->Proxy->SetScissorRect(RHICmdList, View);
+		}
 
 		// Project the shadow depth buffers onto the scene.
 		for (int32 ShadowIndex = 0; ShadowIndex < Shadows.Num(); ShadowIndex++)
@@ -3200,8 +3307,12 @@ void FSceneRenderer::RenderProjections(
 			}
 		}
 
-		// Reset the scissor rectangle.
-		RHICmdList.SetScissorRect(false, 0, 0, 0, 0);
+		// EHartNV : ToDo - determine if this is really necessary, or whether it is just a small inefficiency
+		if (!View.bVRProjectEnabled)
+		{
+			// Reset the scissor rectangle.
+			RHICmdList.SetScissorRect(false, 0, 0, 0, 0);
+		}
 	}
 }
 

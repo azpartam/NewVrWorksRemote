@@ -92,6 +92,8 @@ void MainLongGPUTask(out float4 OutColor : SV_Target0)
 	OutColor *= .000001f;
 }
 
+VRPROJECT_CREATE_FASTGS(VRProjectFastGS, FOneColorVertexOutput, Position)
+
 #if FEATURE_LEVEL >= FEATURE_LEVEL_SM5
 
 float4 FillValue;

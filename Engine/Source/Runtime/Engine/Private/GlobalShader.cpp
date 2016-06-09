@@ -164,7 +164,7 @@ FShaderCompileJob* FGlobalShaderType::BeginCompileShader(EShaderPlatform Platfor
 		ShaderPipeline,
 		GetShaderFilename(),
 		GetFunctionName(),
-		FShaderTarget(GetFrequency(),Platform),
+		FShaderTarget(GetFrequency(),Platform,GetIsFastGeometryShader()),
 		NewJob,
 		NewJobs
 		);

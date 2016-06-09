@@ -208,6 +208,117 @@ void FD3D11DynamicRHI::RHISetScissorRect(bool bEnable,uint32 MinX,uint32 MinY,ui
 	}
 }
 
+void FD3D11DynamicRHI::RHISetModifiedWMode(const FLensMatchedShading::Configuration& Conf, const bool bWarpForward, const bool bEnable)
+{
+	if (!GSupportsModifiedW)
+		return;
+
+	NV_MODIFIED_W_PARAMS ModifiedWParams = {};
+	FMemory::Memzero(ModifiedWParams);
+	ModifiedWParams.version = NV_MODIFIED_W_PARAMS_VER1;
+	ModifiedWParams.numEntries = bEnable ? 4 : 0;
+
+	float Left = -Conf.WarpLeft;
+	float Right = Conf.WarpRight;
+	float Up = Conf.WarpUp;
+	float Down = -Conf.WarpDown;
+
+	if (!bWarpForward) // Inverse factors for unwarping
+	{
+		Left = -Left;
+		Right = -Right;
+		Up = -Up;
+		Down = -Down;
+	}
+
+	// W-warp scale factors (W` = W + Ax + By)
+
+	ModifiedWParams.modifiedWCoefficients[0].fA = Left;
+	ModifiedWParams.modifiedWCoefficients[0].fB = Up;
+
+	ModifiedWParams.modifiedWCoefficients[1].fA = Right;
+	ModifiedWParams.modifiedWCoefficients[1].fB = Up;
+
+	ModifiedWParams.modifiedWCoefficients[2].fA = Left;
+	ModifiedWParams.modifiedWCoefficients[2].fB = Down;
+
+	ModifiedWParams.modifiedWCoefficients[3].fA = Right;
+	ModifiedWParams.modifiedWCoefficients[3].fB = Down;
+
+	NvAPI_Status Status = NvAPI_D3D_SetModifiedWMode(Direct3DDevice, &ModifiedWParams);
+	check(Status == NVAPI_OK);
+}
+
+void FD3D11DynamicRHI::RHISetModifiedWModeStereo(const FLensMatchedShading::StereoConfiguration& Conf, const bool bWarpForward, const bool bEnable)
+{
+	if (!GSupportsModifiedW)
+		return;
+
+	NV_MODIFIED_W_PARAMS ModifiedWParams = {};
+	FMemory::Memzero(ModifiedWParams);
+	ModifiedWParams.version = NV_MODIFIED_W_PARAMS_VER1;
+	ModifiedWParams.numEntries = bEnable ? 8 : 0;
+
+	for (int i = 0; i < 2; ++i)
+	{
+		const FLensMatchedShading::Configuration& InConf = i == 0 ? Conf.LeftConfig : Conf.RightConfig;
+
+		float Left = -InConf.WarpLeft;
+		float Right = InConf.WarpRight;
+		float Up = InConf.WarpUp;
+		float Down = -InConf.WarpDown;
+
+		if (!bWarpForward) // Inverse factors for unwarping
+		{
+			Left = -Left;
+			Right = -Right;
+			Up = -Up;
+			Down = -Down;
+		}
+
+		int Offset = i * 4;
+
+		// W-warp scale factors (W` = W + Ax + By)
+		ModifiedWParams.modifiedWCoefficients[Offset + 0].fA = Left;
+		ModifiedWParams.modifiedWCoefficients[Offset + 0].fB = Up;
+
+		ModifiedWParams.modifiedWCoefficients[Offset + 1].fA = Right;
+		ModifiedWParams.modifiedWCoefficients[Offset + 1].fB = Up;
+
+		ModifiedWParams.modifiedWCoefficients[Offset + 2].fA = Left;
+		ModifiedWParams.modifiedWCoefficients[Offset + 2].fB = Down;
+
+		ModifiedWParams.modifiedWCoefficients[Offset + 3].fA = Right;
+		ModifiedWParams.modifiedWCoefficients[Offset + 3].fB = Down;
+
+	}
+
+	NvAPI_Status Status = NvAPI_D3D_SetModifiedWMode(Direct3DDevice, &ModifiedWParams);
+	check(Status == NVAPI_OK);
+}
+
+void FD3D11DynamicRHI::RHISetMultipleScissorRects(bool bEnable, uint32 Num, const FIntRect* Rects)
+{
+	if (bEnable)
+	{
+		check(Num > 0);
+		check(Rects);
+
+		// Data layout is directly mappable
+		const D3D11_RECT* d3d11Rects = reinterpret_cast<const D3D11_RECT*>(Rects);
+		Direct3DDeviceIMContext->RSSetScissorRects(Num, d3d11Rects);
+	}
+	else
+	{
+		D3D11_RECT ScissorRect;
+		ScissorRect.left = 0;
+		ScissorRect.right = GetMax2DTextureDimension();
+		ScissorRect.top = 0;
+		ScissorRect.bottom = GetMax2DTextureDimension();
+		Direct3DDeviceIMContext->RSSetScissorRects(1, &ScissorRect);
+	}
+}
+
 /**
 * Set bound shader state. This will set the vertex decl/shader, and pixel shader
 * @param BoundShaderState - state resource
@@ -2132,6 +2243,22 @@ void FD3D11DynamicRHI::RHIEnableDepthBoundsTest(bool bEnable,float MinDepth,floa
 			bOnce = true;
 			UE_LOG(LogD3D11RHI, Error,TEXT("NvAPI_D3D11_SetDepthBoundsTest(%i,%f, %f) returned error code %i. **********PLEASE UPDATE YOUR VIDEO DRIVERS*********"),bEnable,MinDepth,MaxDepth,(unsigned int)result);
 		}
+	}
+#endif
+}
+
+void FD3D11DynamicRHI::RHISetSinglePassStereoParameters(bool bEnable, uint32 RenderTargetIndexOffset, uint8 IndependentViewportMaskEnable)
+{
+#if PLATFORM_DESKTOP
+	if (!IsRHIDeviceNVIDIA()) return;
+
+	if (bEnable)
+	{
+		NvAPI_D3D_SetSinglePassStereoMode(Direct3DDevice, 2, 0, true);
+	}
+	else
+	{
+		NvAPI_D3D_SetSinglePassStereoMode(Direct3DDevice, 1, 1, false);
 	}
 #endif
 }

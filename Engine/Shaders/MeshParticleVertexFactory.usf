@@ -540,6 +540,10 @@ float4 VertexFactoryGetPreviousWorldPosition(FVertexFactoryInput Input, FVertexF
 		TESSELLATION_INTERPOLATE_MEMBER(InterpolantsVSToPS.DynamicParameter);
 #endif	//USE_DYNAMIC_PARAMETERS
 
+#if INSTANCED_STEREO
+		O.InterpolantsVSToPS.PackedEyeIndex = a.InterpolantsVSToPS.PackedEyeIndex;
+#endif
+
 		return O;
 	}
 

@@ -789,5 +789,39 @@ FScreenSpaceData GetScreenSpaceData(float2 UV, bool bGetNormalizedNormal = true)
 	}
 #endif
 
+// With Lens-Matched shading, some compute thread groups running on a full screen quad will cover parts of the screen that are not
+// visible in the final image, which means we can kill them
+bool ShouldKillThreadGroupModifiedWBoundaryMask(uint3 GroupId, uint2 ThreadGroupSize, uint4 ViewDimensions)
+{
+	if (LensMatchedShadingIsActive())
+	{
+		// We check the UV coordinates of the thread group corners and kill if they are all outside of the visible area
+		float2 ScreenUV0 = float2((GroupId.xy + int2(0, 0))* float2(ThreadGroupSize.x, ThreadGroupSize.y) + .5f) / (ViewDimensions.zw - ViewDimensions.xy);
+		float2 UVTL = VRProjMapVRProjToLinear(ScreenUV0);
+		float2 ScreenUV1 = float2((GroupId.xy + int2(1, 0))* float2(ThreadGroupSize.x, ThreadGroupSize.y) + float2(-.5f, .5f)) / (ViewDimensions.zw - ViewDimensions.xy);
+		float2 UVTR = VRProjMapVRProjToLinear(ScreenUV1);
+		float2 ScreenUV2 = float2((GroupId.xy + int2(1, 1))* float2(ThreadGroupSize.x, ThreadGroupSize.y) - .5f) / (ViewDimensions.zw - ViewDimensions.xy);
+		float2 UVBR = VRProjMapVRProjToLinear(ScreenUV2);
+		float2 ScreenUV3 = float2((GroupId.xy + int2(0, 1))* float2(ThreadGroupSize.x, ThreadGroupSize.y) + float2(.5f, -.5f)) / (ViewDimensions.zw - ViewDimensions.xy);
+		float2 UVBL = VRProjMapVRProjToLinear(ScreenUV3);
+		if ((UVBR.x < 0.0 && UVTR.x < 0.0)
+			|| (UVBL.x > 1.0 && UVTL.x > 1.0)
+			|| (UVBR.y < 0.0 && UVBL.y < 0.0)
+			|| (UVTL.y > 1.0 && UVTR.y > 1.0))
+		{
+			return true;
+
+		}
+		// we need all of these else-false clauses here to convince the compiler that there's no divergent flow inside a thread group
+		else
+		{
+			return false;
+		}
+	}
+	else
+	{
+		return false;
+	}
+}
 
 #endif // __DEFERRED_SHADING_COMMON__

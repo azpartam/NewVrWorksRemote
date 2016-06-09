@@ -121,6 +121,7 @@ public:
 
 	/** bound shader state for occlusion test prims */
 	static FGlobalBoundShaderState OcclusionTestBoundShaderState;
+	static FGlobalBoundShaderState OcclusionTestMultiResBoundShaderState;
 
 private:
 
@@ -171,7 +172,7 @@ private:
 	 * Renders the active HMD's hidden area mask as a depth prepass, if available.
 	 * @return true if depth is cleared
 	 */
-	bool RenderPrePassHMD(FRHICommandListImmediate& RHICmdList);
+	bool RenderPrePassHMD(FRHICommandListImmediate& RHICmdList, bool bDepthWasCleared);
 
 	/** Issues occlusion queries. */
 	void BeginOcclusionTests(FRHICommandListImmediate& RHICmdList, bool bRenderQueries, bool bRenderHZB);

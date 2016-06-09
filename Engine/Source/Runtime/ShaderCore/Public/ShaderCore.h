@@ -75,27 +75,31 @@ struct FShaderTarget
 {
 	uint32 Frequency : SF_NumBits;
 	uint32 Platform : SP_NumBits;
+	uint32 IsFastGeometryShader : 1;
 
 	FShaderTarget()
 	{}
 
-	FShaderTarget(EShaderFrequency InFrequency,EShaderPlatform InPlatform)
+	FShaderTarget(EShaderFrequency InFrequency, EShaderPlatform InPlatform, bool InIsFastGeometryShader = false)
 	:	Frequency(InFrequency)
 	,	Platform(InPlatform)
+	,	IsFastGeometryShader(InIsFastGeometryShader)
 	{}
 
 	friend bool operator==(const FShaderTarget& X, const FShaderTarget& Y)
 	{
-		return X.Frequency == Y.Frequency && X.Platform == Y.Platform;
+		return X.Frequency == Y.Frequency && X.Platform == Y.Platform && X.IsFastGeometryShader == Y.IsFastGeometryShader;
 	}
 
 	friend FArchive& operator<<(FArchive& Ar,FShaderTarget& Target)
 	{
 		uint32 TargetFrequency = Target.Frequency;
 		uint32 TargetPlatform = Target.Platform;
-		Ar << TargetFrequency << TargetPlatform;
+		uint32 TargetIsFastGeometryShader = Target.IsFastGeometryShader;
+		Ar << TargetFrequency << TargetPlatform << TargetIsFastGeometryShader;
 		Target.Frequency = TargetFrequency;
 		Target.Platform = TargetPlatform;
+		Target.IsFastGeometryShader = TargetIsFastGeometryShader;
 		return Ar;
 	}
 };

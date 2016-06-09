@@ -55,6 +55,16 @@ void DirectionalPixelMain(
 	)
 {
 	OutColor = 0;
+
+	if (VRProjectionIsActive())
+	{
+		// Recalculate ScreenVector per-pixel, remapping multi-res UVs to corresponding linear UVs
+		// @todo: Could be done in the vertex shader, by constructing a mesh that's split to match the
+		// multi-res viewports.
+		float4 LinearSvPos = SvPositionToLinearSvPosition(SVPos);
+		ScreenVector = mul(float4(LinearSvPos.xy, 1, 1), View.SVPositionToTranslatedWorld).xyz;
+}
+
 	float3 CameraVector = normalize(ScreenVector);
 
 	FScreenSpaceData ScreenSpaceData = GetScreenSpaceData(InUV);
@@ -89,7 +99,9 @@ void RadialPixelMain(
 	)
 {
 	OutColor = 0;
-	float2 ScreenUV = InScreenPosition.xy / InScreenPosition.w * View.ScreenPositionScaleBias.xy + View.ScreenPositionScaleBias.wz;
+
+	// EHartNV : ToDo - review if this is reasonable for all paths
+	float2 ScreenUV = SVPos.xy * Frame.BufferSizeAndInvSize.zw;
 	
 	FScreenSpaceData ScreenSpaceData = GetScreenSpaceData(ScreenUV);
 

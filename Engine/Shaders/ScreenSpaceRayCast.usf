@@ -15,26 +15,49 @@
 #define HZB_LEVEL_OFFSET 1.0
 
 float4 HZBUvFactorAndInvFactor;
+
 #else
 #define HZB_LEVEL_OFFSET 0.0
 
 #endif
 
-float4 SampleDepthTexture( Texture2D Texture, SamplerState Sampler, float Level, float4 SampleUV0, float4 SampleUV1 )
+
+float4 RemapForMultiRes(float4 SampleUV)
+{
+#if USE_HZB
+	// scale to viewport rect, then map multires to linear
+	SampleUV *= HZBUvFactorAndInvFactor.zwzw;
+	SampleUV.xy = VRProjMapLinearToVRProj(SampleUV.xy);
+	SampleUV.zw = VRProjMapLinearToVRProj(SampleUV.zw);
+	SampleUV *= HZBUvFactorAndInvFactor.xyxy;
+#else
+	SampleUV.xy = VRProjMapLinearToVRProj(SampleUV.xy);
+	SampleUV.zw = VRProjMapLinearToVRProj(SampleUV.zw);
+#endif
+	return SampleUV;
+}
+
+float4 SampleDepthTexture(Texture2D Texture, SamplerState Sampler, float Level, float4 SampleUV0, float4 SampleUV1)
 {
 	float4 SampleDepth;
+
+	// Remap for possible multires distortion
+	SampleUV0 = RemapForMultiRes(SampleUV0);
+	SampleUV1 = RemapForMultiRes(SampleUV1);
+
 #if USE_HZB
 	// SampleUV{0,1}.{xy,zw} should already be in the HZB UV frame using HZBUvFactorAndInvFactor.xy
-	SampleDepth.x = Texture2DSampleLevel( Texture, Sampler, SampleUV0.xy, Level ).r;
-	SampleDepth.y = Texture2DSampleLevel( Texture, Sampler, SampleUV0.zw, Level ).r;
-	SampleDepth.z = Texture2DSampleLevel( Texture, Sampler, SampleUV1.xy, Level ).r;
-	SampleDepth.w = Texture2DSampleLevel( Texture, Sampler, SampleUV1.zw, Level ).r;
+	SampleDepth.x = Texture2DSampleLevel(Texture, Sampler, SampleUV0.xy, Level).r;
+	SampleDepth.y = Texture2DSampleLevel(Texture, Sampler, SampleUV0.zw, Level).r;
+	SampleDepth.z = Texture2DSampleLevel(Texture, Sampler, SampleUV1.xy, Level).r;
+	SampleDepth.w = Texture2DSampleLevel(Texture, Sampler, SampleUV1.zw, Level).r;
 #else
-	SampleDepth.x = Texture2DSampleLevel( SceneDepthTexture, SceneDepthTextureSampler, SampleUV0.xy, 0 ).r;
-	SampleDepth.y = Texture2DSampleLevel( SceneDepthTexture, SceneDepthTextureSampler, SampleUV0.zw, 0 ).r;
-	SampleDepth.z = Texture2DSampleLevel( SceneDepthTexture, SceneDepthTextureSampler, SampleUV1.xy, 0 ).r;
-	SampleDepth.w = Texture2DSampleLevel( SceneDepthTexture, SceneDepthTextureSampler, SampleUV1.zw, 0 ).r;
+	SampleDepth.x = Texture2DSampleLevel(SceneDepthTexture, SceneDepthTextureSampler, SampleUV0.xy, 0).r;
+	SampleDepth.y = Texture2DSampleLevel(SceneDepthTexture, SceneDepthTextureSampler, SampleUV0.zw, 0).r;
+	SampleDepth.z = Texture2DSampleLevel(SceneDepthTexture, SceneDepthTextureSampler, SampleUV1.xy, 0).r;
+	SampleDepth.w = Texture2DSampleLevel(SceneDepthTexture, SceneDepthTextureSampler, SampleUV1.zw, 0).r;
 #endif
+
 	return SampleDepth;
 }
 
@@ -110,10 +133,13 @@ void RayCast(
 	for( int i = 0; i < NumSteps; i++ )
 	{
 		float3 SampleUVz = RayStartUVz + RayStepUVz * SampleTime;
+
+		// Remap for possible multires distortion
+		float2 SampleUV = RemapForMultiRes(SampleUVz.xy).xy;
 		
 		// Use lower res for farther samples
 		float Level = Roughness * (i * 4.0 / NumSteps) + HZB_LEVEL_OFFSET;
-		float SampleDepth = Texture.SampleLevel( Sampler, SampleUVz.xy, Level ).r;
+		float SampleDepth = Texture.SampleLevel( Sampler, SampleUV, Level ).r;
 
 		float DepthDiff = SampleUVz.z - SampleDepth;
 		bool Hit = abs( DepthDiff + CompareTolerance ) < CompareTolerance;
@@ -287,6 +313,11 @@ float4 RayCastCheap( Texture2D Texture, SamplerState Sampler, float3 R, float Sc
 	float4 SampleZ   = RayStartUVz.zzzz + RayStepUVz.zzzz * SampleTime;
 
 	float4 SampleDepth;
+
+	// Remap for possible multires distortion
+	SampleUV0 = RemapForMultiRes(SampleUV0);
+	SampleUV1 = RemapForMultiRes(SampleUV1);
+
 #if USE_HZB
 	SampleDepth.x = Texture2DSampleLevel( Texture, Sampler, SampleUV0.xy, 0 ).r;
 	SampleDepth.y = Texture2DSampleLevel( Texture, Sampler, SampleUV0.zw, 0 ).r;
@@ -363,13 +394,20 @@ float4 SampleScreenColor( Texture2D Texture, SamplerState Sampler, float3 HitUVz
 	float2 PrevScreen = PrevClip.xy / PrevClip.w;
 	float2 PrevUV = PrevScreen.xy * View.ScreenPositionScaleBias.xy + View.ScreenPositionScaleBias.wz;
 
+	// Remap to warped space
+	PrevUV = VRProjMapRenderTargetLinearToVRProj(PrevUV);
+
 	OutColor.rgb = Texture.SampleLevel( Sampler, PrevUV, 0 ).rgb;
 	OutColor.a = 1;
 
 	// Off screen masking
 	float2 Vignette = saturate( abs( PrevScreen ) * 5 - 4 );
 #else
-	OutColor.rgb = Texture.SampleLevel( Sampler, HitUVz.xy, 0 ).rgb;
+
+	// Remap to warped space
+	float2 UV = VRProjMapRenderTargetLinearToVRProj(HitUVz.xy);
+
+	OutColor.rgb = Texture.SampleLevel( Sampler, UV, 0 ).rgb;
 	OutColor.a = 1;
 
 	// Off screen masking
@@ -403,13 +441,21 @@ float4 SampleHCBLevel( Texture2D Texture, SamplerState Sampler, float3 HitUVz, f
 	float2 PrevScreen = PrevClip.xy / PrevClip.w;
 	float2 PrevUV = PrevScreen.xy * View.ScreenPositionScaleBias.xy + View.ScreenPositionScaleBias.wz;
 
+	// Remap to warped space
+	PrevUV = VRProjMapLinearToVRProj(PrevUV); // assuming HCB textures are per view
+
 	OutColor.rgb = Texture.SampleLevel( Sampler, PrevUV * HZBUvFactorAndInvFactor.xy, Level ).rgb;
 	OutColor.a = 1;
 
 	// Off screen masking
 	float2 Vignette = saturate( abs( PrevScreen ) * 5 - 4 );
 #else
-	OutColor.rgb = Texture.SampleLevel( Sampler, HitUVz.xy * HZBUvFactorAndInvFactor.xy, Level ).rgb;
+
+	// Remap to warped space
+	float2 UV = HitUVz.xy;
+	UV = VRProjMapLinearToVRProj(UV); // assuming HCB textures are per view
+
+	OutColor.rgb = Texture.SampleLevel( Sampler, UV * HZBUvFactorAndInvFactor.xy, Level ).rgb;
 	OutColor.a = 1;
 
 	// Off screen masking

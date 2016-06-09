@@ -250,7 +250,20 @@ void FRCPassPostProcessSSRTemporalAA::Process(FRenderingCompositePassContext& Co
 
 	const FSceneRenderTargetItem& DestRenderTarget = PassOutputs[0].RequestSurface(Context);
 
-	SetRenderTarget(Context.RHICmdList, DestRenderTarget.TargetableTexture, FTextureRHIRef());
+	if (View.bVRProjectEnabled && View.VRProjMode == FSceneView::EVRProjectMode::LensMatched)
+	{
+		FSceneRenderTargets& SceneContext = FSceneRenderTargets::Get(Context.RHICmdList);
+
+		// bind depth to respect safezone in lens matched shading
+		SetRenderTarget(Context.RHICmdList, DestRenderTarget.TargetableTexture, SceneContext.GetSceneDepthSurface(), ESimpleRenderTargetMode::EUninitializedColorAndDepth, FExclusiveDepthStencil::DepthRead_StencilNop);
+		Context.RHICmdList.SetDepthStencilState(TStaticDepthStencilState<false, CF_DepthNear>::GetRHI());
+	}
+	else
+	{
+		// bind only the dest render target
+		SetRenderTarget(Context.RHICmdList, DestRenderTarget.TargetableTexture, FTextureRHIRef());
+		Context.RHICmdList.SetDepthStencilState(TStaticDepthStencilState<false, CF_Always>::GetRHI());
+	}
 
 	// is optimized away if possible (RT size=view size, )
 	Context.RHICmdList.Clear(true, FLinearColor::Black, false, (float)ERHIZBuffer::FarPlane, false, 0, SrcRect);
@@ -260,7 +273,6 @@ void FRCPassPostProcessSSRTemporalAA::Process(FRenderingCompositePassContext& Co
 	// set the state
 	Context.RHICmdList.SetBlendState(TStaticBlendState<>::GetRHI());
 	Context.RHICmdList.SetRasterizerState(TStaticRasterizerState<>::GetRHI());
-	Context.RHICmdList.SetDepthStencilState(TStaticDepthStencilState<false,CF_Always>::GetRHI());
 
 	TShaderMapRef< FPostProcessTonemapVS >			VertexShader(Context.GetShaderMap());
 	TShaderMapRef< FPostProcessTemporalAAPS<2, 0> >	PixelShader(Context.GetShaderMap());
@@ -595,7 +607,16 @@ void FRCPassPostProcessTemporalAA::Process(FRenderingCompositePassContext& Conte
 		// On camera cut this turns on responsive everywhere.
 		
 		// Normal temporal feedback
-		Context.RHICmdList.SetDepthStencilState(TStaticDepthStencilState<false,CF_Always>::GetRHI());
+		if (View.bVRProjectEnabled && View.VRProjMode == FSceneView::EVRProjectMode::LensMatched)
+		{
+			// respect safezone depth in lens matched shading mode
+			Context.RHICmdList.SetDepthStencilState(TStaticDepthStencilState<false, CF_DepthNear>::GetRHI());
+		}
+		else
+		{
+			// bind only the dest render target
+			Context.RHICmdList.SetDepthStencilState(TStaticDepthStencilState<false, CF_Always>::GetRHI());
+		}
 
 		TShaderMapRef< FPostProcessTonemapVS >			VertexShader(Context.GetShaderMap());
 		if (bUseFast)
@@ -641,7 +662,17 @@ void FRCPassPostProcessTemporalAA::Process(FRenderingCompositePassContext& Conte
 		{	
 			// Normal temporal feedback
 			// Draw to pixels where stencil == 0
-			Context.RHICmdList.SetDepthStencilState(TStaticDepthStencilState<false,CF_Always,true,CF_Equal,SO_Keep,SO_Keep,SO_Keep>::GetRHI(), 0);
+
+			if (View.bVRProjectEnabled && View.VRProjMode == FSceneView::EVRProjectMode::LensMatched)
+			{
+				// respect safezone depth in lens matched shading mode
+				Context.RHICmdList.SetDepthStencilState(TStaticDepthStencilState<false, CF_DepthNear, true, CF_Equal, SO_Keep, SO_Keep, SO_Keep>::GetRHI(), 0);
+			}
+			else
+			{
+				// bind only the dest render target
+				Context.RHICmdList.SetDepthStencilState(TStaticDepthStencilState<false, CF_Always, true, CF_Equal, SO_Keep, SO_Keep, SO_Keep>::GetRHI(), 0);
+			}
 	
 			TShaderMapRef< FPostProcessTonemapVS >			VertexShader(Context.GetShaderMap());
 			if (bUseFast)
@@ -686,6 +717,16 @@ void FRCPassPostProcessTemporalAA::Process(FRenderingCompositePassContext& Conte
 		{	// Responsive feedback for tagged pixels
 			// Draw to pixels where stencil != 0
 			Context.RHICmdList.SetDepthStencilState(TStaticDepthStencilState<false,CF_Always,true,CF_NotEqual,SO_Keep,SO_Keep,SO_Keep>::GetRHI(), 0);
+			if (View.bVRProjectEnabled && View.VRProjMode == FSceneView::EVRProjectMode::LensMatched)
+			{
+				// respect safezone depth in lens matched shading mode
+				Context.RHICmdList.SetDepthStencilState(TStaticDepthStencilState<false, CF_DepthNear, true, CF_NotEqual, SO_Keep, SO_Keep, SO_Keep>::GetRHI(), 0);
+			}
+			else
+			{
+				// bind only the dest render target
+				Context.RHICmdList.SetDepthStencilState(TStaticDepthStencilState<false, CF_Always, true, CF_NotEqual, SO_Keep, SO_Keep, SO_Keep>::GetRHI(), 0);
+			}
 			
 			TShaderMapRef< FPostProcessTonemapVS >			VertexShader(Context.GetShaderMap());
 			if(bUseFast)

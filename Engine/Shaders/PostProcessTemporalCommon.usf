@@ -168,7 +168,11 @@ which can be configured via defines for various temporal AA passes.
 
 #if AA_DOF
 	// temp solution, BrianK knows
-	float4 ThisClip = float4((UV - View.ScreenPositionScaleBias.wz) / View.ScreenPositionScaleBias.xy, PosN.z, 1);
+
+	// Remap for warped viewports, no-op for regular viewports
+	float2 MultiResUV = VRProjMapRenderTargetLinearToVRProj(UV);
+
+	float4 ThisClip = float4((MultiResUV - View.ScreenPositionScaleBias.wz) / View.ScreenPositionScaleBias.xy, PosN.z, 1);
 	float4 ThisTranslatedWorld = mul(ThisClip, View.ClipToTranslatedWorld);
 	ThisTranslatedWorld /= ThisTranslatedWorld.w;
 
@@ -177,7 +181,7 @@ which can be configured via defines for various temporal AA passes.
 	float2 PrevScreen = PrevClip.xy / PrevClip.w;
 	//float2 PrevUV = PrevScreen.xy * Frame.ScreenPositionScaleBias.xy + Frame.ScreenPositionScaleBias.wz;
 
-	float2 BackN =  SvPositionToScreenPosition(SvPosition).xy - PrevScreen - (View.ViewToClip[2].xy - View.PrevProjection[2].xy);
+	float2 BackN = SvPositionToScreenPosition(SvPosition).xy - PrevScreen - (View.ViewToClip[2].xy - View.PrevProjection[2].xy);
 #else // AA_DOF	
 	// Camera motion for pixel or nearest pixel (in ScreenPos space).
 	float4 ThisClip = float4( PosN.xy, PosN.z, 1 );
@@ -217,6 +221,10 @@ which can be configured via defines for various temporal AA passes.
 	// This clamps to be a pixel inside the viewport.
 	BackN.x = clamp(BackN.x, -1.0 + ViewportSize.z, 1.0 - ViewportSize.z);
 	BackN.y = clamp(BackN.y, -1.0 + ViewportSize.w, 1.0 - ViewportSize.w);
+
+	// account for multires, BackN is presently in lineaer space
+	BackN = VRProjMapNDCLinearToVRProj(BackN);
+
 	// Convert from [-1 to 1] to view rectangle which is somewhere in [0 to 1].
 	// The extra +0.5 factor is because ScreenPosToPixel.zw is incorrectly computed
 	// as the upper left of the pixel instead of the center of the pixel.

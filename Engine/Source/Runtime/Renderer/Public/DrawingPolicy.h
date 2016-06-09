@@ -63,9 +63,9 @@ public:
 	/** Context data required by the drawing policy that is not known when caching policies in static mesh draw lists. */
 	struct ContextDataType
 	{
-		ContextDataType(const bool InbIsInstancedStereo, const bool InbNeedsInstancedStereoBias) : bIsInstancedStereo(InbIsInstancedStereo), bNeedsInstancedStereoBias(InbNeedsInstancedStereoBias){};
-		ContextDataType() : bIsInstancedStereo(false), bNeedsInstancedStereoBias(false){};
-		bool bIsInstancedStereo, bNeedsInstancedStereoBias;
+		ContextDataType(const bool InbIsInstancedStereo, const bool InbNeedsInstancedStereoBias, const bool InIsSinglePassStereo) : bIsInstancedStereo(InbIsInstancedStereo), bNeedsInstancedStereoBias(InbNeedsInstancedStereoBias), bIsSinglePassStereo(InIsSinglePassStereo) {};
+		ContextDataType() : bIsInstancedStereo(false), bNeedsInstancedStereoBias(false), bIsSinglePassStereo(false) {};
+		bool bIsInstancedStereo, bNeedsInstancedStereoBias, bIsSinglePassStereo;
 	};
 
 	FMeshDrawingPolicy(
@@ -188,6 +188,8 @@ public:
 	const FMaterialRenderProxy* GetMaterialRenderProxy() const { return MaterialRenderProxy; }
 
 	FORCEINLINE EQuadOverdrawMode GetQuadOverdrawMode() const { return (EQuadOverdrawMode)QuadOverdrawMode; }
+
+	FORCEINLINE FGeometryShaderRHIRef GetMultiResFastGS() { return FGeometryShaderRHIRef(); }
 protected:
 	const FVertexFactory* VertexFactory;
 	const FMaterialRenderProxy* MaterialRenderProxy;

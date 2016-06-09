@@ -143,11 +143,20 @@ void FRenderingCompositePassContext::Process(FRenderingCompositePass* Root, cons
 
 	// query if we have a custom HMD post process mesh to use
 	static const auto* const HiddenAreaMaskCVar = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("vr.HiddenAreaMask"));
-	bHasHmdMesh = (HiddenAreaMaskCVar != nullptr &&
-		HiddenAreaMaskCVar->GetValueOnRenderThread() == 1 &&
-		GEngine &&
-		GEngine->HMDDevice.IsValid() &&
-		GEngine->HMDDevice->HasVisibleAreaMesh());
+
+	// EHartNV : ToDo - HMD meshes do not understand multires warping
+	if (View.bVRProjectEnabled)
+	{
+		bHasHmdMesh = false;
+	}
+	else
+	{
+		bHasHmdMesh = (HiddenAreaMaskCVar != nullptr &&
+			HiddenAreaMaskCVar->GetValueOnRenderThread() == 1 &&
+			GEngine &&
+			GEngine->HMDDevice.IsValid() &&
+			GEngine->HMDDevice->HasVisibleAreaMesh());
+	}
 
 	if(Root)
 	{

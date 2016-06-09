@@ -213,6 +213,7 @@ private:
 		TArray<FElement>			Elements;
 		DrawingPolicyType			DrawingPolicy;
 		FBoundShaderStateRHIRef		BoundShaderState;
+		FBoundShaderStateRHIRef		MultiResBoundShaderState;
 		ERHIFeatureLevel::Type		FeatureLevel;
 
 		/** Used when sorting policy links */
@@ -256,6 +257,19 @@ private:
 				BoundShaderStateInput.DomainShaderRHI,
 				BoundShaderStateInput.PixelShaderRHI,
 				BoundShaderStateInput.GeometryShaderRHI);
+
+			// Determine if the drawing policy supports multi-res, and if so, create MultiResBoundShaderState as well.
+			FGeometryShaderRHIRef VRProjectFastGS = DrawingPolicy.GetMultiResFastGS();
+			if (VRProjectFastGS.IsValid())
+			{
+				MultiResBoundShaderState = RHICreateBoundShaderState(
+					BoundShaderStateInput.VertexDeclarationRHI,
+					BoundShaderStateInput.VertexShaderRHI,
+					BoundShaderStateInput.HullShaderRHI,
+					BoundShaderStateInput.DomainShaderRHI,
+					BoundShaderStateInput.PixelShaderRHI,
+					VRProjectFastGS);
+			}
 		}
 	};
 
@@ -344,7 +358,14 @@ public:
 		FRHICommandList& RHICmdList,
 		const StereoPair& StereoView)
 	{
-		return DrawVisibleInner<InstancedStereoPolicy::Enabled>(RHICmdList, *StereoView.LeftView, typename DrawingPolicyType::ContextDataType(true, false), nullptr, nullptr, &StereoView, 0, OrderedDrawingPolicies.Num() - 1, false);
+		return DrawVisibleInner<InstancedStereoPolicy::Enabled>(RHICmdList, *StereoView.LeftView, typename DrawingPolicyType::ContextDataType(true, false, false), nullptr, nullptr, &StereoView, 0, OrderedDrawingPolicies.Num() - 1, false);
+	}
+
+	inline bool DrawVisibleSinglePassStereo(
+		FRHICommandList& RHICmdList,
+		const StereoPair& StereoView)
+	{
+		return DrawVisibleInner<InstancedStereoPolicy::Disabled>(RHICmdList, *StereoView.LeftView, typename DrawingPolicyType::ContextDataType(false, false, true), nullptr, nullptr, &StereoView, 0, OrderedDrawingPolicies.Num() - 1, false);
 	}
 
 	/**
@@ -389,7 +410,12 @@ public:
 	*/
 	inline void DrawVisibleParallelInstancedStereo(const StereoPair& StereoView, FParallelCommandListSet& ParallelCommandListSet)
 	{
-		DrawVisibleParallelInternal(typename DrawingPolicyType::ContextDataType(true, false), nullptr, nullptr, &StereoView, ParallelCommandListSet);
+		DrawVisibleParallelInternal(typename DrawingPolicyType::ContextDataType(true, false, false), nullptr, nullptr, &StereoView, ParallelCommandListSet);
+	}
+
+	inline void DrawVisibleParallelSinglePassStereo(const StereoPair& StereoView, FParallelCommandListSet& ParallelCommandListSet)
+	{
+		DrawVisibleParallelInternal(typename DrawingPolicyType::ContextDataType(false, false, true), nullptr, nullptr, &StereoView, ParallelCommandListSet);
 	}
 
 	/**

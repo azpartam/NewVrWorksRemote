@@ -60,6 +60,37 @@ FGeometryShaderRHIRef FEmptyDynamicRHI::RHICreateGeometryShaderWithStreamOutput(
 	return NULL;
 }
 
+FGeometryShaderRHIRef FEmptyDynamicRHI::RHICreateFastGeometryShader(const TArray<uint8>& Code)
+{
+	FEmptyGeometryShader* Shader = new FEmptyGeometryShader(Code);
+	return Shader;
+}
+
+FVertexShaderRHIRef  FEmptyDynamicRHI::RHICreateVertexShaderWithSinglePassStereo(const TArray<uint8>& Code)
+{
+	FEmptyVertexShader* Shader = new FEmptyVertexShader(Code);
+	return Shader;
+}
+
+FHullShaderRHIRef  FEmptyDynamicRHI::RHICreateHullShaderWithSinglePassStereo(const TArray<uint8>& Code)
+{
+	FEmptyHullShader* Shader = new FEmptyHullShader(Code);
+	return Shader;
+}
+
+FDomainShaderRHIRef  FEmptyDynamicRHI::RHICreateDomainShaderWithSinglePassStereo(const TArray<uint8>& Code)
+{
+	FEmptyDomainShader* Shader = new FEmptyDomainShader(Code);
+	return Shader;
+}
+
+FGeometryShaderRHIRef  FEmptyDynamicRHI::RHICreateFastGeometryShader_2(const TArray<uint8>& Code, uint32 Usage)
+{
+	FEmptyGeometryShader* Shader = new FEmptyGeometryShader(Code);
+	return Shader;
+}
+
+
 FComputeShaderRHIRef FEmptyDynamicRHI::RHICreateComputeShader(const TArray<uint8>& Code) 
 { 
 	FEmptyComputeShader* Shader = new FEmptyComputeShader(Code);

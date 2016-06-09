@@ -70,5 +70,3 @@
 #define NV_EXTN_OP_GET_LANE_ID                              8
 #define NV_EXTN_OP_FP16_ATOMIC                             12
 #define NV_EXTN_OP_FP32_ATOMIC                             13
-
-#define NV_EXTN_OP_TYPED_UAV_LOAD                          14

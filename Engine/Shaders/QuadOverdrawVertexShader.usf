@@ -12,6 +12,9 @@
 struct FQuadComplexityVSToPS
 {
 	float4 Position : SV_POSITION;
+#if SINGLE_PASS_STEREO
+	float4 NvXRight : NV_X_RIGHT;
+#endif
 };
 
 #if USING_TESSELLATION	
@@ -77,6 +80,10 @@ void Main(
 	ResolvedView = ResolveView();
 #endif
 
+#if SINGLE_PASS_STEREO
+	ResolvedViewRight = ResolveView(1);
+#endif
+
 	FVertexFactoryIntermediates VFIntermediates = GetVertexFactoryIntermediates(Input);
 	float4 WorldPos = VertexFactoryGetWorldPosition(Input, VFIntermediates);
 
@@ -106,6 +113,22 @@ void Main(
 		float4 RasterizedWorldPosition = VertexFactoryGetRasterizedWorldPosition(Input, VFIntermediates, WorldPos);
 		Output.Position = mul(RasterizedWorldPosition, ResolvedView.TranslatedWorldToClip);
 
+		#if SINGLE_PASS_STEREO
+		BRANCH
+			if (bIsSinglePassStereo)
+			{
+				float4 WorldPositionRight = WorldPos;
+				WorldPositionRight.xyz -= ResolvedView.PreViewTranslation.xyz;
+				WorldPositionRight.xyz += ResolvedViewRight.PreViewTranslation.xyz;
+				RasterizedWorldPosition = VertexFactoryGetRasterizedWorldPosition(Input, VFIntermediates, WorldPositionRight);
+				Output.NvXRight = mul(RasterizedWorldPosition, ResolvedViewRight.TranslatedWorldToClip).x;
+			}
+			else
+			{
+				Output.NvXRight = 0;
+			}
+		#endif
+
 		#if INSTANCED_STEREO
 		BRANCH
 		if (bIsInstancedStereo)
@@ -127,3 +150,7 @@ void Main(
 }
 
 #endif // VERTEXSHADER
+
+#if SINGLE_PASS_STEREO
+VRPROJECT_CREATE_FASTGS_SPS(VRProjectFastGS, FQuadComplexityVSToPS, Position, NvXRight)
+#endif

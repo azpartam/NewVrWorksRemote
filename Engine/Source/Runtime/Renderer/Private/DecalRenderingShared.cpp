@@ -103,6 +103,34 @@ private:
 
 IMPLEMENT_SHADER_TYPE(,FDeferredDecalVS,TEXT("DeferredDecal"),TEXT("MainVS"),SF_Vertex);
 
+// Fast geometry shader for rendering decals with multi-res
+class FDeferredDecalFastGS : public FGlobalShader
+{
+	DECLARE_SHADER_TYPE(FDeferredDecalFastGS, Global);
+
+public:
+	static bool ShouldCache(EShaderPlatform Platform)
+	{
+		return IsFeatureLevelSupported(Platform, ERHIFeatureLevel::SM5);
+	}
+
+	FDeferredDecalFastGS() {}
+	FDeferredDecalFastGS(const ShaderMetaType::CompiledShaderInitializerType& Initializer) :
+		FGlobalShader(Initializer)
+	{
+	}
+
+	void SetParameters(FRHICommandList& RHICmdList, const FSceneView& View)
+	{
+		FGlobalShader::SetParameters(RHICmdList, (FGeometryShaderRHIParamRef)GetGeometryShader(), View);
+	}
+
+	static const bool IsFastGeometryShader = true;
+};
+
+IMPLEMENT_SHADER_TYPE(, FDeferredDecalFastGS, TEXT("DeferredDecal"), TEXT("VRProjectFastGS"), SF_Geometry);
+
+
 /**
  * A pixel shader for projecting a deferred decal onto the scene.
  */
@@ -439,6 +467,7 @@ void FDecalRendering::SetShader(FRHICommandList& RHICmdList, const FViewInfo& Vi
 	const FMaterialShaderMap* MaterialShaderMap = DecalData.MaterialResource->GetRenderingThreadShaderMap();
 	auto PixelShader = MaterialShaderMap->GetShader<FDeferredDecalPS>();
 	TShaderMapRef<FDeferredDecalVS> VertexShader(View.ShaderMap);
+	TShaderMapRef<FDeferredDecalFastGS> FastGeometryShader(View.ShaderMap);
 
 	if(bShaderComplexity)
 	{
@@ -448,20 +477,37 @@ void FDecalRendering::SetShader(FRHICommandList& RHICmdList, const FViewInfo& Vi
 
 		const uint32 NumPixelShaderInstructions = PixelShader->GetNumInstructions();
 		const uint32 NumVertexShaderInstructions = VertexShader->GetNumInstructions();
+		const bool bVRProjectEnabled = View.bVRProjectEnabled;
 
-		static FGlobalBoundShaderState BoundShaderState[2];
+		FShader *MultiResGS = bVRProjectEnabled ? *FastGeometryShader : nullptr;
+
+		static FGlobalBoundShaderState BoundShaderState[4];
 
 		// QOM_QuadComplexity and QOM_ShaderComplexityBleeding use the QuadComplexity shader, while QOM_None and QOM_ShaderComplexityContained use the ShaderComplexity shader.
-		const uint32 BoundShaderStateIndex = (QuadOverdrawMode == QOM_QuadComplexity || QuadOverdrawMode == QOM_ShaderComplexityBleeding) ? 1 : 0;
+		const uint32 BoundShaderStateIndex = ((QuadOverdrawMode == QOM_QuadComplexity || QuadOverdrawMode == QOM_ShaderComplexityBleeding) ? 1 : 0 )
+			+ (bVRProjectEnabled ? 2 : 0);
 
-		SetGlobalBoundShaderState(RHICmdList, View.GetFeatureLevel(), BoundShaderState[BoundShaderStateIndex], GetVertexDeclarationFVector4(), *VertexShader, VisualizePixelShader);
+		SetGlobalBoundShaderState(RHICmdList, View.GetFeatureLevel(), BoundShaderState[BoundShaderStateIndex], GetVertexDeclarationFVector4(), *VertexShader, VisualizePixelShader, MultiResGS);
 
 		FShaderComplexityAccumulatePS::SetParameters(View.ShaderMap, RHICmdList, NumVertexShaderInstructions, NumPixelShaderInstructions, QuadOverdrawMode, View.GetFeatureLevel());
+
+		if (bVRProjectEnabled)
+		{
+			FastGeometryShader->SetParameters(RHICmdList, View);
+		}
 	}
 	else
 	{
 		// first Bind, then SetParameters()
-		RHICmdList.SetLocalBoundShaderState(RHICmdList.BuildLocalBoundShaderState(GetVertexDeclarationFVector4(), VertexShader->GetVertexShader(), FHullShaderRHIRef(), FDomainShaderRHIRef(), PixelShader->GetPixelShader(), FGeometryShaderRHIRef()));
+		if (View.bVRProjectEnabled)
+		{
+			RHICmdList.SetLocalBoundShaderState(RHICmdList.BuildLocalBoundShaderState(GetVertexDeclarationFVector4(), VertexShader->GetVertexShader(), FHullShaderRHIRef(), FDomainShaderRHIRef(), PixelShader->GetPixelShader(), FastGeometryShader->GetGeometryShader()));
+			FastGeometryShader->SetParameters(RHICmdList, View);
+		}
+		else
+		{
+			RHICmdList.SetLocalBoundShaderState(RHICmdList.BuildLocalBoundShaderState(GetVertexDeclarationFVector4(), VertexShader->GetVertexShader(), FHullShaderRHIRef(), FDomainShaderRHIRef(), PixelShader->GetPixelShader(), FGeometryShaderRHIRef()));
+		}
 		
 		PixelShader->SetParameters(RHICmdList, View, DecalData.MaterialProxy, *DecalData.DecalProxy, DecalData.FadeAlpha);
 	}
@@ -488,6 +534,16 @@ void FDecalRendering::SetShader(FRHICommandList& RHICmdList, const FViewInfo& Vi
 void FDecalRendering::SetVertexShaderOnly(FRHICommandList& RHICmdList, const FViewInfo& View, const FMatrix& FrustumComponentToClip)
 {
 	TShaderMapRef<FDeferredDecalVS> VertexShader(View.ShaderMap);
-	RHICmdList.SetLocalBoundShaderState(RHICmdList.BuildLocalBoundShaderState(GetVertexDeclarationFVector4(), VertexShader->GetVertexShader(), FHullShaderRHIRef(), FDomainShaderRHIRef(), NULL, FGeometryShaderRHIRef()));
+	TShaderMapRef<FDeferredDecalFastGS> FastGeometryShader(View.ShaderMap);
+
+	if (View.bVRProjectEnabled)
+	{
+		RHICmdList.SetLocalBoundShaderState(RHICmdList.BuildLocalBoundShaderState(GetVertexDeclarationFVector4(), VertexShader->GetVertexShader(), FHullShaderRHIRef(), FDomainShaderRHIRef(), NULL, FastGeometryShader->GetGeometryShader()));
+		FastGeometryShader->SetParameters(RHICmdList, View);
+	}
+	else
+	{
+		RHICmdList.SetLocalBoundShaderState(RHICmdList.BuildLocalBoundShaderState(GetVertexDeclarationFVector4(), VertexShader->GetVertexShader(), FHullShaderRHIRef(), FDomainShaderRHIRef(), NULL, FGeometryShaderRHIRef()));
+	}
 	VertexShader->SetParameters(RHICmdList, View, FrustumComponentToClip);
 }

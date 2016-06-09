@@ -172,6 +172,7 @@ protected:
 		bVelocityPass(false),
 		bSeparateTranslucencyPass(false),
 		BufferSize(0, 0),
+		LinearBufferSize(0, 0),
 		SmallColorDepthDownsampleFactor(2),
 		bLightAttenuationEnabled(true),
 		bUseDownsizedOcclusionQueries(true),
@@ -217,6 +218,11 @@ public:
 	 *
 	 */
 	void SetBufferSize(int32 InBufferSizeX, int32 InBufferSizeY);
+
+	/**
+	*
+	*/
+	void SetLinearBufferSize(int32 InLinearBufferSizeX, int32 InLinearBufferSizeY);
 
 	void BeginRenderingGBuffer(FRHICommandList& RHICmdList, ERenderTargetLoadAction ColorLoadAction, ERenderTargetLoadAction DepthLoadAction, bool bBindQuadOverdrawBuffers, const FLinearColor& ClearColor = FLinearColor(0, 0, 0, 1));
 	void FinishRenderingGBuffer(FRHICommandListImmediate& RHICmdList);
@@ -483,6 +489,8 @@ public:
 	}
 	/** Returns the size of most screen space render targets e.g. SceneColor, SceneDepth, GBuffer, ... might be different from final RT or output Size because of ScreenPercentage use. */
 	FIntPoint GetBufferSizeXY() const { return BufferSize; }
+	/** Returns the size of a linear version of the screen space render targets, Differs from GetBufferSize as this is without the MultiRes sacling. */
+	FIntPoint GetLinearBufferSizeXY() const { return LinearBufferSize; }
 	/** */
 	uint32 GetSmallColorDepthDownsampleFactor() const { return SmallColorDepthDownsampleFactor; }
 	/** Returns an index in the range [0, NumCubeShadowDepthSurfaces) given an input resolution. */
@@ -728,6 +736,8 @@ private:
 	FUniformBufferRHIRef GBufferResourcesUniformBuffer;
 	/** size of the back buffer, in editor this has to be >= than the biggest view port */
 	FIntPoint BufferSize;
+	/** size of the virtual back buffer, without MultiRes scaling */
+	FIntPoint LinearBufferSize;
 	/** e.g. 2 */
 	uint32 SmallColorDepthDownsampleFactor;
 	/** if true we use the light attenuation buffer otherwise the 1x1 white texture is used */

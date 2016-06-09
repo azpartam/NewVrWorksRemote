@@ -283,6 +283,7 @@ FIntPoint FSceneRenderTargets::ComputeDesiredSize(const FSceneViewFamily& ViewFa
 
 	bool bIsSceneCapture = false;
 	bool bIsReflectionCapture = false;
+	bool bIsVRProjectEnabled = false;
 
 	for (int32 ViewIndex = 0, ViewCount = ViewFamily.Views.Num(); ViewIndex < ViewCount; ++ViewIndex)
 	{
@@ -290,6 +291,7 @@ FIntPoint FSceneRenderTargets::ComputeDesiredSize(const FSceneViewFamily& ViewFa
 
 		bIsSceneCapture |= View->bIsSceneCapture;
 		bIsReflectionCapture |= View->bIsReflectionCapture;
+		bIsVRProjectEnabled |= View->bVRProjectEnabled;
 	}
 
 	if(!FPlatformProperties::SupportsWindowedMode())
@@ -306,6 +308,11 @@ FIntPoint FSceneRenderTargets::ComputeDesiredSize(const FSceneViewFamily& ViewFa
 	{
 		// Otherwise use the setting specified by the console variable.
 		SceneTargetsSizingMethod = (ESizingMethods) FMath::Clamp(CVarSceneTargetsResizingMethod.GetValueOnRenderThread(), 0, (int32)VisibleSizingMethodsCount);
+	}
+
+	if (bIsVRProjectEnabled)
+	{
+		SceneTargetsSizingMethod = RequestedSize;
 	}
 
 	FIntPoint DesiredBufferSize = FIntPoint::ZeroValue;
@@ -443,6 +450,7 @@ void FSceneRenderTargets::Allocate(FRHICommandList& RHICmdList, const FSceneView
 
 		// Reinitialize the render targets for the given size.
 		SetBufferSize(DesiredBufferSize.X, DesiredBufferSize.Y);
+		SetLinearBufferSize(ViewFamily.FamilyLinearSizeX, ViewFamily.FamilyLinearSizeY);
 
 		UE_LOG(LogRenderer, Log, TEXT("Reallocating scene render targets to support %ux%u (Frame:%u)."), BufferSize.X, BufferSize.Y, ViewFamily.FrameNumber);
 
@@ -1253,19 +1261,32 @@ void FSceneRenderTargets::BeginRenderingTranslucency(FRHICommandList& RHICmdList
 {
 	// Use the scene color buffer.
 	BeginRenderingSceneColor(RHICmdList, ESimpleRenderTargetMode::EExistingColorAndDepth, FExclusiveDepthStencil::DepthRead_StencilWrite);
-
+	
 	if (bFirstTimeThisFrame)
 	{
 		// Clear the stencil buffer for ResponsiveAA
 		RHICmdList.Clear(false, FLinearColor::White, false, (float)ERHIZBuffer::FarPlane, true, 0, FIntRect());
 	}
 		
-	// viewport to match view size
-	RHICmdList.SetViewport(View.ViewRect.Min.X, View.ViewRect.Min.Y, 0.0f, View.ViewRect.Max.X, View.ViewRect.Max.Y, 1.0f);
+	if (View.bVRProjectEnabled)
+	{
+		View.BeginVRProjectionStates(RHICmdList);
+	}
+	else
+	{
+		// viewport to match view size
+		RHICmdList.SetViewport(View.ViewRect.Min.X, View.ViewRect.Min.Y, 0.0f, View.ViewRect.Max.X, View.ViewRect.Max.Y, 1.0f);
+	}
 }
 
 void FSceneRenderTargets::FinishRenderingTranslucency(FRHICommandListImmediate& RHICmdList, const class FViewInfo& View)
 {
+	if (View.bVRProjectEnabled)
+	{
+		// Reset viewport and scissor after rendering to vr projection view
+		View.EndVRProjectionStates(RHICmdList);
+	}
+
 	FinishRenderingSceneColor(RHICmdList, true);
 }
 
@@ -1305,7 +1326,15 @@ bool FSceneRenderTargets::BeginRenderingSeparateTranslucency(FRHICommandList& RH
 			RHICmdList.BindClearMRTValues(true, false, true);
 		}
 
-		RHICmdList.SetViewport(View.ViewRect.Min.X * Scale, View.ViewRect.Min.Y * Scale, 0.0f, View.ViewRect.Max.X * Scale, View.ViewRect.Max.Y * Scale, 1.0f);
+		// EHartNV : ToDo - confirm correctness, original code was not dependent on view
+		if (View.bVRProjectEnabled)
+		{
+			View.BeginVRProjectionStates(RHICmdList);
+		}
+		else
+		{
+			RHICmdList.SetViewport(View.ViewRect.Min.X * Scale, View.ViewRect.Min.Y * Scale, 0.0f, View.ViewRect.Max.X * Scale, View.ViewRect.Max.Y * Scale, 1.0f);
+		}
 		return true;
 	}
 
@@ -1317,6 +1346,12 @@ void FSceneRenderTargets::FinishRenderingSeparateTranslucency(FRHICommandList& R
 	if(IsSeparateTranslucencyActive(View))
 	{
 		SCOPED_DRAW_EVENT(RHICmdList, FinishSeparateTranslucency);
+
+		// EHartNV : ToDo - confirm correctness, previously, this was unconditional
+		if (View.bVRProjectEnabled)
+		{
+			View.EndVRProjectionStates(RHICmdList);
+		}
 
 		TRefCountPtr<IPooledRenderTarget>* SeparateTranslucency;
 		TRefCountPtr<IPooledRenderTarget>* SeparateTranslucencyDepth;
@@ -1488,6 +1523,14 @@ void FSceneRenderTargets::SetBufferSize(int32 InBufferSizeX, int32 InBufferSizeY
 	QuantizeBufferSize(InBufferSizeX, InBufferSizeY);
 	BufferSize.X = InBufferSizeX;
 	BufferSize.Y = InBufferSizeY;
+}
+
+void FSceneRenderTargets::SetLinearBufferSize(int32 InLinearBufferSizeX, int32 InLinearBufferSizeY)
+{
+	// does this need to be quantized?
+	QuantizeBufferSize(InLinearBufferSizeX, InLinearBufferSizeY);
+	LinearBufferSize.X = InLinearBufferSizeX;
+	LinearBufferSize.Y = InLinearBufferSizeY;
 }
 
 void FSceneRenderTargets::AllocateForwardShadingPathRenderTargets(FRHICommandList& RHICmdList)

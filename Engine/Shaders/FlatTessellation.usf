@@ -93,6 +93,10 @@ struct FFlatTessellationHSToDS
 			ResolvedView = ResolveView();
 		#endif
 
+		#if SINGLE_PASS_STEREO
+			ResolvedViewRight = ResolveView(1);
+		#endif
+
 		FFlatTessellationHSToDS O = (FFlatTessellationHSToDS) 0;
 		
 		float3x3 TangentToLocal = VertexFactoryGetTangentToLocalDS(I[ControlPointID].FactoryInterpolants);
@@ -142,6 +146,10 @@ struct FFlatTessellationHSToDS
 			OutCullDistance = OutClipDistance = 0.0;
 		#else
 			ResolvedView = ResolveView();
+		#endif
+
+		#if SINGLE_PASS_STEREO
+			ResolvedViewRight = ResolveView(1);
 		#endif
 
 		// Get the barycentric coords
