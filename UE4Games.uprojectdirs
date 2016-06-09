@@ -7,3 +7,11 @@
 ;
 ./
 Engine/Source/
+Samples/
+Samples/Showcases
+Samples/Games
+Samples/AssetPacks
+Samples/Sandbox
+Samples/UserContent
+Samples/NotForLicensees
+Templates
