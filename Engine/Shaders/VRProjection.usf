@@ -34,12 +34,10 @@ int VRProjectionMode()
 		return 0;
 }
 
-#if SINGLE_PASS_STEREO
 bool SinglePassStereoIsActive()
 {
-	return Frame.bIsSinglePassStereo > 0;
+	return SINGLE_PASS_STEREO && Frame.bIsSinglePassStereo > 0;
 }
-#endif
 
 // Compare a vertex position against all the viewports' side planes,
 // and generate a set of bitmasks of all the results
@@ -233,6 +231,18 @@ uint GetEyeIndexFromViewportIndex(uint ViewportIndex)
 //   4. the expression to find the NVFastGSCBData from its constant buffer
 
 #if SINGLE_PASS_STEREO
+#define VRSPS_SET_VIEWPORT_MASK(MainFunctionName, PassthroughStruct, PositionName, XRightName) \
+				if (LensMatchedShadingIsActive()) \
+				{ \
+					uint ViewportMaskLeft = VRProjectCalculateNormalViewportMask(Input[0].PositionName, Input[1].PositionName, Input[2].PositionName); \
+					uint ViewportMaskRight = VRProjectCalculateNormalViewportMask(float4(Input[0].XRightName.x, Input[0].PositionName.yzw), float4(Input[1].XRightName.x, Input[1].PositionName.yzw), float4(Input[2].XRightName.x, Input[2].PositionName.yzw)); \
+					OutputVertex.ViewportMask = ViewportMaskLeft | (ViewportMaskRight << 20); \
+				} \
+				else \
+				{ \
+					OutputVertex.ViewportMask = 0x20001; \
+				}
+
 #define VRPROJECT_CREATE_FASTGS_SPS(MainFunctionName, PassthroughStruct, PositionName, XRightName) \
 			struct PassthroughStruct##GSOutput \
 			{ \
@@ -246,20 +256,33 @@ uint GetEyeIndexFromViewportIndex(uint ViewportIndex)
 				OutputVertex.Passthrough = Input[0]; \
 				if(SinglePassStereoIsActive()) \
 				{ \
-					if (LensMatchedShadingIsActive()) \
-					{ \
-						uint ViewportMaskLeft = VRProjectCalculateNormalViewportMask(Input[0].PositionName, Input[1].PositionName, Input[2].PositionName); \
-						uint ViewportMaskRight = VRProjectCalculateNormalViewportMask(float4(Input[0].XRightName.x, Input[0].PositionName.yzw), float4(Input[1].XRightName.x, Input[1].PositionName.yzw), float4(Input[2].XRightName.x, Input[2].PositionName.yzw)); \
-						OutputVertex.ViewportMask = ViewportMaskLeft | (ViewportMaskRight << 20); \
-					} \
-					else \
-					{ \
-						OutputVertex.ViewportMask = 0x20001; \
-					} \
+					VRSPS_SET_VIEWPORT_MASK(MainFunctionName, PassthroughStruct, PositionName, XRightName) \
 				} \
 				else \
 				{ \
 					OutputVertex.ViewportMask = VRProjectCalculateNormalViewportMask(Input[0].PositionName, Input[1].PositionName, Input[2].PositionName); \
+				} \
+				Output.Append(OutputVertex); \
+			}
+
+#define VRPROJECT_CREATE_FASTGS_SPS_INSTANCED_STEREO(MainFunctionName, PassthroughStruct, PositionName, XRightName, EyeIndexName) \
+			struct PassthroughStruct##GSOutput \
+			{ \
+				PassthroughStruct Passthrough; \
+				uint4 ViewportMask : NV_VIEWPORT_MASK; \
+			}; \
+			[maxvertexcount(1)] \
+			void MainFunctionName(triangle PassthroughStruct Input[3], inout TriangleStream<PassthroughStruct##GSOutput> Output) \
+			{ \
+				PassthroughStruct##GSOutput OutputVertex; \
+				OutputVertex.Passthrough = Input[0]; \
+				if(SinglePassStereoIsActive()) \
+				{ \
+					VRSPS_SET_VIEWPORT_MASK(MainFunctionName, PassthroughStruct, PositionName, XRightName) \
+				} \
+				else \
+				{ \
+					OutputVertex.ViewportMask = VRProjectCalculateStereoViewportMask( Input[0].EyeIndexName, Input[0].PositionName, Input[1].PositionName, Input[2].PositionName); \
 				} \
 				Output.Append(OutputVertex); \
 			}

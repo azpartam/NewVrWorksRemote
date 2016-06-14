@@ -221,7 +221,9 @@ void Main(
 	OutputVertexID( Output );
 }
 
-#if SINGLE_PASS_STEREO
+#if SINGLE_PASS_STEREO && INSTANCED_STEREO
+VRPROJECT_CREATE_FASTGS_SPS_INSTANCED_STEREO(VRProjectFastGS, FBasePassVSToPS, Position, NvXRight, FactoryInterpolants.PackedEyeIndex)
+#elif SINGLE_PASS_STEREO
 VRPROJECT_CREATE_FASTGS_SPS(VRProjectFastGS, FBasePassVSToPS, Position, NvXRight)
 #elif INSTANCED_STEREO
 VRPROJECT_CREATE_FASTGS_INSTANCED_STEREO(VRProjectFastGS, FBasePassVSToPS, Position, FactoryInterpolants.PackedEyeIndex)

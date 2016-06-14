@@ -278,7 +278,7 @@ static FAutoConsoleCommand ToggleMultiResLevelCmd(
 
 static TAutoConsoleVariable<int32> CVarSinglePassStereoRendering(
 	TEXT("vr.SinglePassStereoRendering"),
-	1,
+	0,
 	TEXT("Enable SinglePassStereo\n")
 	TEXT("0: off (default)\n")
 	TEXT("1: on"),

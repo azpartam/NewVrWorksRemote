@@ -170,9 +170,6 @@ void Main(
 		{
 			Output.NvXRight = 0;
 		}
-
-		// Bias the depth
-		Output.Position.z += InstancedStereoDepthBias * Output.Position.w * (float)bNeedsInstancedStereoBias;
 		#endif
 
 		#if INSTANCED_STEREO
@@ -188,8 +185,10 @@ void Main(
 			// Shift to the eye viewport
 			Output.Position.x += (EyeOffsetScale[EyeIndex] * Output.Position.w) * (1.0f - 0.5 * Frame.HMDEyePaddingOffset);
 		}
+		#endif
 		
 		// Bias the depth
+		#if INSTANCED_STEREO || SINGLE_PASS_STEREO
 		Output.Position.z += InstancedStereoDepthBias * Output.Position.w * (float)bNeedsInstancedStereoBias;
 		#endif
 	}
@@ -222,7 +221,9 @@ void Main(
 
 #endif // VERTEXSHADER
 
-#if SINGLE_PASS_STEREO
+#if SINGLE_PASS_STEREO && INSTANCED_STEREO
+VRPROJECT_CREATE_FASTGS_SPS_INSTANCED_STEREO(VRProjectFastGS, FDepthOnlyVSToPS, Position, NvXRight, FactoryInterpolants.PackedEyeIndex)
+#elif SINGLE_PASS_STEREO
 VRPROJECT_CREATE_FASTGS_SPS(VRProjectFastGS, FDepthOnlyVSToPS, Position, NvXRight)
 #elif INSTANCED_STEREO
 VRPROJECT_CREATE_FASTGS_INSTANCED_STEREO(VRProjectFastGS, FDepthOnlyVSToPS, Position, FactoryInterpolants.PackedEyeIndex)

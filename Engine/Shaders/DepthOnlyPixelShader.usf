@@ -23,13 +23,15 @@ void Main(
 	)
 {
 #if !MATERIALBLENDING_SOLID || OUTPUT_PIXEL_DEPTH_OFFSET
-	#if INSTANCED_STEREO || SINGLE_PASS_STEREO
-		#if SINGLE_PASS_STEREO
+	#if INSTANCED_STEREO && SINGLE_PASS_STEREO
+		uint TmpEyeIndex = SinglePassStereoIsActive() ? GetEyeIndexFromViewportIndex(InViewportIndex) : GetEyeIndex(FactoryInterpolants.PackedEyeIndex);
+		ResolvedView = ResolveView(TmpEyeIndex);
+		uint InEyeIndex = SinglePassStereoIsActive() ? TmpEyeIndex : 0; // Only needed with SPS.
+	#elif SINGLE_PASS_STEREO
 		uint InEyeIndex = GetEyeIndexFromViewportIndex(InViewportIndex);
-		#else
-		uint InEyeIndex = GetEyeIndex(FactoryInterpolants.PackedEyeIndex);
-		#endif
 		ResolvedView = ResolveView(InEyeIndex);
+	#elif INSTANCED_STEREO
+		ResolvedView = ResolveView(GetEyeIndex(FactoryInterpolants.PackedEyeIndex));
 	#else
 		ResolvedView = ResolveView();
 	#endif

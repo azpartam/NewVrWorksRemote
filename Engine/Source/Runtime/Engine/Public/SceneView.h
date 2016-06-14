@@ -979,7 +979,7 @@ public:
 	EShaderPlatform GetShaderPlatform() const;
 
 	/** True if the view should render as an instanced stereo pass */
-	bool IsInstancedStereoPass() const { return bIsInstancedStereoEnabled && StereoPass == eSSP_LEFT_EYE; }
+	bool IsInstancedStereoPass() const { return bIsInstancedStereoEnabled && StereoPass == eSSP_LEFT_EYE && !bAllowSinglePassStereo; }
 
 	/** Apply vr projection to current ViewRect; sets up NonVRProjectViewRect and MultiResViewports or LensMatchedViewports */
 	void SetupVRProjection( int32 ViewportGap = 0);

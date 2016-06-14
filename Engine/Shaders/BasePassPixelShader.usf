@@ -679,13 +679,15 @@ void Main(
    )
 {
 
-#if INSTANCED_STEREO || SINGLE_PASS_STEREO
-#if SINGLE_PASS_STEREO
+#if INSTANCED_STEREO && SINGLE_PASS_STEREO
+	uint TmpEyeIndex = SinglePassStereoIsActive() ? GetEyeIndexFromViewportIndex(InViewportIndex) : GetEyeIndex(Interpolants.PackedEyeIndex);
+	ResolvedView = ResolveView(TmpEyeIndex);
+	uint InEyeIndex = SinglePassStereoIsActive() ? TmpEyeIndex : 0; // Only needed with SPS.
+#elif SINGLE_PASS_STEREO
 	uint InEyeIndex = GetEyeIndexFromViewportIndex(InViewportIndex);
-#else
-	uint InEyeIndex = GetEyeIndex(Interpolants.PackedEyeIndex);
-#endif
 	ResolvedView = ResolveView(InEyeIndex);
+#elif INSTANCED_STEREO
+	ResolvedView = ResolveView(GetEyeIndex(Interpolants.PackedEyeIndex));
 #else
 	ResolvedView = ResolveView();
 #endif
