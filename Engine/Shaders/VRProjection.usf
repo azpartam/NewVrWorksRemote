@@ -231,6 +231,9 @@ uint GetEyeIndexFromViewportIndex(uint ViewportIndex)
 //   4. the expression to find the NVFastGSCBData from its constant buffer
 
 #if SINGLE_PASS_STEREO
+
+#if MULTIRES || LENS_MATCHED
+
 #define VRSPS_SET_VIEWPORT_MASK(MainFunctionName, PassthroughStruct, PositionName, XRightName) \
 				if (LensMatchedShadingIsActive()) \
 				{ \
@@ -286,7 +289,30 @@ uint GetEyeIndexFromViewportIndex(uint ViewportIndex)
 				} \
 				Output.Append(OutputVertex); \
 			}
-#endif
+
+#else // MULTIRES || LENS_MATCHED
+
+#define VRPROJECT_CREATE_FASTGS_SPS(MainFunctionName, PassthroughStruct, PositionName, XRightName) \
+			struct PassthroughStruct##GSOutput \
+			{ \
+				PassthroughStruct Passthrough; \
+				uint4 ViewportMask : NV_VIEWPORT_MASK; \
+			}; \
+			[maxvertexcount(1)] \
+			void MainFunctionName(triangle PassthroughStruct Input[3], inout TriangleStream<PassthroughStruct##GSOutput> Output) \
+			{ \
+				PassthroughStruct##GSOutput OutputVertex; \
+				OutputVertex.Passthrough = Input[0]; \
+				OutputVertex.ViewportMask = 0x20001; \
+				Output.Append(OutputVertex); \
+			}
+
+#define VRPROJECT_CREATE_FASTGS_SPS_INSTANCED_STEREO(MainFunctionName, PassthroughStruct, PositionName, XRightName, EyeIndexName) \
+			VRPROJECT_CREATE_FASTGS_SPS(MainFunctionName, PassthroughStruct, PositionName, XRightName)
+
+#endif // MULTIRES || LENS_MATCHED
+
+#endif // SINGLE_PASS_STEREO
 
 #if MULTIRES || LENS_MATCHED
 
