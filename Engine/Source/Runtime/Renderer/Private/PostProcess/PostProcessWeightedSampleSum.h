@@ -137,7 +137,7 @@ private:
 	const TCHAR* DebugName;
 	// to give the center sample some special weight (see r.Bloom.Cross), >=0
 	float CrossCenterWeight;
-	// When running in MultiRes mode, performing the filtering as if the target is linear
+	// When running in vr project mode, performing the filtering as if the target is linear
 	bool ForceLinear;
 
 	// @return true: half x resolution for horizontal pass, vertical pass takes that as input, lower quality

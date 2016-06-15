@@ -176,7 +176,7 @@ void FRCPassPostProcessLensBlur::Process(FRenderingCompositePassContext& Context
 
 	FIntPoint TexSize = InputDesc->Extent;
 
-	// Lens blur always happesn in linear space with Multires enabled to avoid aliasing
+	// Lens blur always happesn in linear space with vr projection enabled to avoid aliasing
 	int32 BufferX = View.bVRProjectEnabled ? FSceneRenderTargets::Get(Context.RHICmdList).GetLinearBufferSizeXY().X : FSceneRenderTargets::Get(Context.RHICmdList).GetBufferSizeXY().X;
 	FIntRect ViewRect = View.bVRProjectEnabled ? View.NonVRProjectViewRect : View.ViewRect;
 

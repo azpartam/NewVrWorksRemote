@@ -1110,7 +1110,7 @@ void FDeferredShadingSceneRenderer::BeginOcclusionTests(FRHICommandListImmediate
 			if (bUseDownsampledDepth)
 			{
 				// EHartNVV : ToDo
-				//   How do we make downsampled depth compatible with MultiRes, is it necessary?
+				//   How do we make downsampled depth compatible with vr projection, is it necessary?
 				const uint32 DownsampledX = FMath::TruncToInt(View.ViewRect.Min.X / SceneContext.GetSmallColorDepthDownsampleFactor());
 				const uint32 DownsampledY = FMath::TruncToInt(View.ViewRect.Min.Y / SceneContext.GetSmallColorDepthDownsampleFactor());
 				const uint32 DownsampledSizeX = FMath::TruncToInt(View.ViewRect.Width() / SceneContext.GetSmallColorDepthDownsampleFactor());
@@ -1144,7 +1144,7 @@ void FDeferredShadingSceneRenderer::BeginOcclusionTests(FRHICommandListImmediate
 				// Lookup the vertex shader.
 				TShaderMapRef<FOcclusionQueryVS> VertexShader(View.ShaderMap);
 
-				// EHartNV : ToDo - May need to refactor this for the case of running on platforms with no multires support
+				// EHartNV : ToDo - May need to refactor this for the case of running on platforms with no vr projection support
 				TShaderMapRef<FOcclusionQueryMultiResGS> GeometryShader(View.ShaderMap);
 
 				if (View.bVRProjectEnabled)

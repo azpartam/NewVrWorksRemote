@@ -177,7 +177,7 @@ protected:
 	FShaderParameter SampleOffsets;
 	FShaderParameter SampleCount;
 
-	// parameter for forcing linear sampling with MultiRes
+	// parameter for forcing linear sampling with vr projection
 	FShaderParameter ForceLinear;
 };
 

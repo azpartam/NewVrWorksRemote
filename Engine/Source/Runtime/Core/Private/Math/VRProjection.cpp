@@ -1,7 +1,7 @@
 // CopyRight 1998-2016 Epic Games, Inc. All Rights Reserved.
 
 /*=============================================================================
-	Multires.cpp: Implements the Multires math functions.
+	VRProjection.cpp: Implements the VR Projection related math functions.
 =============================================================================*/
 
 /* FBox2D structors

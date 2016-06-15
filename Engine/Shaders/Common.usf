@@ -1154,8 +1154,8 @@ float4 SvPositionToScreenPosition(float4 SvPosition)
 	return float4(NDCPos.xyz, 1) * SvPosition.w;
 }
 
-// Return a ScreenPosition in the warped multiRes space, instead of linear
-float4 SvPositionToMultiResScreenPosition(float4 SvPosition)
+// Return a ScreenPosition in the warped vr projection space, instead of linear
+float4 SvPositionToVRProjectScreenPosition(float4 SvPosition)
 {
 	// todo: is already in .w or needs to be reconstructed like this:
 	//	SvPosition.w = ConvertFromDeviceZ(SvPosition.z);

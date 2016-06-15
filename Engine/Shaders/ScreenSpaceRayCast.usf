@@ -22,10 +22,10 @@ float4 HZBUvFactorAndInvFactor;
 #endif
 
 
-float4 RemapForMultiRes(float4 SampleUV)
+float4 RemapForVRProject(float4 SampleUV)
 {
 #if USE_HZB
-	// scale to viewport rect, then map multires to linear
+	// scale to viewport rect, then map vr projection to linear
 	SampleUV *= HZBUvFactorAndInvFactor.zwzw;
 	SampleUV.xy = VRProjMapLinearToVRProj(SampleUV.xy);
 	SampleUV.zw = VRProjMapLinearToVRProj(SampleUV.zw);
@@ -41,9 +41,9 @@ float4 SampleDepthTexture(Texture2D Texture, SamplerState Sampler, float Level, 
 {
 	float4 SampleDepth;
 
-	// Remap for possible multires distortion
-	SampleUV0 = RemapForMultiRes(SampleUV0);
-	SampleUV1 = RemapForMultiRes(SampleUV1);
+	// Remap for possible vr project distortion
+	SampleUV0 = RemapForVRProject(SampleUV0);
+	SampleUV1 = RemapForVRProject(SampleUV1);
 
 #if USE_HZB
 	// SampleUV{0,1}.{xy,zw} should already be in the HZB UV frame using HZBUvFactorAndInvFactor.xy
@@ -134,8 +134,8 @@ void RayCast(
 	{
 		float3 SampleUVz = RayStartUVz + RayStepUVz * SampleTime;
 
-		// Remap for possible multires distortion
-		float2 SampleUV = RemapForMultiRes(SampleUVz.xy).xy;
+		// Remap for possible project distortion
+		float2 SampleUV = RemapForVRProject(SampleUVz.xy).xy;
 		
 		// Use lower res for farther samples
 		float Level = Roughness * (i * 4.0 / NumSteps) + HZB_LEVEL_OFFSET;
@@ -314,9 +314,9 @@ float4 RayCastCheap( Texture2D Texture, SamplerState Sampler, float3 R, float Sc
 
 	float4 SampleDepth;
 
-	// Remap for possible multires distortion
-	SampleUV0 = RemapForMultiRes(SampleUV0);
-	SampleUV1 = RemapForMultiRes(SampleUV1);
+	// Remap for possible project distortion
+	SampleUV0 = RemapForVRProject(SampleUV0);
+	SampleUV1 = RemapForVRProject(SampleUV1);
 
 #if USE_HZB
 	SampleDepth.x = Texture2DSampleLevel( Texture, Sampler, SampleUV0.xy, 0 ).r;

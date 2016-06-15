@@ -2246,7 +2246,7 @@ void GlobalBeginCompileShader(
 		const bool bIsLensMatched = bIsLensMatchedCVar && (ShaderPlatform == EShaderPlatform::SP_PCD3D_SM5);
 		Input.Environment.SetDefine(TEXT("LENS_MATCHED"), bIsLensMatched ? 1 : 0);
 
-		// Throw a warning if we are silently disabling MultiRes due to missing platform support.
+		// Throw a warning if we are silently disabling lens matched shading due to missing platform support.
 		if (bIsLensMatchedCVar && !bIsLensMatched)
 		{
 			UE_LOG(LogShaderCompilers, Warning, TEXT("Lens Matched Shading rendering is not supported on this platform."));
@@ -2261,7 +2261,7 @@ void GlobalBeginCompileShader(
 		const bool bIsSinglePassStereo = bIsSinglePassStereoCVar && (ShaderPlatform == EShaderPlatform::SP_PCD3D_SM5);
 		Input.Environment.SetDefine(TEXT("SINGLE_PASS_STEREO"), bIsSinglePassStereo ? 1 : 0);
 
-		// Throw a warning if we are silently disabling MultiRes due to missing platform support.
+		// Throw a warning if we are silently disabling single pass stereo due to missing platform support.
 		if (bIsSinglePassStereoCVar && !bIsSinglePassStereo)
 		{
 			UE_LOG(LogShaderCompilers, Warning, TEXT("SinglePassStereo is not supported on this platform."));

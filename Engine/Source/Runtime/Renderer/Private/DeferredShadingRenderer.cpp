@@ -1987,7 +1987,7 @@ bool FDeferredShadingSceneRenderer::RenderPrePassHMD(FRHICommandListImmediate& R
 
 	// EHartNV - ToDo
 	//  The HMD PrePass has specialized its setup to where it seems to no longer be compatible with the general
-	//  Need to understand differences and determine safe solution for multires setup
+	//  Need to understand differences and determine safe solution for vr projection setup
 
 	bool IsLMSEnabled = false;
 	for (int32 ViewIndex = 0; ViewIndex < Views.Num(); ++ViewIndex)
@@ -2036,7 +2036,7 @@ bool FDeferredShadingSceneRenderer::RenderPrePassHMD(FRHICommandListImmediate& R
 			RHICmdList.SetViewport(View.ViewRect.Min.X, View.ViewRect.Min.Y, 0.0f, View.ViewRect.Max.X, View.ViewRect.Max.Y, 1.0f);
 		}
 
-		// Hidden area mask needs to be forced on for now in multires mode
+		// Hidden area mask needs to be forced on for now in vr projection mode
 		if (View.StereoPass != eSSP_FULL && !(View.bVRProjectEnabled && HiddenAreaMaskVal != 2))
 		{
 			RenderHiddenAreaMaskView(RHICmdList, View);

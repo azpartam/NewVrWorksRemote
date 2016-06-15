@@ -970,7 +970,7 @@ void FViewInfo::CreateUniformBuffer(
 			FrameUniformShaderParameters.VRProjectionMode = 2;
 		}
 
-		//Need to account for scaling factors introduced by multires
+		//Need to account for scaling factors introduced by vr projection
 		if ((Family != nullptr) && (StereoPass == eSSP_LEFT_EYE) && (Family->Views.Num() > 1))
 		{
 			check(Family->Views.Num() == 2);

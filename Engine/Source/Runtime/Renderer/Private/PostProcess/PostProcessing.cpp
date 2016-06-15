@@ -228,7 +228,7 @@ public:
 
 		const FViewInfo &View = InContext.View;
 
-		// if we're downsampling with MultiRes, resample the buffer to linear first to avoid artifacts with really small levels
+		// if we're downsampling with vr projection, resample the buffer to linear first to avoid artifacts with really small levels
 		if (View.bVRProjectEnabled)
 		{
 			FSceneRenderTargets& SceneContext = FSceneRenderTargets::Get(Context.RHICmdList);

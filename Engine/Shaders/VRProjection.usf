@@ -43,7 +43,7 @@ bool SinglePassStereoIsActive()
 // and generate a set of bitmasks of all the results
 uint2 VRProjectCalculateVertexSideMasks(const uint MultiResWidth, const uint MultiResHeight, const float4 NDCSplitsX, const float4 NDCSplitsY, const float2 CullBoundsX, float4 Position)
 {
-	// MultiRes splits are packed in View uniform buffer
+	// VR projection splits are packed in View uniform buffer
 	// Both are float2, could in theory pack into singl float4
 
 	// Check if point is to the left of each of the X planes, left to right
@@ -352,7 +352,7 @@ uint GetEyeIndexFromViewportIndex(uint ViewportIndex)
 
 #else
 
-// create no-op geometry shader to deal with global shaders in the no multires case
+// create no-op geometry shader to deal with global shaders in the no vr projection case
 // shader should never be used, but ideally, it should be valid
 #define VRPROJECT_CREATE_FASTGS(MainFunctionName, PassthroughStruct, PositionName) \
 			struct PassthroughStruct##GSOutput \
@@ -391,7 +391,7 @@ uint GetEyeIndexFromViewportIndex(uint ViewportIndex)
 #endif
 
 
-// Data in View constanst buffer for converting multires
+// Data in View constanst buffer for converting vr projection
 //  Needs to integrate with instance stereo
 //	float2 LinearToVRProjectSplitsX;
 //	float2 LinearToVRProjectSplitsY;
@@ -414,7 +414,7 @@ uint GetEyeIndexFromViewportIndex(uint ViewportIndex)
 
 /*
 * "Internal" functions for conversions
-*  These have no safety on Multires enabled/disabled, used to build the functions for wider use
+*  These have no safety on vr projection enabled/disabled, used to build the functions for wider use
 */
 
 // ToDo : presently just using View, need to move to using resolved view or similar concept
@@ -808,7 +808,7 @@ float2 VRProjMapViewRectToRenderTarget(float2 UV)
 	return Result;
 }
 
-// Convert render target UV from linear space to multires space
+// Convert render target UV from linear space to vr project space
 float2 VRProjMapRenderTargetLinearToVRProj(float2 UV)
 {
 	float2 Result = UV;
@@ -828,7 +828,7 @@ float2 VRProjMapRenderTargetLinearToVRProj(float2 UV)
 	return Result;
 }
 
-// Convert render target UV from multires space to linear space
+// Convert render target UV from vr project space to linear space
 float2 VRProjMapRenderTargetVRProjToLinear(float2 UV)
 {
 	// Scale-bias U and V based on which viewport they're in
@@ -849,7 +849,7 @@ float2 VRProjMapRenderTargetVRProjToLinear(float2 UV)
 	return Result;
 }
 
-// Convert ViewRect NDC from linear space to multires space
+// Convert ViewRect NDC from linear space to ve project space
 float2 VRProjMapNDCLinearToVRProj(float2 NDC)
 {
 	float2 Result = NDC;
@@ -865,7 +865,7 @@ float2 VRProjMapNDCLinearToVRProj(float2 NDC)
 	return Result;
 }
 
-// Convert ViewRect NDC from multires space to linear space
+// Convert ViewRect NDC from vr project space to linear space
 float2 VRProjMapNDCVRProjToLinear(float2 NDC)
 {
 	float2 Result = NDC;
@@ -881,7 +881,7 @@ float2 VRProjMapNDCVRProjToLinear(float2 NDC)
 	return Result;
 }
 
-// Convert render target UV from linear space to multires space
+// Convert render target UV from linear space to vr project space
 float2 VRProjMapResolvedRenderTargetLinearToVRProj(float2 UV)
 {
 	float2 Result = UV;
@@ -901,7 +901,7 @@ float2 VRProjMapResolvedRenderTargetLinearToVRProj(float2 UV)
 	return Result;
 }
 
-// Convert render target UV from multires space to linear space
+// Convert render target UV from vr project space to linear space
 float2 VRProjMapResolvedRenderTargetVRProjToLinear(float2 UV)
 {
 	// Scale-bias U and V based on which viewport they're in

@@ -479,10 +479,10 @@ BEGIN_UNIFORM_BUFFER_STRUCT(FInstancedViewUniformShaderParameters, ENGINE_API)
 	DECLARE_UNIFORM_BUFFER_STRUCT_MEMBER(FVector4, RenderTargetToViewRectUVScaleBias)	// Scale-bias for converting from render-target-relative UVs to view-rect-relative UVs
 	DECLARE_UNIFORM_BUFFER_STRUCT_MEMBER(FVector4, ViewRectToRenderTargetUVScaleBias)	// ...and vice versa
 
-	DECLARE_UNIFORM_BUFFER_STRUCT_MEMBER(FVector4, NDCSplitsX) // MultiRes splits for geometry shader
-	DECLARE_UNIFORM_BUFFER_STRUCT_MEMBER(FVector4, NDCSplitsY) // MultiRes splits for geometry shader
-	DECLARE_UNIFORM_BUFFER_STRUCT_MEMBER(FVector4, StereoNDCSplitsX) // MultiRes splits for geometry shader
-	DECLARE_UNIFORM_BUFFER_STRUCT_MEMBER(FVector4, StereoNDCSplitsY) // MultiRes splits for geometry shader
+	DECLARE_UNIFORM_BUFFER_STRUCT_MEMBER(FVector4, NDCSplitsX) // VR project splits for geometry shader
+	DECLARE_UNIFORM_BUFFER_STRUCT_MEMBER(FVector4, NDCSplitsY) // VR project splits for geometry shader
+	DECLARE_UNIFORM_BUFFER_STRUCT_MEMBER(FVector4, StereoNDCSplitsX) // VR project splits for geometry shader
+	DECLARE_UNIFORM_BUFFER_STRUCT_MEMBER(FVector4, StereoNDCSplitsY) // VR project splits for geometry shader
 
 	// MultiRes Parameters, should pack them better for efficiency
 	DECLARE_UNIFORM_BUFFER_STRUCT_MEMBER(FVector2D, LinearToVRProjectSplitsX)
@@ -587,7 +587,7 @@ BEGIN_UNIFORM_BUFFER_STRUCT_WITH_CONSTRUCTOR(FFrameUniformShaderParameters, ENGI
 	// SinglePassStereo
 	DECLARE_UNIFORM_BUFFER_STRUCT_MEMBER(uint32, bIsSinglePassStereo)
 
-	// Multires 
+	// VR Projection 
 	DECLARE_UNIFORM_BUFFER_STRUCT_MEMBER(uint32, VRProjectionMode)
 
 	DECLARE_UNIFORM_BUFFER_STRUCT_MEMBER_TEXTURE(Texture2D, DirectionalLightShadowTexture)
@@ -1100,10 +1100,10 @@ public:
 	/** The height in screen pixels of the view family being rendered (maximum y of all viewports). */
 	uint32 FamilySizeY;
 
-	/** The width in screen pixels of the view family without MultiRes. */
+	/** The width in screen pixels of the view family without vr projection. */
 	uint32 FamilyLinearSizeX;
 
-	/** The height in screen pixels of the view family without MultiRes. */
+	/** The height in screen pixels of the view family without vr projection. */
 	uint32 FamilyLinearSizeY;
 
 	/** The render target which the views are being rendered to. */

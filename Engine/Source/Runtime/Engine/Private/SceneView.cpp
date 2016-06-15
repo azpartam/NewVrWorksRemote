@@ -1492,6 +1492,18 @@ void FSceneView::EndFinalPostprocessSettings(const FSceneViewInitOptions& ViewIn
 		if(Value >= 0.0)
 		{
 			FinalPostProcessSettings.ScreenPercentage *= Value / 100.0f;
+
+			static const auto CVarLensMatchedShading = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("vr.LensMatchedShading"));
+			bool bLensMatchedShadeEnabled = GSupportsFastGeometryShader && GSupportsModifiedW &&
+				CVarLensMatchedShading && CVarLensMatchedShading->GetValueOnGameThread() && CVarLensMatchedShadingRendering.GetValueOnGameThread() > 0;
+
+			if (bLensMatchedShadeEnabled)
+			{
+				static const auto CVarLensMatchedShadingResScale = IConsoleManager::Get().FindTConsoleVariableDataFloat(TEXT("vr.LensMatchedShadingResolutionScaling"));
+				float LensMatchedShadeResScale = CVarLensMatchedShadingResScale->GetValueOnGameThread();
+
+				FinalPostProcessSettings.ScreenPercentage *= LensMatchedShadeResScale;
+			}
 		}
 	}
 
@@ -2013,7 +2025,10 @@ void FSceneView::SetupVRProjection(int32 ViewportGap)
 			check(0);
 	}
 	else
+	{
+		VRProjMode = EVRProjectMode::Planar;
 		return;
+	}
 
 	if (VRProjMode == EVRProjectMode::MultiRes) // Set up VR projection for multi-res
 	{
@@ -2121,13 +2136,10 @@ void FSceneView::SetupVRProjection(int32 ViewportGap)
 		float ScaleX = ViewRect.Width() / float(SizeX);
 		float ScaleY = ViewRect.Height() / float(SizeY);
 
-		static const auto CVarLensMatchedShadingResScale = IConsoleManager::Get().FindTConsoleVariableDataFloat(TEXT("vr.LensMatchedShadingResolutionScaling"));
-		float LensMatchedShadeResScale = CVarLensMatchedShadingResScale->GetValueOnGameThread();
-
-		LensMatchedShadingConf.SizeLeft *= ScaleX * LensMatchedShadeResScale;
-		LensMatchedShadingConf.SizeRight *= ScaleX * LensMatchedShadeResScale;
-		LensMatchedShadingConf.SizeUp *= ScaleY * LensMatchedShadeResScale;
-		LensMatchedShadingConf.SizeDown *= ScaleY * LensMatchedShadeResScale;
+		LensMatchedShadingConf.SizeLeft *= ScaleX;
+		LensMatchedShadingConf.SizeRight *= ScaleX;
+		LensMatchedShadingConf.SizeUp *= ScaleY;
+		LensMatchedShadingConf.SizeDown *= ScaleY;
 
 		// round locations before mirroring
 		FIntRect OriginalViewport = ViewRect;

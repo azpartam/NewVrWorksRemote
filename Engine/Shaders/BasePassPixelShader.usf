@@ -711,7 +711,7 @@ void Main(
 	
 	#if USE_WORLD_POSITION_EXCLUDING_SHADER_OFFSETS
 		{
-			float4 ScreenPosition = SvPositionToMultiResScreenPosition(SvPosition);
+			float4 ScreenPosition = SvPositionToVRProjectScreenPosition(SvPosition);
 			float3 ResolvedPixelPositionExcludingWPO = BasePassInterpolants.PixelPositionExcludingWPO;
 		#if SINGLE_PASS_STEREO
 			if (InEyeIndex != 0)
