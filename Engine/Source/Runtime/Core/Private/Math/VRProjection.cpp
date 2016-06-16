@@ -168,6 +168,19 @@ CORE_API const FMultiRes::Configuration FMultiRes::Configuration_Aggressive =
 	{ 0.6f, 1.0f, 0.6f },
 };
 
+// SuperAggressive Conf has splits at 30% in from each edge,
+// and scales the outer Viewports to 40% of their original pixel density.
+// Overall, reduces pixel Count by 60%.
+CORE_API const FMultiRes::Configuration FMultiRes::Configuration_SuperAggressive =
+{
+	0.4f, 0.4f,
+	0.5f, 0.5f,
+	{ 0.0f, 0.0f }, // SplitX are calculated by calling CalculateSplits()
+	{ 0.0f, 0.0f }, // SplitY are calculated by calling CalculateSplits()
+	{ 0.4f, 1.0f, 0.4f },
+	{ 0.4f, 1.0f, 0.4f },
+};
+
 // Calculate the fraction of pixels a multi-res Conf will render,
 // relative to ordinary non-multi-res rendering
 float FMultiRes::CalculatePixelCountFraction(const FMultiRes::Configuration* Conf)

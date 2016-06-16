@@ -2039,10 +2039,15 @@ void FSceneView::SetupVRProjection(int32 ViewportGap)
 			// Conservative settings: saves 28% pixels
 			MultiResConf = FMultiRes::Configuration_Conservative;
 		}
-		else
+		else if (MultiResLevel == 2)
 		{
 			// Aggressive settings: saves 42% pixels
 			MultiResConf = FMultiRes::Configuration_Aggressive;
+		}
+		else
+		{
+			// Aggressive settings: saves 60% pixels
+			MultiResConf = FMultiRes::Configuration_SuperAggressive;
 		}
 
 		// Calculate splits

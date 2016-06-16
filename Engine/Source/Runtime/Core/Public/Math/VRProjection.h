@@ -162,6 +162,7 @@ struct FMultiRes : public FVRProjection
 	// A couple of preset configurations, for convenience
 	static CORE_API const Configuration Configuration_Conservative;
 	static CORE_API const Configuration Configuration_Aggressive;
+	static CORE_API const Configuration Configuration_SuperAggressive;
 
 	// Calculate the fraction of pixels a multi-res configuration will render,
 	// relative to ordinary non-multi-res rendering
