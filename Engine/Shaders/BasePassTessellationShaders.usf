@@ -50,10 +50,6 @@ FBasePassVSToDS PassInterpolate(FBasePassVSToDS a, float aInterp, FBasePassVSToD
 		#endif
 	#endif
 
-	#if SINGLE_PASS_STEREO
-		O.vIsSinglePassStereo = a.vIsSinglePassStereo;
-	#endif
-
 	return O;
 }
 
@@ -73,7 +69,7 @@ FBasePassVSToPS PassFinalizeTessellationOutput(FBasePassVSToDS Interpolants, flo
 
 		#if SINGLE_PASS_STEREO
 		BRANCH
-		if (Interpolants.vIsSinglePassStereo.x > 0)
+		if (bIsSinglePassStereo)
 		{
 			float4 WorldPositionRight = WorldPosition;
 			WorldPositionRight.xyz -= ResolvedView.PreViewTranslation.xyz;

@@ -59,10 +59,6 @@ void Main(
 		Output.BasePassInterpolants.WorldPositionExcludingWPO = WorldPositionExcludingWPO.xyz;
 	#endif
 
-	#if SINGLE_PASS_STEREO
-		Output.vIsSinglePassStereo = bIsSinglePassStereo ? 1 : 0;
-	#endif
-
 #else
 	ISOLATE
 	{

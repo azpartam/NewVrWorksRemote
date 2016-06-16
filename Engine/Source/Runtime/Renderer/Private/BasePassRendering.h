@@ -890,7 +890,7 @@ public:
 
 			if (DomainShader)
 			{
-				DomainShader->SetParameters(RHICmdList, MaterialRenderProxy, *View);
+				DomainShader->SetParameters(RHICmdList, MaterialRenderProxy, *View, false, PolicyContext.bIsSinglePassStereo);
 			}
 		}
 

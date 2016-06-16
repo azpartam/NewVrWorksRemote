@@ -301,7 +301,7 @@ void FDepthDrawingPolicy::SetSharedState(FRHICommandList& RHICmdList, const FSce
 	if(HullShader && DomainShader)
 	{
 		HullShader->SetParameters(RHICmdList, MaterialRenderProxy,*View);
-		DomainShader->SetParameters(RHICmdList, MaterialRenderProxy,*View);
+		DomainShader->SetParameters(RHICmdList, MaterialRenderProxy,*View, PolicyContext.bNeedsInstancedStereoBias, PolicyContext.bIsSinglePassStereo);
 	}
 
 	if (bNeedsPixelShader)

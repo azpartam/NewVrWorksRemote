@@ -33,9 +33,6 @@ struct FBasePassVSToPS
 		FVertexFactoryInterpolantsVSToDS FactoryInterpolants;
 		FBasePassInterpolantsVSToDS BasePassInterpolants;
 		float4 Position : VS_To_DS_Position;
-		#if SINGLE_PASS_STEREO
-		float4 vIsSinglePassStereo : VS_To_DS_SinglePassStereo;
-		#endif
 		OPTIONAL_VertexID_VS_To_DS
 	};
 	

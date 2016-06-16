@@ -32,9 +32,6 @@ struct FDepthOnlyVSToPS
 	{
 		FVertexFactoryInterpolantsVSToDS FactoryInterpolants;
 		float4 Position : VS_To_DS_Position;
-		#if SINGLE_PASS_STEREO
-		float4 vIsSinglePassStereo : VS_To_DS_SinglePassStereo;
-		#endif
 		OPTIONAL_VertexID_VS_To_DS
 	};
 	
@@ -55,10 +52,6 @@ struct FDepthOnlyVSToPS
 		
 		O.FactoryInterpolants = VertexFactoryInterpolate(a.FactoryInterpolants, aInterp, b.FactoryInterpolants, bInterp);
 
-		#if SINGLE_PASS_STEREO
-		O.vIsSinglePassStereo = a.vIsSinglePassStereo;
-		#endif
-
 		return O;
 	}
 
@@ -77,7 +70,7 @@ struct FDepthOnlyVSToPS
 
 			#if SINGLE_PASS_STEREO
 			BRANCH
-			if (Interpolants.vIsSinglePassStereo.x > 0)
+			if (bIsSinglePassStereo)
 			{
 				float4 WorldPositionRight = WorldPosition;
 				WorldPositionRight.xyz -= ResolvedView.PreViewTranslation.xyz;
@@ -90,7 +83,7 @@ struct FDepthOnlyVSToPS
 			}
 
 			// Bias the depth
-			O.Position.z += O.Position.w * Interpolants.vIsSinglePassStereo.y;
+			O.Position.z += InstancedStereoDepthBias * O.Position.w * (float)bNeedsInstancedStereoBias;
 			#endif
 		}
 			
@@ -146,10 +139,6 @@ void Main(
 #if USING_TESSELLATION
 	// Transformation is done in Domain shader when tessellating
 	Output.Position = WorldPos; 
-	#if SINGLE_PASS_STEREO
-	Output.vIsSinglePassStereo.x = bIsSinglePassStereo ? 1 : 0;
-	Output.vIsSinglePassStereo.y = InstancedStereoDepthBias * (float)bNeedsInstancedStereoBias;
-	#endif
 #else
 	ISOLATE
 	{
