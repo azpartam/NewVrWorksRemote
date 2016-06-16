@@ -232,7 +232,7 @@ public:
 		if (View.bVRProjectEnabled)
 		{
 			FSceneRenderTargets& SceneContext = FSceneRenderTargets::Get(Context.RHICmdList);
-			FRenderingCompositePass* Pass = Context.Graph.RegisterPass(new(FMemStack::Get()) FRCPassPostProcessMultiResWarp(SceneContext.GetBufferSizeXY(), SceneContext.GetLinearBufferSizeXY(), TEXT("LinearizeMultiRes")));
+			FRenderingCompositePass* Pass = Context.Graph.RegisterPass(new(FMemStack::Get()) FRCPassPostProcessVRProjectWarp(SceneContext.GetBufferSizeXY(), SceneContext.GetLinearBufferSizeXY(), TEXT("LinearizeMultiRes")));
 			Pass->SetInput(ePId_Input0, PostProcessDownsamples[0]);
 			PostProcessDownsamples[0] = FRenderingCompositeOutputRef(Pass);
 		}

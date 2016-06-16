@@ -2027,6 +2027,7 @@ void FSceneView::SetupVRProjection(int32 ViewportGap)
 	else
 	{
 		VRProjMode = EVRProjectMode::Planar;
+		NonVRProjectViewRect = ViewRect;
 		return;
 	}
 
