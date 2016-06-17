@@ -2072,7 +2072,7 @@ void FSceneView::SetupVRProjection(int32 ViewportGap)
 		FMultiRes::CalculateViewports(&OriginalViewport, &MultiResConf, &MultiResViewports);
 
 		// subtract out the left eye shrinkage in instanced stereo, then recompute
-		if (bIsInstancedStereoEnabled && StereoPass == eSSP_RIGHT_EYE)
+		if (StereoPass == eSSP_RIGHT_EYE)
 		{
 			int32 Offset = OriginalViewport.Width() - MultiResViewports.BoundingRect.Width();
 			OriginalViewport.Min.X -= Offset;
