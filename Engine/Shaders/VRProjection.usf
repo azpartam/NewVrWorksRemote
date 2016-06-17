@@ -220,6 +220,10 @@ uint GetEyeIndexFromViewportIndex(uint ViewportIndex)
 	{
 		return (ViewportIndex > 3) ? 1 : 0;
 	}
+	else if (MultiResIsActive())
+	{
+		return 0; // SPS doesn't work with multi-res, so if multi-res is on the eye id should always be 0.
+	}
 	return ViewportIndex;
 }
 
