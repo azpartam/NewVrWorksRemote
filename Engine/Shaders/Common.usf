@@ -1122,7 +1122,17 @@ float3 SvPositionToResolvedTranslatedWorld(float4 SvPosition)
 	if (VRProjectionIsActive())
 	{
 		// Remap for warped viewports, no-op for regular viewports
-		SvPosition.xy = VRProjMapResolvedRenderTargetVRProjToLinear(SvPosition.xy * Frame.BufferSizeAndInvSize.zw) * Frame.BufferSizeAndInvSize.xy;
+		if (LensMatchedShadingIsActive())
+		{
+			float3 LinearNDC = ModifiedWMapWindowToClip(GetModifiedWConfigurationResolvedView(), SvPosition.xyz);
+			SvPosition.xy = float2(LinearNDC.x * 0.5 + 0.5, -LinearNDC.y * 0.5 + 0.5) * Frame.BufferSizeAndInvSize.xy;
+			// jukimNV - for some reason, setting this corrected Z in the normal SvPositionToLinearSvPosition function breaks some materials, so only fixing here
+			SvPosition.z = LinearNDC.z;
+		}
+		else // multires
+		{
+			SvPosition.xy = VRProjMapResolvedRenderTargetVRProjToLinear(SvPosition.xy * Frame.BufferSizeAndInvSize.zw) * Frame.BufferSizeAndInvSize.xy;
+		}
 	}
 
 	float4 HomWorldPos = mul(float4(SvPosition.xyz, 1), ResolvedView.SVPositionToTranslatedWorld);
