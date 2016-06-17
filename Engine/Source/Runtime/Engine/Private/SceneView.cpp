@@ -2071,7 +2071,7 @@ void FSceneView::SetupVRProjection(int32 ViewportGap)
 		// Calculate pixel dimensions of each viewport, based on split positions and scale factors
 		FMultiRes::CalculateViewports(&OriginalViewport, &MultiResConf, &MultiResViewports);
 
-		// subtract out the left eye shrinkage in instanced stereo, then recompute
+		// subtract out the left eye shrinkage in stereo, then recompute
 		if (StereoPass == eSSP_RIGHT_EYE)
 		{
 			int32 Offset = OriginalViewport.Width() - MultiResViewports.BoundingRect.Width();
