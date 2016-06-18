@@ -1124,8 +1124,13 @@ float3 SvPositionToResolvedTranslatedWorld(float4 SvPosition)
 		// Remap for warped viewports, no-op for regular viewports
 		if (LensMatchedShadingIsActive())
 		{
-			float3 LinearNDC = ModifiedWMapWindowToClip(GetModifiedWConfigurationResolvedView(), SvPosition.xyz);
-			SvPosition.xy = float2(LinearNDC.x * 0.5 + 0.5, -LinearNDC.y * 0.5 + 0.5) * Frame.BufferSizeAndInvSize.xy;
+			// jukimNV - TODO: combine all of this into a 3d remapping function in VRProjection.usf
+			float2 UV = (SvPosition.xy - Frame.ViewRectMin.xy) * Frame.ViewSizeAndInvSize.zw;
+			FModifiedWConfiguration Conf = GetModifiedWConfigurationResolvedView();
+			float2 WindowCoord = UV * Conf.BoundingRectSize + Conf.BoundingRectOrigin;
+			float3 LinearNDC = ModifiedWMapWindowToClip(Conf, float3(WindowCoord, SvPosition.z)).xyz;
+			float2 LinearUV = float2(LinearNDC.x * 0.5 + 0.5, -LinearNDC.y * 0.5 + 0.5);
+			SvPosition.xy = (LinearUV * Frame.ViewSizeAndInvSize.xy) + Frame.ViewRectMin.xy;
 			// jukimNV - for some reason, setting this corrected Z in the normal SvPositionToLinearSvPosition function breaks some materials, so only fixing here
 			SvPosition.z = LinearNDC.z;
 		}
