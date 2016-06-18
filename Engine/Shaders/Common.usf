@@ -1125,12 +1125,14 @@ float3 SvPositionToResolvedTranslatedWorld(float4 SvPosition)
 		if (LensMatchedShadingIsActive())
 		{
 			// jukimNV - TODO: combine all of this into a 3d remapping function in VRProjection.usf
-			float2 UV = (SvPosition.xy - Frame.ViewRectMin.xy) * Frame.ViewSizeAndInvSize.zw;
+			float2 UV = SvPosition.xy * Frame.BufferSizeAndInvSize.zw;
+			float2 RenderTargetUV = VRProjMapResolvedRenderTargetToViewRectInternal(UV);
 			FModifiedWConfiguration Conf = GetModifiedWConfigurationResolvedView();
-			float2 WindowCoord = UV * Conf.BoundingRectSize + Conf.BoundingRectOrigin;
+			float2 WindowCoord = RenderTargetUV * Conf.BoundingRectSize + Conf.BoundingRectOrigin;
 			float3 LinearNDC = ModifiedWMapWindowToClip(Conf, float3(WindowCoord, SvPosition.z)).xyz;
 			float2 LinearUV = float2(LinearNDC.x * 0.5 + 0.5, -LinearNDC.y * 0.5 + 0.5);
-			SvPosition.xy = (LinearUV * Frame.ViewSizeAndInvSize.xy) + Frame.ViewRectMin.xy;
+			RenderTargetUV = VRProjMapResolvedViewRectToRenderTargetInternal(LinearUV);
+			SvPosition.xy = RenderTargetUV * Frame.BufferSizeAndInvSize.xy;
 			// jukimNV - for some reason, setting this corrected Z in the normal SvPositionToLinearSvPosition function breaks some materials, so only fixing here
 			SvPosition.z = LinearNDC.z;
 		}
