@@ -268,6 +268,7 @@ struct FLensMatchedShading : public FVRProjection
 
 
 	static CORE_API const Configuration Configuration_CrescentBay;
+	static CORE_API const Configuration Configuration_Vive;
 
 	static CORE_API void CalculateMirroredConfig(const Configuration* Conf, Configuration* RefConfMirrored);
 

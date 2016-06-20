@@ -27,6 +27,11 @@ public:
 	virtual bool EnableStereo(bool stereo = true) = 0;
 
 	/**
+	* Whether or not the stereo is emulated or from an actual HMD.
+	* @return Returns current state of emulated stereo (true / false).
+	*/
+	virtual bool IsEmulatedStereo() const { return false; }
+	/**
 	 * Adjusts the viewport rectangle for stereo, based on which eye pass is being rendered.
 	 */
 	virtual void AdjustViewRect(enum EStereoscopicPass StereoPass, int32& X, int32& Y, uint32& SizeX, uint32& SizeY) const = 0;

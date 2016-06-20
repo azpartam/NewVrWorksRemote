@@ -2134,18 +2134,21 @@ void FSceneView::SetupVRProjection(int32 ViewportGap)
 	{
 		// Set up the lens matched shading configuration: viewport split positions and relative pixel densities
 		// Hard-coded for now!
-		LensMatchedShadingConf = FLensMatchedShading::Configuration_CrescentBay;
+		LensMatchedShadingConf = FLensMatchedShading::Configuration_Vive;
 
-		// Scale the conf to get proper display on PC too
-		int SizeX = LensMatchedShadingConf.SizeLeft + LensMatchedShadingConf.SizeRight;
-		int SizeY = LensMatchedShadingConf.SizeUp + LensMatchedShadingConf.SizeDown;
-		float ScaleX = ViewRect.Width() / float(SizeX);
-		float ScaleY = ViewRect.Height() / float(SizeY);
+		// Scale the conf to get proper display on non-HMD display too
+		if (GEngine->StereoRenderingDevice->IsEmulatedStereo())
+		{
+			int SizeX = LensMatchedShadingConf.SizeLeft + LensMatchedShadingConf.SizeRight;
+			int SizeY = LensMatchedShadingConf.SizeUp + LensMatchedShadingConf.SizeDown;
+			float ScaleX = ViewRect.Width() / float(SizeX);
+			float ScaleY = ViewRect.Height() / float(SizeY);
 
-		LensMatchedShadingConf.SizeLeft *= ScaleX;
-		LensMatchedShadingConf.SizeRight *= ScaleX;
-		LensMatchedShadingConf.SizeUp *= ScaleY;
-		LensMatchedShadingConf.SizeDown *= ScaleY;
+			LensMatchedShadingConf.SizeLeft *= ScaleX;
+			LensMatchedShadingConf.SizeRight *= ScaleX;
+			LensMatchedShadingConf.SizeUp *= ScaleY;
+			LensMatchedShadingConf.SizeDown *= ScaleY;
+		}
 
 		// round locations before mirroring
 		FIntRect OriginalViewport = ViewRect;

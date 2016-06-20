@@ -518,6 +518,15 @@ CORE_API const FLensMatchedShading::Configuration FLensMatchedShading::Configura
 	847.0f, 584.4f
 };
 
+CORE_API const FLensMatchedShading::Configuration FLensMatchedShading::Configuration_Vive =
+{
+	0.61, 0.41,
+	0.59, 0.62,
+
+	650, 750,
+	730, 720
+};
+
 void FLensMatchedShading::CalculateMirroredConfig(
 	const FLensMatchedShading::Configuration* Conf,
 	FLensMatchedShading::Configuration*	RefConfMirrored)
