@@ -2137,7 +2137,7 @@ void FSceneView::SetupVRProjection(int32 ViewportGap)
 		LensMatchedShadingConf = FLensMatchedShading::Configuration_Vive;
 
 		// Scale the conf to get proper display on non-HMD display too
-		if (GEngine->StereoRenderingDevice->IsEmulatedStereo())
+		if (!GEngine->IsStereoscopic3D() || GEngine->StereoRenderingDevice->IsEmulatedStereo())
 		{
 			int SizeX = LensMatchedShadingConf.SizeLeft + LensMatchedShadingConf.SizeRight;
 			int SizeY = LensMatchedShadingConf.SizeUp + LensMatchedShadingConf.SizeDown;
