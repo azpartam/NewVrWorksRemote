@@ -1650,7 +1650,10 @@ void FSceneRenderer::RenderCustomDepthPass(FRHICommandListImmediate& RHICmdList)
 
 			FViewInfo& View = Views[ViewIndex];
 
-			RHICmdList.SetViewport(View.ViewRect.Min.X, View.ViewRect.Min.Y, 0.0f, View.ViewRect.Max.X, View.ViewRect.Max.Y, 1.0f);
+			if (View.bVRProjectEnabled)
+				View.BeginVRProjectionStates(RHICmdList);
+			else
+				RHICmdList.SetViewport(View.ViewRect.Min.X, View.ViewRect.Min.Y, 0.0f, View.ViewRect.Max.X, View.ViewRect.Max.Y, 1.0f);
 			
 			// seems this is set each draw call anyway
 			RHICmdList.SetRasterizerState(TStaticRasterizerState<>::GetRHI());
@@ -1664,6 +1667,11 @@ void FSceneRenderer::RenderCustomDepthPass(FRHICommandListImmediate& RHICmdList)
 			}
 
 			View.CustomDepthSet.DrawPrims(RHICmdList, View, bWriteCustomStencilValues);
+
+			if (View.bVRProjectEnabled)
+			{
+				View.EndVRProjectionStates(RHICmdList);
+			}
 		}
 
 		// resolve using the current ResolveParams 
