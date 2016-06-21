@@ -1533,13 +1533,34 @@ struct FWriteToSliceGeometryOutput
 // because we are using an extra interpolator for this second world position, and in < SM4 there may not be enough
 #define USE_WORLD_POSITION_EXCLUDING_SHADER_OFFSETS	(NEEDS_WORLD_POSITION_EXCLUDING_SHADER_OFFSETS && FEATURE_LEVEL >= FEATURE_LEVEL_ES3_1)
 
+// In order to minimize number of pixels shaded with lens-matched shading enabled, we draw an octagon instead of a full screen triangle/quad
+// The octagon vertex positions start out along the border of a quad and need to be repositioned according to the LMS remapping parameters
+float2 AdjustOctagonPosition(float2 InPosition)
+{
+	float2 UV = (InPosition.xy * 0.5) + 0.5;
+	float2 UVScale = DrawRectangleParameters.PosScaleBias.xy * DrawRectangleParameters.InvTargetSizeAndTextureSize.xy;
+	float2 InvUVScale = rcp(UVScale);
+	float2 UVBias = DrawRectangleParameters.PosScaleBias.zw * DrawRectangleParameters.InvTargetSizeAndTextureSize.xy;
+	UV.xy -= UVBias;
+	UV.xy *= InvUVScale;
+	UV = VRProjMapLinearToVRProj(UV);
+	UV.xy *= UVScale;
+	UV.xy += UVBias;
+	return (UV * 2.0) - 1.0;
+}
+
 /** Used for calculating vertex positions and UVs when drawing with DrawRectangle */
 void DrawRectangle( in float4 InPosition, in float2 InTexCoord, out float4 OutPosition, out float2 OutTexCoord)
 {
 	OutPosition = InPosition;
 	OutPosition.xy = -1.0f + 2.0f * (DrawRectangleParameters.PosScaleBias.zw + (InPosition.xy * DrawRectangleParameters.PosScaleBias.xy)) * DrawRectangleParameters.InvTargetSizeAndTextureSize.xy;
-	OutPosition.xy *= float2( 1, -1 );
 	OutTexCoord.xy = (DrawRectangleParameters.UVScaleBias.zw + (InTexCoord.xy * DrawRectangleParameters.UVScaleBias.xy)) * DrawRectangleParameters.InvTargetSizeAndTextureSize.zw;
+	if (LensMatchedShadingIsActive() && DrawRectangleParameters.bDisableRemap == 0)
+	{
+		OutPosition.xy = AdjustOctagonPosition(OutPosition.xy);
+		OutTexCoord.xy = VRProjMapRenderTargetLinearToVRProj(OutTexCoord.xy);
+	}
+	OutPosition.xy *= float2(1, -1);
 }
 
 /** Used for calculating vertex positions when drawing with DrawRectangle */
@@ -1547,7 +1568,11 @@ void DrawRectangle( in float4 InPosition, out float4 OutPosition)
 {
 	OutPosition = InPosition;
 	OutPosition.xy = -1.0f + 2.0f * (DrawRectangleParameters.PosScaleBias.zw + (InPosition.xy * DrawRectangleParameters.PosScaleBias.xy)) * DrawRectangleParameters.InvTargetSizeAndTextureSize.xy;
-	OutPosition.xy *= float2( 1, -1 );
+	if (LensMatchedShadingIsActive() && DrawRectangleParameters.bDisableRemap == 0)
+	{
+		OutPosition.xy = AdjustOctagonPosition(OutPosition.xy);
+	}
+	OutPosition.xy *= float2(1, -1);
 }
 
 //Since some platforms don't remove Nans in saturate calls, 

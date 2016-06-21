@@ -2003,12 +2003,15 @@ bool FDeferredShadingSceneRenderer::RenderPrePassHMD(FRHICommandListImmediate& R
 	}
 
 	FSceneRenderTargets& SceneContext = FSceneRenderTargets::Get(RHICmdList);
+	// set these before BeginRenderingPrepass to guarantee we get full hardware clear
+	RHICmdList.SetViewport(0.0f, 0.0f, 0.0f, SceneContext.GetBufferSizeXY().X, SceneContext.GetBufferSizeXY().Y, 1.0f);
+	RHICmdList.SetScissorRect(false, 0, 0, 0, 0);
+
 	SceneContext.BeginRenderingPrePass(RHICmdList, !bDepthWasCleared);
 
 	RHICmdList.SetBlendState(TStaticBlendState<CW_NONE>::GetRHI());
 	RHICmdList.SetDepthStencilState(TStaticDepthStencilState<true, CF_DepthNearOrEqual>::GetRHI());
 	RHICmdList.SetRasterizerState(TStaticRasterizerState<FM_Solid, CM_None>::GetRHI());
-	RHICmdList.SetScissorRect(false, 0, 0, 0, 0);
 
 	for (int32 ViewIndex = 0; ViewIndex < Views.Num(); ++ViewIndex)
 	{
