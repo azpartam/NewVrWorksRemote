@@ -308,18 +308,6 @@ void FRCPassPostProcessUpscale::Process(FRenderingCompositePassContext& Context)
 		}
 	}
 
-	EDrawRectangleFlags DrawFlags = EDRF_UseTriangleOptimization;
-	if (bTessellatedQuad)
-	{
-		DrawFlags = EDRF_UseTesselatedIndexBuffer;
-	}
-	else if (View.bVRProjectEnabled && View.VRProjMode == FSceneView::EVRProjectMode::LensMatched)
-	{
-		// if LMS mode, triangle will be overriden with octagon, but since this last upscale pass undoes that transform,
-		// we use the Default flag to signal to DrawRectangle that we don't want Octagon override
-		DrawFlags = EDRF_Default;
-	}
-
 	// Draw a quad, a triangle or a tessellated quad
 	DrawRectangle(
 		Context.RHICmdList,
@@ -330,7 +318,8 @@ void FRCPassPostProcessUpscale::Process(FRenderingCompositePassContext& Context)
 		DestRect.Size(),
 		SrcSize,
 		VertexShader,
-		DrawFlags);
+		bTessellatedQuad ? EDRF_UseTesselatedIndexBuffer : EDRF_UseTriangleOptimization,
+		true);
 
 	Context.RHICmdList.CopyToResolveTarget(DestRenderTarget.TargetableTexture, DestRenderTarget.ShaderResourceTexture, false, FResolveParams());
 }

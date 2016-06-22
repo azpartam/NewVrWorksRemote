@@ -251,7 +251,8 @@ void DrawRectangle(
 	FIntPoint TargetSize,
 	FIntPoint TextureSize,
 	FShader* VertexShader,
-	EDrawRectangleFlags Flags
+	EDrawRectangleFlags Flags,
+	bool bForceNoRemap
 	)
 {
 	float ClipSpaceQuadZ = 0.0f;
@@ -282,7 +283,7 @@ void DrawRectangle(
 		1.0f / TextureSize.X, 1.0f / TextureSize.Y);
 
 	// We draw an octagon instead of a FS triangle if LMS is enabled. We purposely only do it for triangles so that disabling triangle optimization from console also disables octagons.
-	Parameters.bDisableRemap = (bLensMatchedShadeEnabled && Flags == EDRF_UseTriangleOptimization) ? 0 : 1;
+	Parameters.bDisableRemap = !bForceNoRemap && (bLensMatchedShadeEnabled && Flags == EDRF_UseTriangleOptimization) ? 0 : 1;
 
 	SetUniformBufferParameterImmediate(RHICmdList, VertexShader->GetVertexShader(), VertexShader->GetUniformBufferParameter<FDrawRectangleParameters>(), Parameters);
 
@@ -446,7 +447,8 @@ void DrawPostProcessPass(
 	FShader* VertexShader,
 	EStereoscopicPass StereoView,
 	bool bHasCustomMesh,
-	EDrawRectangleFlags Flags)
+	EDrawRectangleFlags Flags,
+	bool bForceNoRemap)
 {
 	if (bHasCustomMesh && StereoView != eSSP_FULL)
 	{
@@ -454,6 +456,6 @@ void DrawPostProcessPass(
 	}
 	else
 	{
-		DrawRectangle(RHICmdList, X, Y, SizeX, SizeY, U, V, SizeU, SizeV, TargetSize, TextureSize, VertexShader, Flags);
+		DrawRectangle(RHICmdList, X, Y, SizeX, SizeY, U, V, SizeU, SizeV, TargetSize, TextureSize, VertexShader, Flags, bForceNoRemap);
 	}
 }

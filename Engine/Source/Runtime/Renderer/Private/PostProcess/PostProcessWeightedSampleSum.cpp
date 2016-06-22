@@ -794,7 +794,8 @@ void FRCPassPostProcessWeightedSampleSum::DrawQuad(FRHICommandListImmediate& RHI
 		DestSize,
 		SrcSize,
 		VertexShader,
-		EDRF_UseTriangleOptimization);
+		EDRF_UseTriangleOptimization,
+		true);
 }
 
 uint32 FRCPassPostProcessWeightedSampleSum::GetMaxNumSamples(ERHIFeatureLevel::Type InFeatureLevel)
