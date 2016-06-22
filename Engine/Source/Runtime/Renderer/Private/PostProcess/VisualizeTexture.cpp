@@ -204,6 +204,11 @@ template<uint32 TextureType> void VisualizeTextureForTextureType(FRHICommandList
 	PixelShader->SetParameters(RHICmdList, Data);
 	FSceneRenderTargets& SceneContext = FSceneRenderTargets::Get(RHICmdList);
 
+	static const auto CVarLensMatchedShading = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("vr.LensMatchedShading"));
+	static const auto CVarLensMatchedShadingRendering = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("vr.LensMatchedShadingRendering"));
+	bool bLensMatchedShadeEnabled = GSupportsFastGeometryShader && GSupportsModifiedW &&
+		CVarLensMatchedShading && CVarLensMatchedShading->GetValueOnRenderThread() && CVarLensMatchedShadingRendering && CVarLensMatchedShadingRendering->GetValueOnRenderThread() > 0;
+
 	DrawRectangle(
 		RHICmdList,
 		// XY
@@ -219,7 +224,7 @@ template<uint32 TextureType> void VisualizeTextureForTextureType(FRHICommandList
 		// TextureSize
 		FIntPoint(1, 1),
 		*VertexShader,
-		EDRF_UseTriangleOptimization);
+		bLensMatchedShadeEnabled ? EDRF_Default : EDRF_UseTriangleOptimization);
 }
 
 void RenderVisualizeTexture(FRHICommandListImmediate& RHICmdList, ERHIFeatureLevel::Type FeatureLevel, const FVisualizeTextureData& Data)
@@ -550,7 +555,7 @@ void FVisualizeTexture::PresentContent(FRHICommandListImmediate& RHICmdList, con
 			FIntPoint(RenderTarget->GetSizeX(), RenderTarget->GetSizeY()),
 			VisualizeTextureRect.Size(),
 			*VertexShader,
-			EDRF_Default);
+			View.VRProjMode == FSceneView::EVRProjectMode::LensMatched ? EDRF_Default : EDRF_UseTriangleOptimization);
 	}
 
 	// this is a helper class for FCanvas to be able to get screen size
