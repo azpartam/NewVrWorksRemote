@@ -102,6 +102,17 @@ void RadialPixelMain(
 
 	// EHartNV : ToDo - review if this is reasonable for all paths
 	float2 ScreenUV = SVPos.xy * Frame.BufferSizeAndInvSize.zw;
+
+	// jukimNV : we can't depend on depth test to kill pixels for LMS mode with point/spot lights, so kill here by checking visibility in final image
+	if (LensMatchedShadingIsActive())
+	{
+		float2 ViewUV = VRProjMapRenderTargetToViewRect(ScreenUV);
+		float2 LinearUV = VRProjMapVRProjToLinear(ViewUV);
+		if (LinearUV.x < 0.0 || LinearUV.x > 1.0 || LinearUV.y < 0.0 || LinearUV.y > 1.0)
+		{
+			return;
+		}
+	}
 	
 	FScreenSpaceData ScreenSpaceData = GetScreenSpaceData(ScreenUV);
 
