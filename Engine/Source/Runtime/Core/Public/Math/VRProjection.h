@@ -213,10 +213,10 @@ struct FLensMatchedShading : public FVRProjection
 		float WarpUp;
 		float WarpDown;
 
-		float SizeLeft;
-		float SizeRight;
-		float SizeUp;
-		float SizeDown;
+		float RelativeSizeLeft;
+		float RelativeSizeRight;
+		float RelativeSizeUp;
+		float RelativeSizeDown;
 	};
 
 	struct StereoConfiguration

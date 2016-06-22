@@ -520,11 +520,11 @@ CORE_API const FLensMatchedShading::Configuration FLensMatchedShading::Configura
 
 CORE_API const FLensMatchedShading::Configuration FLensMatchedShading::Configuration_Vive =
 {
-	0.61, 0.41,
-	0.59, 0.62,
+	0.61f, 0.41f,
+	0.59f, 0.62f,
 
-	650, 750,
-	730, 720
+	0.429f, 0.496f, // Relative to HTC recommended render target size for one eye, 1512 x 1680
+	0.434f, 0.428f
 };
 
 void FLensMatchedShading::CalculateMirroredConfig(
@@ -534,8 +534,8 @@ void FLensMatchedShading::CalculateMirroredConfig(
 	*RefConfMirrored = *Conf;
 	RefConfMirrored->WarpLeft = Conf->WarpRight;
 	RefConfMirrored->WarpRight = Conf->WarpLeft;
-	RefConfMirrored->SizeLeft = Conf->SizeRight;
-	RefConfMirrored->SizeRight = Conf->SizeLeft;
+	RefConfMirrored->RelativeSizeLeft = Conf->RelativeSizeRight;
+	RefConfMirrored->RelativeSizeRight = Conf->RelativeSizeLeft;
 }
 
 void FLensMatchedShading::CalculateStereoConfig(const Configuration* Conf, const FIntRect* OriginalViewport, const int32 ViewportGap, StereoConfiguration* OutStereoConf)
@@ -556,39 +556,50 @@ void FLensMatchedShading::CalculateViewports(
 	const FLensMatchedShading::Configuration* Conf,
 	FLensMatchedShading::Viewports* RefViewports)
 {
-	FVector2D Center;
-	Center.X = FMath::RoundHalfToEven(OriginalViewport->Min.X + OriginalViewport->Width() * Conf->SizeLeft / (Conf->SizeLeft + Conf->SizeRight));
-	Center.Y = FMath::RoundHalfToEven(OriginalViewport->Min.Y + OriginalViewport->Height() * Conf->SizeUp / (Conf->SizeUp + Conf->SizeDown));
+	float SizeLeft = FMath::CeilToFloat(Conf->RelativeSizeLeft * OriginalViewport->Width());
+	float SizeRight = FMath::CeilToFloat(Conf->RelativeSizeRight * OriginalViewport->Width());
+	float SizeUp = FMath::CeilToFloat(Conf->RelativeSizeUp * OriginalViewport->Height());
+	float SizeDown = FMath::CeilToFloat(Conf->RelativeSizeDown * OriginalViewport->Height());
 
-	float ViewportLeft = Conf->SizeLeft * (1.0f + Conf->WarpLeft);
-	float ViewportRight = Conf->SizeRight * (1.0f + Conf->WarpRight);
-	float ViewportUp = Conf->SizeUp * (1.0f + Conf->WarpUp);
-	float ViewportDown = Conf->SizeDown * (1.0f + Conf->WarpDown);
+	FIntRect RealRTSize = *OriginalViewport;
+	RealRTSize.Min.X *= (SizeLeft + SizeRight) / (float)OriginalViewport->Width();
+	RealRTSize.Max.X *= (SizeLeft + SizeRight) / (float)OriginalViewport->Width();
+	RealRTSize.Min.Y *= (SizeUp + SizeDown) / (float)OriginalViewport->Height();
+	RealRTSize.Max.Y *= (SizeUp + SizeDown) / (float)OriginalViewport->Height();
+
+	FVector2D Center;
+	Center.X = FMath::RoundHalfToEven(RealRTSize.Min.X + RealRTSize.Width() * SizeLeft / (SizeLeft + SizeRight));
+	Center.Y = FMath::RoundHalfToEven(RealRTSize.Min.Y + RealRTSize.Height() * SizeUp / (SizeUp + SizeDown));
+
+	float ViewportLeft = SizeLeft * (1.0f + Conf->WarpLeft);
+	float ViewportRight = SizeRight * (1.0f + Conf->WarpRight);
+	float ViewportUp = SizeUp * (1.0f + Conf->WarpUp);
+	float ViewportDown = SizeDown * (1.0f + Conf->WarpDown);
 
 	RefViewports->Views[0] = FloatRect{ Center.X - ViewportLeft, Center.Y - ViewportUp, ViewportLeft * 2, ViewportUp * 2 };
 	RefViewports->Views[1] = FloatRect{ Center.X - ViewportRight, Center.Y - ViewportUp, ViewportRight * 2, ViewportUp * 2 };
 	RefViewports->Views[2] = FloatRect{ Center.X - ViewportLeft, Center.Y - ViewportDown, ViewportLeft * 2, ViewportDown * 2 };
 	RefViewports->Views[3] = FloatRect{ Center.X - ViewportRight, Center.Y - ViewportDown, ViewportRight * 2, ViewportDown * 2 };
 
-	auto GetIntRect = [OriginalViewport](float left, float top, float right, float bottom)
+	auto GetIntRect = [RealRTSize](float left, float top, float right, float bottom)
 	{
-		int iLeft = FMath::Max(OriginalViewport->Min.X, int(FMath::RoundHalfToEven(left)));
-		int iTop = FMath::Max(OriginalViewport->Min.Y, int(FMath::RoundHalfToEven(top)));
-		int iRight = FMath::Min(OriginalViewport->Max.X, int(FMath::RoundHalfToEven(right)));
-		int iBottom = FMath::Min(OriginalViewport->Max.Y, int(FMath::RoundHalfToEven(bottom)));
+		int iLeft = FMath::Max(RealRTSize.Min.X, int(FMath::RoundHalfToEven(left)));
+		int iTop = FMath::Max(RealRTSize.Min.Y, int(FMath::RoundHalfToEven(top)));
+		int iRight = FMath::Min(RealRTSize.Max.X, int(FMath::RoundHalfToEven(right)));
+		int iBottom = FMath::Min(RealRTSize.Max.Y, int(FMath::RoundHalfToEven(bottom)));
 		return FIntRect(iLeft, iTop, iRight, iBottom);
 	};
 
-	RefViewports->Scissors[0] = GetIntRect(Center.X - Conf->SizeLeft, Center.Y - Conf->SizeUp, Center.X, Center.Y);
-	RefViewports->Scissors[1] = GetIntRect(Center.X, Center.Y - Conf->SizeUp, Center.X + Conf->SizeRight, Center.Y);
-	RefViewports->Scissors[2] = GetIntRect(Center.X - Conf->SizeLeft, Center.Y, Center.X, Center.Y + Conf->SizeDown);
-	RefViewports->Scissors[3] = GetIntRect(Center.X, Center.Y, Center.X + Conf->SizeRight, Center.Y + Conf->SizeDown);
+	RefViewports->Scissors[0] = GetIntRect(Center.X - SizeLeft, Center.Y - SizeUp, Center.X, Center.Y);
+	RefViewports->Scissors[1] = GetIntRect(Center.X, Center.Y - SizeUp, Center.X + SizeRight, Center.Y);
+	RefViewports->Scissors[2] = GetIntRect(Center.X - SizeLeft, Center.Y, Center.X, Center.Y + SizeDown);
+	RefViewports->Scissors[3] = GetIntRect(Center.X, Center.Y, Center.X + SizeRight, Center.Y + SizeDown);
 
 	RefViewports->BoundingRect = GetIntRect(
-		Center.X - Conf->SizeLeft,
-		Center.Y - Conf->SizeUp,
-		Center.X + Conf->SizeRight,
-		Center.Y + Conf->SizeDown);
+		Center.X - SizeLeft,
+		Center.Y - SizeUp,
+		Center.X + SizeRight,
+		Center.Y + SizeDown);
 }
 
 void FLensMatchedShading::CalculateStereoViewports(
