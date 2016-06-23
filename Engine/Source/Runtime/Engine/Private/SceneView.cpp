@@ -244,7 +244,8 @@ static TAutoConsoleVariable<int32> CVarMultiResRendering(
 	TEXT("Multi-resolution rendering level:\n")
 	TEXT("0: off (default)\n")
 	TEXT("1: conservative (saves 28% pixels)\n")
-	TEXT("2: aggressive (saves 42% pixels)\n")
+	TEXT("2: balanced (saves 42% pixels)\n")
+	TEXT("3: aggressive (saves 60% pexels)\n")
 	TEXT("Press Numpad0 to cycle between settings."),
 	ECVF_Scalability | ECVF_RenderThreadSafe);
 
