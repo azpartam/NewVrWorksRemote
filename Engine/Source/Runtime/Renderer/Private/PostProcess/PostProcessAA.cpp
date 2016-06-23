@@ -283,7 +283,7 @@ void FRCPassPostProcessAA::Process(FRenderingCompositePassContext& Context)
 		*VertexShader,
 		View.StereoPass,
 		Context.HasHmdMesh(),
-		EDRF_Default);
+		EDRF_UseTriangleOptimization);
 
 	Context.RHICmdList.CopyToResolveTarget(DestRenderTarget.TargetableTexture, DestRenderTarget.ShaderResourceTexture, false, FResolveParams());
 }
