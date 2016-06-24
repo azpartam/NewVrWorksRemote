@@ -255,6 +255,7 @@ uint GetEyeIndexFromViewportIndex(uint ViewportIndex)
 			{ \
 				PassthroughStruct Passthrough; \
 				uint4 ViewportMask : NV_VIEWPORT_MASK; \
+				uint ViewportArrayIndex : SV_ViewportArrayIndex; \
 			}; \
 			[maxvertexcount(1)] \
 			void MainFunctionName(triangle PassthroughStruct Input[3], inout TriangleStream<PassthroughStruct##GSOutput> Output) \
@@ -269,6 +270,7 @@ uint GetEyeIndexFromViewportIndex(uint ViewportIndex)
 				{ \
 					OutputVertex.ViewportMask = VRProjectCalculateNormalViewportMask(Input[0].PositionName, Input[1].PositionName, Input[2].PositionName); \
 				} \
+				OutputVertex.ViewportArrayIndex = OutputVertex.ViewportMask.x; \
 				Output.Append(OutputVertex); \
 			}
 
@@ -277,6 +279,7 @@ uint GetEyeIndexFromViewportIndex(uint ViewportIndex)
 			{ \
 				PassthroughStruct Passthrough; \
 				uint4 ViewportMask : NV_VIEWPORT_MASK; \
+				uint ViewportArrayIndex : SV_ViewportArrayIndex; \
 			}; \
 			[maxvertexcount(1)] \
 			void MainFunctionName(triangle PassthroughStruct Input[3], inout TriangleStream<PassthroughStruct##GSOutput> Output) \
@@ -291,6 +294,7 @@ uint GetEyeIndexFromViewportIndex(uint ViewportIndex)
 				{ \
 					OutputVertex.ViewportMask = VRProjectCalculateStereoViewportMask( Input[0].EyeIndexName, Input[0].PositionName, Input[1].PositionName, Input[2].PositionName); \
 				} \
+				OutputVertex.ViewportArrayIndex = OutputVertex.ViewportMask.x; \
 				Output.Append(OutputVertex); \
 			}
 
