@@ -264,6 +264,13 @@ static TAutoConsoleVariable<float> CVarLensMatchedShadingResScaling(
 	TEXT("1.0f (default)\n"),
 	ECVF_Scalability | ECVF_RenderThreadSafe);
 
+static TAutoConsoleVariable<int32> CVarLensMatchedShadingDrawRectangleOptimization(
+	TEXT("vr.LensMatchedShadingRectangleOptimization"),
+	1,
+	TEXT("Lens Matched Shading rectangle optimization replaces the full screen rectangle to an octagon:\n")
+	TEXT("1.0f (default)\n"),
+	ECVF_Scalability | ECVF_RenderThreadSafe);
+
 static void ToggleMultiResLevel()
 {
 	int32 Value = CVarMultiResRendering.GetValueOnAnyThread();
@@ -1500,8 +1507,7 @@ void FSceneView::EndFinalPostprocessSettings(const FSceneViewInitOptions& ViewIn
 
 			if (bLensMatchedShadeEnabled)
 			{
-				static const auto CVarLensMatchedShadingResScale = IConsoleManager::Get().FindTConsoleVariableDataFloat(TEXT("vr.LensMatchedShadingResolutionScaling"));
-				float LensMatchedShadeResScale = CVarLensMatchedShadingResScale->GetValueOnGameThread();
+				float LensMatchedShadeResScale = CVarLensMatchedShadingResScaling.GetValueOnGameThread();
 
 				FinalPostProcessSettings.ScreenPercentage *= LensMatchedShadeResScale;
 			}
@@ -2182,7 +2188,7 @@ void FSceneView::SetupVRProjection(int32 ViewportGap)
 					MultiResStereoViewports.Views[i].TopLeftY,
 					MultiResStereoViewports.Views[i].Width,
 					MultiResStereoViewports.Views[i].Height);
-				StereoVRProjectScissorArray[i] = MultiResStereoViewports.Scissors[i];;
+				StereoVRProjectScissorArray[i] = MultiResStereoViewports.Scissors[i];
 			}
 		}
 		else
@@ -2206,6 +2212,15 @@ void FSceneView::SetupVRProjection(int32 ViewportGap)
 		// Set up the lens matched shading configuration: viewport split positions and relative pixel densities
 		// Hard-coded for now!
 		LensMatchedShadingConf = FLensMatchedShading::Configuration_Vive;
+		const float ResolutionScale = CVarLensMatchedShadingResScaling.GetValueOnGameThread();
+		if (ResolutionScale != 1.f)
+		{
+			LensMatchedShadingConf.WarpLeft = (1.f + LensMatchedShadingConf.WarpLeft) / ResolutionScale - 1.f;
+			LensMatchedShadingConf.WarpRight = (1.f + LensMatchedShadingConf.WarpRight) / ResolutionScale - 1.f;
+			LensMatchedShadingConf.WarpUp = (1.f + LensMatchedShadingConf.WarpUp) / ResolutionScale - 1.f;
+			LensMatchedShadingConf.WarpDown = (1.f + LensMatchedShadingConf.WarpDown) / ResolutionScale - 1.f;
+		}
+
 
 		// round locations before mirroring
 		FIntRect OriginalViewport = ViewRect;

@@ -825,7 +825,7 @@ public:
 
 	EVRProjectMode VRProjMode;
 	bool bVRProjectEnabled;
-	FIntRect NonVRProjectViewRect;	// View rect without multi-res scaling (but with any adjustments for ScreenPercentage, HMD rendering, etc.)
+	FIntRect NonVRProjectViewRect;	// View rect without vr projection scaling (but with any adjustments for ScreenPercentage, HMD rendering, etc.)
 
 	FMultiRes::Configuration MultiResConf;
 	mutable FMultiRes::StereoConfiguration MultiResStereoConf;

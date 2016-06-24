@@ -283,7 +283,9 @@ void DrawRectangle(
 		1.0f / TextureSize.X, 1.0f / TextureSize.Y);
 
 	// We draw an octagon instead of a FS triangle if LMS is enabled. We purposely only do it for triangles so that disabling triangle optimization from console also disables octagons.
-	Parameters.bDisableRemap = !bForceNoRemap && (bLensMatchedShadeEnabled && Flags == EDRF_UseTriangleOptimization) ? 0 : 1;
+	static const auto CVarLMSDrawRectangleOptimization = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("vr.LensMatchedShadingRectangleOptimization"));
+	bool bDrawOctagon = (CVarLMSDrawRectangleOptimization->GetValueOnRenderThread() && !bForceNoRemap && bLensMatchedShadeEnabled && Flags == EDRF_UseTriangleOptimization);
+	Parameters.bDisableRemap = !bDrawOctagon;
 
 	SetUniformBufferParameterImmediate(RHICmdList, VertexShader->GetVertexShader(), VertexShader->GetUniformBufferParameter<FDrawRectangleParameters>(), Parameters);
 
@@ -303,7 +305,7 @@ void DrawRectangle(
 			/*NumInstances=*/ 1
 			);
 	}
-	else if (bLensMatchedShadeEnabled && Flags != EDRF_Default)
+	else if (bDrawOctagon)
 	{
 		// override everything that could use triangle optimization and draw octagon instead
 		RHICmdList.SetStreamSource(0, GScreenOctagonVertexBuffer.VertexBufferRHI, sizeof(FFilterVertex), 0);
