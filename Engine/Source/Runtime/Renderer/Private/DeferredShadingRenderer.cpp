@@ -2019,20 +2019,7 @@ bool FDeferredShadingSceneRenderer::RenderPrePassHMD(FRHICommandListImmediate& R
 
 		if (View.bVRProjectEnabled)
 		{
-			// Set the true viewports, but leave Context.ViewPortRect alone
-			RHICmdList.SetMultipleViewports(View.StereoVRProjectViewportArray.Num(), View.StereoVRProjectViewportArray.GetData());
-			RHICmdList.SetMultipleScissorRects(true, View.StereoVRProjectScissorArray.Num(), View.StereoVRProjectScissorArray.GetData());
-
-			if (View.VRProjMode == FSceneView::EVRProjectMode::LensMatched)
-			{
-				if (View.IsInstancedStereoPass())
-					RHICmdList.SetModifiedWModeStereo(View.LensMatchedShadingStereoConf, true, true);
-				else
-					RHICmdList.SetModifiedWMode(View.LensMatchedShadingConf, true, true);
-
-				// always render boundary mask if ModifiedW is on
-				RenderModifiedWBoundaryMask(RHICmdList);
-			}
+			View.BeginVRProjectionStates(RHICmdList);
 		}
 		else
 		{
@@ -2045,10 +2032,9 @@ bool FDeferredShadingSceneRenderer::RenderPrePassHMD(FRHICommandListImmediate& R
 			RenderHiddenAreaMaskView(RHICmdList, View);
 		}
 
-		// turn off ModifiedW if necessary
-		if (View.VRProjMode == FSceneView::EVRProjectMode::LensMatched)
+		if (View.bVRProjectEnabled)
 		{
-			RHICmdList.SetModifiedWMode(FLensMatchedShading::Configuration(), true, false);
+			View.EndVRProjectionStates(RHICmdList);
 		}
 	}
 
