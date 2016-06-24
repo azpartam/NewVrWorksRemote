@@ -2026,8 +2026,7 @@ bool FDeferredShadingSceneRenderer::RenderPrePassHMD(FRHICommandListImmediate& R
 			RHICmdList.SetViewport(View.ViewRect.Min.X, View.ViewRect.Min.Y, 0.0f, View.ViewRect.Max.X, View.ViewRect.Max.Y, 1.0f);
 		}
 
-		// Hidden area mask needs to be forced on for now in vr projection mode
-		if (View.StereoPass != eSSP_FULL && !(View.bVRProjectEnabled && HiddenAreaMaskVal != 2))
+		if (View.StereoPass != eSSP_FULL)
 		{
 			RenderHiddenAreaMaskView(RHICmdList, View);
 		}
