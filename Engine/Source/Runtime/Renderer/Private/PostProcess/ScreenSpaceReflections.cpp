@@ -373,11 +373,21 @@ void FRCPassPostProcessScreenSpaceReflections::Process(FRenderingCompositePassCo
 		}
 		else
 		{
-			// bind only the dest render target
-			SetRenderTarget(RHICmdList, DestRenderTarget.TargetableTexture, FTextureRHIRef());
+			if (View.bVRProjectEnabled && View.VRProjMode == FSceneView::EVRProjectMode::LensMatched)
+			{
+				// bind depth to respect safezone in lens matched shading
+				SetRenderTarget(RHICmdList, DestRenderTarget.TargetableTexture, SceneContext.GetSceneDepthSurface(), ESimpleRenderTargetMode::EUninitializedColorAndDepth, FExclusiveDepthStencil::DepthRead_StencilNop);
+				RHICmdList.SetDepthStencilState(TStaticDepthStencilState<false, CF_DepthNear>::GetRHI());
+			}
+			else
+			{
+				// bind only the dest render target
+				SetRenderTarget(RHICmdList, DestRenderTarget.TargetableTexture, FTextureRHIRef());
+				RHICmdList.SetDepthStencilState(TStaticDepthStencilState<false, CF_Always>::GetRHI());
+			}
+
 			Context.SetViewportAndCallRHI(View.ViewRect);
 
-			RHICmdList.SetDepthStencilState(TStaticDepthStencilState<false, CF_Always>::GetRHI());
 		}
 
 		// clear DestRenderTarget only outside of the view's rectangle

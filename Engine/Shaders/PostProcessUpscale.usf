@@ -86,24 +86,27 @@ void MainVS(
 
 void MainPS(noperspective float4 UVAndScreenPos : TEXCOORD0, float4 SvPosition : SV_POSITION, out float4 OutColor : SV_Target0)
 {
+	float2 UV = UVAndScreenPos.xy;
+
+	// Remap for warped viewports, no-op for regular viewports
+	UV = VRProjMapRenderTargetLinearToVRProj(UV);
+
 #if METHOD == 0
 	// Nearest sampling (not blurry but blocky, more for testing)
 	#if ES2_PROFILE
-		OutColor = Texture2DSample(PostprocessInput1, PostprocessInput1Sampler, UVAndScreenPos.xy);
+		OutColor = Texture2DSample(PostprocessInput1, PostprocessInput1Sampler, UV);
 	#else
-		OutColor = PostprocessInput1.SampleLevel(PostprocessInput1Sampler, UVAndScreenPos.xy, 0, int2(0, 0));
+		OutColor = PostprocessInput1.SampleLevel(PostprocessInput1Sampler, UV, 0, int2(0, 0));
 	#endif
 #endif
 
 #if METHOD == 1
 	// Bilinear (fast, aliasing)
-	float2 UV = UVAndScreenPos.xy;
 	OutColor = Texture2DSample(PostprocessInput0, PostprocessInput0Sampler, UV);
 #endif
 
 #if METHOD == 2
 	// 4 Bilinear samples (good quality)
-	float2 UV = UVAndScreenPos.xy;
 	float r = UpscaleSoftness;
 	OutColor = 0;
 	OutColor += Texture2DSample(PostprocessInput0, PostprocessInput0Sampler, UV + float2( -r, -r) * PostprocessInput0Size.zw);
@@ -115,7 +118,6 @@ void MainPS(noperspective float4 UVAndScreenPos : TEXCOORD0, float4 SvPosition :
 
 #if METHOD == 3
 	// Directional blur with unsharp mask upsample.
-	float2 UV = UVAndScreenPos.xy;
 	float X = 0.5;
 	float3 ColorNW = PostprocessInput0.SampleLevel(PostprocessInput0Sampler, UV + float2(-X, -X) * PostprocessInput0Size.zw, 0).rgb;
 	float3 ColorNE = PostprocessInput0.SampleLevel(PostprocessInput0Sampler, UV + float2( X, -X) * PostprocessInput0Size.zw, 0).rgb;

@@ -246,7 +246,8 @@ public:
 			// we only need the non-light-mapped, base pass, local vertex factory shaders for drawing an opaque Material Tile
 			// @todo: Added a FindShaderType by fname or something"
 
-			if(FCString::Stristr(ShaderType->GetName(), TEXT("BasePassVSFNoLightMapPolicy")))
+			if(FCString::Stristr(ShaderType->GetName(), TEXT("BasePassVSFNoLightMapPolicy")) ||
+				FCString::Stristr(ShaderType->GetName(), TEXT("BasePassGSFNoLightMapPolicy")))
 			{
 				return true;
 			}

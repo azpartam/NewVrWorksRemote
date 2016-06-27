@@ -240,13 +240,36 @@ void GetVolumeLightingDirectional(float4 AmbientLightingVector, float3 Direction
 	InterpolatedLighting += DiffuseColor * VolumeLighting.rgb;
 }
 
+#if TRANSLUCENCY_LIGHTING_VOLUMETRIC_PERVERTEX_DIRECTIONAL || TRANSLUCENCY_LIGHTING_VOLUMETRIC_PERVERTEX_NONDIRECTIONAL
+float4 ResolveAmbientLightingVector(FBasePassInterpolantsVSToPS BasePassInterpolants, uint EyeIndex)
+{
+#if SINGLE_PASS_STEREO
+	return float4((EyeIndex != 0) ? BasePassInterpolants.AmbientLightingVectorRight : BasePassInterpolants.AmbientLightingVector, 1);
+#else
+	return float4(BasePassInterpolants.AmbientLightingVector, 1);
+#endif
+}
+#endif
+
+#if TRANSLUCENCY_LIGHTING_VOLUMETRIC_PERVERTEX_DIRECTIONAL
+float3 ResolveDirectionalLightingVector(FBasePassInterpolantsVSToPS BasePassInterpolants, uint EyeIndex)
+{
+#if SINGLE_PASS_STEREO
+	return (EyeIndex != 0) ? BasePassInterpolants.DirectionalLightingVectorRight : BasePassInterpolants.DirectionalLightingVector;
+#else
+	return BasePassInterpolants.DirectionalLightingVector;
+#endif
+}
+#endif
+
 /** Calculates lighting for translucency. */
 float3 GetTranslucencyLighting(
 	FMaterialPixelParameters MaterialParameters, 
 	FPixelMaterialInputs PixelMaterialInputs,
 	FBasePassInterpolantsVSToPS BasePassInterpolants, 
 	FGBufferData GBuffer, 
-	float IndirectIrradiance)
+	float IndirectIrradiance,
+	uint EyeIndex = 0)
 {
 	float4 VolumeLighting;
 	float3 InterpolatedLighting = 0;
@@ -258,11 +281,12 @@ float3 GetTranslucencyLighting(
 
 	#if TRANSLUCENCY_LIGHTING_VOLUMETRIC_PERVERTEX_DIRECTIONAL
 
-		GetVolumeLightingDirectional(float4(BasePassInterpolants.AmbientLightingVector, 1), BasePassInterpolants.DirectionalLightingVector, MaterialParameters.WorldNormal, GBuffer.DiffuseColor, InterpolatedLighting, VolumeLighting);
+
+		GetVolumeLightingDirectional(ResolveAmbientLightingVector(BasePassInterpolants, EyeIndex), ResolveDirectionalLightingVector(BasePassInterpolants, EyeIndex), MaterialParameters.WorldNormal, GBuffer.DiffuseColor, InterpolatedLighting, VolumeLighting);
 
 	#elif TRANSLUCENCY_LIGHTING_VOLUMETRIC_PERVERTEX_NONDIRECTIONAL
 
-		GetVolumeLightingNonDirectional(float4(BasePassInterpolants.AmbientLightingVector, 1), GBuffer.DiffuseColor, InterpolatedLighting, VolumeLighting);
+		GetVolumeLightingNonDirectional(ResolveAmbientLightingVector(BasePassInterpolants, EyeIndex), GBuffer.DiffuseColor, InterpolatedLighting, VolumeLighting);
 
 	#elif TRANSLUCENCY_LIGHTING_VOLUMETRIC_DIRECTIONAL || TRANSLUCENCY_LIGHTING_SURFACE
 	
@@ -629,9 +653,15 @@ void ApplyPixelDepthOffsetForBasePass(inout FMaterialPixelParameters MaterialPar
 
 #if WRITES_VELOCITY_TO_GBUFFER
 	BasePassInterpolants.VelocityPrevScreenPosition.w += PixelDepthOffset;
+	#if SINGLE_PASS_STEREO
+		BasePassInterpolants.VelocityPrevScreenPositionRight.w += PixelDepthOffset;
+	#endif
 
 	#if WRITES_VELOCITY_TO_GBUFFER_USE_POS_INTERPOLATOR
 		BasePassInterpolants.VelocityScreenPosition.w += PixelDepthOffset;
+		#if SINGLE_PASS_STEREO
+			BasePassInterpolants.VelocityScreenPositionRight.w += PixelDepthOffset;
+		#endif
 	#endif
 #endif
 }
@@ -669,6 +699,9 @@ uint GetSelectiveOutputMask()
 void Main(
 	FVertexFactoryInterpolantsVSToPS Interpolants,
 	FBasePassInterpolantsVSToPS BasePassInterpolants,
+#if SINGLE_PASS_STEREO
+	in uint InViewportIndex : SV_ViewportArrayIndex,
+#endif
 	in INPUT_POSITION_QUALIFIERS float4 SvPosition : SV_Position
 	OPTIONAL_IsFrontFace
 	,out float4 OutColor		: SV_Target0
@@ -701,7 +734,15 @@ void Main(
 #endif
    )
 {
-#if INSTANCED_STEREO
+
+#if INSTANCED_STEREO && SINGLE_PASS_STEREO
+	uint TmpEyeIndex = SinglePassStereoIsActive() ? GetEyeIndexFromViewportIndex(InViewportIndex) : GetEyeIndex(Interpolants.PackedEyeIndex);
+	ResolvedView = ResolveView(TmpEyeIndex);
+	uint InEyeIndex = SinglePassStereoIsActive() ? TmpEyeIndex : 0; // Only needed with SPS.
+#elif SINGLE_PASS_STEREO
+	uint InEyeIndex = GetEyeIndexFromViewportIndex(InViewportIndex);
+	ResolvedView = ResolveView(InEyeIndex);
+#elif INSTANCED_STEREO
 	ResolvedView = ResolveView(GetEyeIndex(Interpolants.PackedEyeIndex));
 #else
 	ResolvedView = ResolveView();
@@ -733,8 +774,13 @@ void Main(
 
 	#if USE_WORLD_POSITION_EXCLUDING_SHADER_OFFSETS
 		{
-			float4 ScreenPosition = SvPositionToScreenPosition(SvPosition);
-			CalcMaterialParametersEx(MaterialParameters, PixelMaterialInputs, SvPosition, ScreenPosition, bIsFrontFace, SvPositionToResolvedTranslatedWorld(SvPosition), BasePassInterpolants.PixelPositionExcludingWPO);
+			float4 ScreenPosition = SvPositionToVRProjectScreenPosition(SvPosition);
+			float3 ResolvedPixelPositionExcludingWPO = BasePassInterpolants.PixelPositionExcludingWPO;
+		#if SINGLE_PASS_STEREO
+			if (InEyeIndex != 0)
+				ResolvedPixelPositionExcludingWPO = BasePassInterpolants.PixelPositionExcludingWPORight;
+		#endif
+			CalcMaterialParametersEx(MaterialParameters, PixelMaterialInputs, SvPosition, ScreenPosition, bIsFrontFace, SvPositionToResolvedTranslatedWorld(SvPosition), ResolvedPixelPositionExcludingWPO);
 		}
 	#else
 		CalcMaterialParameters(MaterialParameters, PixelMaterialInputs, SvPosition, bIsFrontFace);
@@ -920,15 +966,22 @@ void Main(
 
 		#if WRITES_VELOCITY_TO_GBUFFER
 			{
+				float4 ResolvedVelocityPrevScreenPosition = BasePassInterpolants.VelocityPrevScreenPosition;
+		#if SINGLE_PASS_STEREO
+			if (InEyeIndex != 0)
+			{
+				ResolvedVelocityPrevScreenPosition = BasePassInterpolants.VelocityPrevScreenPositionRight;
+			}
+		#endif
 				// 2d velocity, includes camera an object motion
 			#if WRITES_VELOCITY_TO_GBUFFER_USE_POS_INTERPOLATOR
-				float2 Velocity = Calculate2DVelocity(BasePassInterpolants.VelocityScreenPosition, BasePassInterpolants.VelocityPrevScreenPosition);
+				float2 Velocity = Calculate2DVelocity(BasePassInterpolants.VelocityScreenPosition, ResolvedVelocityPrevScreenPosition);
 			#else
-				float2 Velocity = Calculate2DVelocity(MaterialParameters.ScreenPosition, BasePassInterpolants.VelocityPrevScreenPosition);
+				float2 Velocity = Calculate2DVelocity(MaterialParameters.ScreenPosition, ResolvedVelocityPrevScreenPosition);
 			#endif
 
 				// Make sure not to touch 0,0 which is clear color
-				GBuffer.Velocity = float4(EncodeVelocityToTexture(Velocity), 0, 0) * BasePassInterpolants.VelocityPrevScreenPosition.z;
+				GBuffer.Velocity = float4(EncodeVelocityToTexture(Velocity), 0, 0) * ResolvedVelocityPrevScreenPosition.z;
 			}
 		#else
 			GBuffer.Velocity = 0;
@@ -998,14 +1051,22 @@ void Main(
 	#endif
 
 	#if NEEDS_BASEPASS_FOGGING
+		#if SINGLE_PASS_STEREO
+		float4 VertexFog = (InEyeIndex == 0) ? BasePassInterpolants.VertexFog : BasePassInterpolants.VertexFogRight;
+		#else
 		float4 VertexFog = BasePassInterpolants.VertexFog;
+		#endif
 	#else
 		float4 VertexFog = float4(0,0,0,1);
 	#endif
 		
 	// Volume lighting for lit translucency
 	#if (MATERIAL_SHADINGMODEL_DEFAULT_LIT || MATERIAL_SHADINGMODEL_SUBSURFACE) && (MATERIALBLENDING_TRANSLUCENT || MATERIALBLENDING_ADDITIVE)
-		Color += GetTranslucencyLighting(MaterialParameters, PixelMaterialInputs, BasePassInterpolants, GBuffer, IndirectIrradiance);
+		uint EyeIndex = 0;
+		#if SINGLE_PASS_STEREO
+		EyeIndex = InEyeIndex;
+		#endif
+		Color += GetTranslucencyLighting(MaterialParameters, PixelMaterialInputs, BasePassInterpolants, GBuffer, IndirectIrradiance, EyeIndex);
 	#endif
 
 	#if !MATERIAL_SHADINGMODEL_UNLIT && USE_DEVELOPMENT_SHADERS

@@ -667,6 +667,11 @@ public:
 		return TemporalAASampleIndex;
 	}
 
+	virtual void SetCurrentTemporalAASampleIndex(uint8 SampleIndex)
+	{
+		TemporalAASampleIndex = SampleIndex;
+	}
+
 	// call after SetupTemporalAA()
 	uint32 GetCurrentTemporalAASampleCount() const
 	{

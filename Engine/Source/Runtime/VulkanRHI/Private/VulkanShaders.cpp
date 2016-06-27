@@ -195,6 +195,36 @@ FGeometryShaderRHIRef FVulkanDynamicRHI::RHICreateGeometryShaderWithStreamOutput
 	return nullptr;
 }
 
+FGeometryShaderRHIRef FVulkanDynamicRHI::RHICreateFastGeometryShader(const TArray<uint8>& Code)
+{
+	VULKAN_SIGNAL_UNIMPLEMENTED();
+	return nullptr;
+}
+
+FVertexShaderRHIRef FVulkanDynamicRHI::RHICreateVertexShaderWithSinglePassStereo(const TArray<uint8>& Code)
+{
+	VULKAN_SIGNAL_UNIMPLEMENTED();
+	return nullptr;
+}
+
+FHullShaderRHIRef FVulkanDynamicRHI::RHICreateHullShaderWithSinglePassStereo(const TArray<uint8>& Code)
+{
+	VULKAN_SIGNAL_UNIMPLEMENTED();
+	return nullptr;
+}
+
+FDomainShaderRHIRef FVulkanDynamicRHI::RHICreateDomainShaderWithSinglePassStereo(const TArray<uint8>& Code)
+{
+	VULKAN_SIGNAL_UNIMPLEMENTED();
+	return nullptr;
+}
+
+FGeometryShaderRHIRef FVulkanDynamicRHI::RHICreateFastGeometryShader_2(const TArray<uint8>& Code, uint32 Usage)
+{
+	VULKAN_SIGNAL_UNIMPLEMENTED();
+	return nullptr;
+}
+
 FComputeShaderRHIRef FVulkanDynamicRHI::RHICreateComputeShader(const TArray<uint8>& Code) 
 { 
 	VULKAN_SIGNAL_UNIMPLEMENTED();

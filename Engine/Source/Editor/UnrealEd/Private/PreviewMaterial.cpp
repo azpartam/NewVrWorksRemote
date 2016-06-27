@@ -113,7 +113,8 @@ public:
 			// Pick tessellation shader based on material settings
 			else if(FCString::Stristr(ShaderType->GetName(), TEXT("BasePassVSFNoLightMapPolicy")) ||
 				FCString::Stristr(ShaderType->GetName(), TEXT("BasePassHSFNoLightMapPolicy")) ||
-				FCString::Stristr(ShaderType->GetName(), TEXT("BasePassDSFNoLightMapPolicy")))
+				FCString::Stristr(ShaderType->GetName(), TEXT("BasePassDSFNoLightMapPolicy")) ||
+				FCString::Stristr(ShaderType->GetName(), TEXT("BasePassGSFNoLightMapPolicy")))
 			{
 				bShaderTypeMatches = true;
 			}

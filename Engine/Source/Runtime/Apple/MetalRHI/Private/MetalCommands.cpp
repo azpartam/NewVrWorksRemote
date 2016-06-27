@@ -118,6 +118,21 @@ void FMetalRHICommandContext::RHISetMultipleViewports(uint32 Count, const FViewp
 	NOT_SUPPORTED("RHISetMultipleViewports");
 }
 
+void FMetalRHICommandContext::RHISetMultipleScissorRects(bool bEnable, uint32 Num, const FIntRect* Rects)
+{
+	NOT_SUPPORTED("RHISetMultipleViewports");
+}
+
+void FMetalRHICommandContext::RHISetModifiedWMode(const FLensMatchedShading::Configuration& Conf, const bool bWarpForward, const bool bEnable)
+{
+	NOT_SUPPORTED("RHISetModifiedWMode");
+}
+
+void FMetalRHICommandContext::RHISetModifiedWModeStereo(const FLensMatchedShading::StereoConfiguration& Conf, const bool bWarpForward, const bool bEnable)
+{
+	NOT_SUPPORTED("RHISetModifiedWModeStereo");
+}
+
 void FMetalRHICommandContext::RHISetScissorRect(bool bEnable,uint32 MinX,uint32 MinY,uint32 MaxX,uint32 MaxY)
 {
 	MTLScissorRect Scissor;
@@ -1081,6 +1096,12 @@ void FMetalRHICommandContext::RHIEnableDepthBoundsTest(bool bEnable, float MinDe
 {
     // not supported
 	NOT_SUPPORTED("RHIEnableDepthBoundsTest");
+}
+
+void FMetalRHICommandContext::RHISetSinglePassStereoParameters(bool bEnable, uint32 RenderTargetIndexOffset, uint8 IndependentViewportMaskEnable)
+{
+	// not supported
+	NOT_SUPPORTED("RHISetSinglePassStereoParameters");
 }
 
 void FMetalRHICommandContext::RHISubmitCommandsHint()

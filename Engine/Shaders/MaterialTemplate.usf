@@ -1734,7 +1734,7 @@ void CalcMaterialParameters(
 	float4 SvPosition,
 	FIsFrontFace bIsFrontFace)
 {
-	float4 ScreenPosition = SvPositionToScreenPosition(SvPosition);
+	float4 ScreenPosition = SvPositionToVRProjectScreenPosition(SvPosition);
 	float3 TranslatedWorldPosition = SvPositionToResolvedTranslatedWorld(SvPosition);
 
 	CalcMaterialParametersEx(Parameters, PixelMaterialInputs, SvPosition, ScreenPosition, bIsFrontFace, TranslatedWorldPosition, TranslatedWorldPosition);
@@ -1746,7 +1746,7 @@ void CalcMaterialParametersPost(
 	float4 SvPosition,
 	FIsFrontFace bIsFrontFace)
 {
-	float4 ScreenPosition = SvPositionToScreenPosition(SvPosition);
+	float4 ScreenPosition = SvPositionToVRProjectScreenPosition(SvPosition);
 	float3 TranslatedWorldPosition = SvPositionToTranslatedWorld(SvPosition);
 
 	CalcMaterialParametersEx(Parameters, PixelMaterialInputs, SvPosition, ScreenPosition, bIsFrontFace, TranslatedWorldPosition, TranslatedWorldPosition);

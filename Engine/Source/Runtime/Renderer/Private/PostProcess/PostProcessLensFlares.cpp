@@ -131,11 +131,20 @@ void FRCPassPostProcessLensFlares::Process(FRenderingCompositePassContext& Conte
 	FIntPoint TexSize2 = InputDesc2->Extent;
 
 	FSceneRenderTargets& SceneContext = FSceneRenderTargets::Get(Context.RHICmdList);
-	uint32 ScaleToFullRes1 = SceneContext.GetBufferSizeXY().X / TexSize1.X;
-	uint32 ScaleToFullRes2 = SceneContext.GetBufferSizeXY().X / TexSize2.X;
+	uint32 ScaleToFullRes1 = FMath::DivideAndRoundUp(SceneContext.GetBufferSizeXY().X, TexSize1.X);
+	uint32 ScaleToFullRes2 = FMath::DivideAndRoundUp(SceneContext.GetBufferSizeXY().X, TexSize2.X);
 
 	FIntRect ViewRect1 = FIntRect::DivideAndRoundUp(View.ViewRect, ScaleToFullRes1);
 	FIntRect ViewRect2 = FIntRect::DivideAndRoundUp(View.ViewRect, ScaleToFullRes2);
+
+	if (View.bVRProjectEnabled)
+	{
+		ScaleToFullRes1 = FMath::DivideAndRoundUp(SceneContext.GetLinearBufferSizeXY().X, TexSize1.X);
+		ScaleToFullRes2 = FMath::DivideAndRoundUp(SceneContext.GetLinearBufferSizeXY().X, TexSize2.X);
+
+		ViewRect1 = FIntRect::DivideAndRoundUp(View.NonVRProjectViewRect, ScaleToFullRes1);
+		ViewRect2 = FIntRect::DivideAndRoundUp(View.NonVRProjectViewRect, ScaleToFullRes2);
+	}
 
 	FIntPoint ViewSize1 = ViewRect1.Size();
 	FIntPoint ViewSize2 = ViewRect2.Size();
@@ -202,7 +211,7 @@ void FRCPassPostProcessLensFlares::Process(FRenderingCompositePassContext& Conte
 		const uint32 Count = 8;
 
 		// we assume the center of the view is the center of the lens (would not be correct for tiled rendering)
-		FVector2D Center = FVector2D(ViewSize1) * 0.5f;
+		FVector2D Center = FVector2D(ViewSize1) * 0.5f + ViewRect1.Min;
 
 		FLinearColor LensFlareHDRColor = Context.View.FinalPostProcessSettings.LensFlareTint * Context.View.FinalPostProcessSettings.LensFlareIntensity;
 	

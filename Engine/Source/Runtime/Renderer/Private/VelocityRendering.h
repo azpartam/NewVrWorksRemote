@@ -43,7 +43,9 @@ public:
 		const ContextDataType PolicyContext
 		) const;
 
-	FBoundShaderStateInput GetBoundShaderStateInput(ERHIFeatureLevel::Type InFeatureLevel);
+	FBoundShaderStateInput GetBoundShaderStateInput(ERHIFeatureLevel::Type InFeatureLevel, bool bMultiRes = false);
+
+	FGeometryShaderRHIRef GetMultiResFastGS();
 
 	friend int32 Compare(const FVelocityDrawingPolicy& A, const FVelocityDrawingPolicy& B);
 
@@ -58,6 +60,7 @@ private:
 	class FVelocityPS* PixelShader;
 	class FVelocityHS* HullShader;
 	class FVelocityDS* DomainShader;
+	class FVelocityFastGS* FastGeometryShader;
 	class FShaderPipeline* ShaderPipeline;
 };
 

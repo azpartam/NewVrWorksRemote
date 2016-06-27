@@ -343,14 +343,27 @@ void FRCPassPostProcessAmbientOcclusionSetup::Process(FRenderingCompositePassCon
 	SCOPED_DRAW_EVENTF(Context.RHICmdList, AmbientOcclusionSetup, TEXT("AmbientOcclusionSetup %dx%d"), DestRect.Width(), DestRect.Height());
 
 	// Set the view family's render target/viewport.
-	SetRenderTarget(Context.RHICmdList, DestRenderTarget.TargetableTexture, FTextureRHIParamRef());
+
+	if (View.bVRProjectEnabled && View.VRProjMode == FSceneView::EVRProjectMode::LensMatched)
+	{
+		FSceneRenderTargets& SceneContext = FSceneRenderTargets::Get(Context.RHICmdList);
+
+		// bind depth to respect safezone in lens matched shading
+		SetRenderTarget(Context.RHICmdList, DestRenderTarget.TargetableTexture, SceneContext.GetSceneDepthSurface(), ESimpleRenderTargetMode::EUninitializedColorAndDepth, FExclusiveDepthStencil::DepthRead_StencilNop);
+		Context.RHICmdList.SetDepthStencilState(TStaticDepthStencilState<false, CF_DepthNear>::GetRHI());
+	}
+	else
+	{
+		// bind only the dest render target
+		SetRenderTarget(Context.RHICmdList, DestRenderTarget.TargetableTexture, FTextureRHIRef());
+		Context.RHICmdList.SetDepthStencilState(TStaticDepthStencilState<false, CF_Always>::GetRHI());
+	}
 
 	Context.SetViewportAndCallRHI(DestRect);
 
 	// set the state
 	Context.RHICmdList.SetBlendState(TStaticBlendState<>::GetRHI());
 	Context.RHICmdList.SetRasterizerState(TStaticRasterizerState<>::GetRHI());
-	Context.RHICmdList.SetDepthStencilState(TStaticDepthStencilState<false, CF_Always>::GetRHI());
 
 	FShader* VertexShader = 0;
 
@@ -477,6 +490,7 @@ class FPostProcessAmbientOcclusionPSandCS : public FGlobalShader
 
 public:
 	FShaderParameter HZBRemapping;
+	FShaderParameter ViewPortRectMinAndInvSize;
 	FPostProcessPassParameters PostprocessParameter;
 	FDeferredPixelShaderParameters DeferredParameters;
 	FScreenSpaceAOParameters ScreenSpaceAOParams;
@@ -494,6 +508,7 @@ public:
 		RandomNormalTexture.Bind(Initializer.ParameterMap, TEXT("RandomNormalTexture"));
 		RandomNormalTextureSampler.Bind(Initializer.ParameterMap, TEXT("RandomNormalTextureSampler"));
 		HZBRemapping.Bind(Initializer.ParameterMap, TEXT("HZBRemapping"));
+		ViewPortRectMinAndInvSize.Bind(Initializer.ParameterMap, TEXT("ViewPortRectMinAndInvSize"));
 		OutTexture.Bind(Initializer.ParameterMap, TEXT("OutTexture"));
 	}
 
@@ -533,7 +548,6 @@ public:
 		ScreenSpaceAOParams.Set(RHICmdList, View, ShaderRHI, InputTextureSize);
 		SetShaderValue(RHICmdList, ShaderRHI, HZBRemapping, HZBRemappingValue);			
 	}
-
 	
 	void SetParametersGfx(FRHICommandList& RHICmdList, const FRenderingCompositePassContext& Context, FIntPoint InputTextureSize, FUnorderedAccessViewRHIParamRef OutUAV)
 	{
@@ -565,6 +579,7 @@ public:
 	{
 		bool bShaderHasOutdatedParameters = FGlobalShader::Serialize(Ar);
 		Ar << HZBRemapping << PostprocessParameter << DeferredParameters << ScreenSpaceAOParams << RandomNormalTexture << RandomNormalTextureSampler << OutTexture;
+		Ar << ViewPortRectMinAndInvSize;
 		return bShaderHasOutdatedParameters;
 	}
 
@@ -918,13 +933,26 @@ void FRCPassPostProcessBasePassAO::Process(FRenderingCompositePassContext& Conte
 
 	// Set the view family's render target/viewport.
 	Context.RHICmdList.TransitionResource(EResourceTransitionAccess::EWritable, DestRenderTarget.TargetableTexture);
-	SetRenderTarget(Context.RHICmdList, DestRenderTarget.TargetableTexture,	FTextureRHIParamRef(), ESimpleRenderTargetMode::EExistingColorAndDepth);
+
+	if (View.bVRProjectEnabled && View.VRProjMode == FSceneView::EVRProjectMode::LensMatched)
+	{
+		FSceneRenderTargets& SceneContext = FSceneRenderTargets::Get(Context.RHICmdList);
+
+		// bind depth to respect safezone in lens matched shading
+		SetRenderTarget(Context.RHICmdList, DestRenderTarget.TargetableTexture, SceneContext.GetSceneDepthSurface(), ESimpleRenderTargetMode::EExistingColorAndDepth, FExclusiveDepthStencil::DepthRead_StencilNop);
+		Context.RHICmdList.SetDepthStencilState(TStaticDepthStencilState<false, CF_DepthNear>::GetRHI());
+	}
+	else
+	{
+		// bind only the dest render target
+		SetRenderTarget(Context.RHICmdList, DestRenderTarget.TargetableTexture, FTextureRHIParamRef(), ESimpleRenderTargetMode::EExistingColorAndDepth);
+		Context.RHICmdList.SetDepthStencilState(TStaticDepthStencilState<false, CF_Always>::GetRHI());
+	}
 	Context.SetViewportAndCallRHI(View.ViewRect);
 
 	// set the state
 	Context.RHICmdList.SetBlendState(TStaticBlendState<CW_RGBA, BO_Add, BF_DestColor, BF_Zero, BO_Add, BF_DestAlpha, BF_Zero>::GetRHI());
 	Context.RHICmdList.SetRasterizerState(TStaticRasterizerState<>::GetRHI());
-	Context.RHICmdList.SetDepthStencilState(TStaticDepthStencilState<false, CF_Always>::GetRHI());
 
 	TShaderMapRef<FPostProcessVS> VertexShader(Context.GetShaderMap());
 	TShaderMapRef<FPostProcessBasePassAOPS> PixelShader(Context.GetShaderMap());

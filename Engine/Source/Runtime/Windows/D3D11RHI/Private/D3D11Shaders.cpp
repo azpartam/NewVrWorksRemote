@@ -6,6 +6,33 @@
 
 #include "D3D11RHIPrivate.h"
 
+#if PLATFORM_DESKTOP
+// For Fast Geometry Shader interface
+#include "AllowWindowsPlatformTypes.h"
+	#include "nvapi.h"
+#include "HideWindowsPlatformTypes.h"
+#endif
+
+#define SET_NV_CUSTOM_SEMANTICS( CreateShaderExArgs ) \
+{\
+	CreateShaderExArgs.NumCustomSemantics = 2;\
+	CreateShaderExArgs.pCustomSemantics = (NV_CUSTOM_SEMANTIC*)malloc((sizeof(NV_CUSTOM_SEMANTIC))*CreateShaderExArgs.NumCustomSemantics);\
+	memset(CreateShaderExArgs.pCustomSemantics, 0, (sizeof(NV_CUSTOM_SEMANTIC))*CreateShaderExArgs.NumCustomSemantics);\
+	\
+	CreateShaderExArgs.pCustomSemantics[0].version = NV_CUSTOM_SEMANTIC_VERSION;\
+	CreateShaderExArgs.pCustomSemantics[0].NVCustomSemanticType = NV_X_RIGHT_SEMANTIC;\
+	strcpy_s(&(CreateShaderExArgs.pCustomSemantics[0].NVCustomSemanticNameString[0]), NVAPI_LONG_STRING_MAX, "NV_X_RIGHT");\
+	\
+	CreateShaderExArgs.pCustomSemantics[1].version = NV_CUSTOM_SEMANTIC_VERSION;\
+	CreateShaderExArgs.pCustomSemantics[1].NVCustomSemanticType = NV_VIEWPORT_MASK_SEMANTIC;\
+	strcpy_s(&(CreateShaderExArgs.pCustomSemantics[1].NVCustomSemanticNameString[0]), NVAPI_LONG_STRING_MAX, "NV_VIEWPORT_MASK");\
+}
+
+static bool bSupportSinglePassStereo()
+{
+	return GSupportsSinglePassStereo;
+}
+
 template <typename TShaderType>
 static inline void ReadShaderOptionalData(FShaderCodeReader& InShaderCode, TShaderType& OutShader)
 {
@@ -33,6 +60,11 @@ static inline void ReadShaderOptionalData(FShaderCodeReader& InShaderCode, TShad
 
 FVertexShaderRHIRef FD3D11DynamicRHI::RHICreateVertexShader(const TArray<uint8>& Code)
 {
+	if (bSupportSinglePassStereo())
+	{
+		return RHICreateVertexShaderWithSinglePassStereo(Code);
+	}
+
 	FShaderCodeReader ShaderCode(Code);
 
 	FD3D11VertexShader* Shader = new FD3D11VertexShader;
@@ -46,6 +78,32 @@ FVertexShaderRHIRef FD3D11DynamicRHI::RHICreateVertexShader(const TArray<uint8>&
 	ReadShaderOptionalData(ShaderCode, *Shader);
 	VERIFYD3D11SHADERRESULT(Direct3DDevice->CreateVertexShader( (void*)CodePtr, CodeSize, NULL, Shader->Resource.GetInitReference() ), Shader, Direct3DDevice);
 	
+	// TEMP
+	Shader->Code = Code;
+	Shader->Offset = Offset;
+
+	return Shader;
+}
+
+FVertexShaderRHIRef FD3D11DynamicRHI::RHICreateVertexShaderWithSinglePassStereo(const TArray<uint8>& Code)
+{
+	FShaderCodeReader ShaderCode(Code);
+
+	FD3D11VertexShader* Shader = new FD3D11VertexShader;
+
+	FMemoryReader Ar(Code, true);
+	Ar << Shader->ShaderResourceTable;
+	int32 Offset = Ar.Tell();
+	const uint8* CodePtr = Code.GetData() + Offset;
+	const size_t CodeSize = ShaderCode.GetActualShaderCodeSize() - Offset;
+
+	NvAPI_D3D11_CREATE_VERTEX_SHADER_EX CreateVertexShaderExArgs = { 0 };
+	CreateVertexShaderExArgs.version = NVAPI_D3D11_CREATEVERTEXSHADEREX_VERSION;
+	SET_NV_CUSTOM_SEMANTICS(CreateVertexShaderExArgs);
+	VERIFYD3D11RESULT(NvAPI_D3D11_CreateVertexShaderEx(Direct3DDevice, (void*)CodePtr, CodeSize, NULL, &CreateVertexShaderExArgs, Shader->Resource.GetInitReference()));
+
+	ReadShaderOptionalData(ShaderCode, *Shader);
+
 	// TEMP
 	Shader->Code = Code;
 	Shader->Offset = Offset;
@@ -126,8 +184,88 @@ FGeometryShaderRHIRef FD3D11DynamicRHI::RHICreateGeometryShaderWithStreamOutput(
 	return Shader;
 }
 
+FGeometryShaderRHIRef FD3D11DynamicRHI::RHICreateFastGeometryShader(const TArray<uint8>& Code)
+{
+#if PLATFORM_DESKTOP
+	if (!GSupportsFastGeometryShader)
+		return nullptr;
+
+	FShaderCodeReader ShaderCode(Code);
+
+	FD3D11GeometryShader* Shader = new FD3D11GeometryShader;
+
+	FMemoryReader Ar(Code, true);
+	Ar << Shader->ShaderResourceTable;
+	int32 Offset = Ar.Tell();
+	const uint8* CodePtr = Code.GetData() + Offset;
+	const size_t CodeSize = ShaderCode.GetActualShaderCodeSize() - Offset;
+
+	NvAPI_D3D11_CREATE_FASTGS_EXPLICIT_DESC FastGSParams =
+	{
+		NVAPI_D3D11_CREATEFASTGSEXPLICIT_VER,
+		NV_FASTGS_USE_VIEWPORT_MASK,
+		nullptr		// pCoordinateSwizzling
+	};
+	NvAPI_Status status = NvAPI_D3D11_CreateFastGeometryShaderExplicit(Direct3DDevice, (void*)CodePtr, CodeSize, nullptr, &FastGSParams, Shader->Resource.GetInitReference());
+	checkf(status == NVAPI_OK, TEXT("NvAPI_D3D11_CreateFastGeometryShaderExplicit() returned error code %d"), int(status));
+
+	ReadShaderOptionalData(ShaderCode, *Shader);
+
+	return Shader;
+#else
+	return nullptr;
+#endif
+}
+
+FGeometryShaderRHIRef FD3D11DynamicRHI::RHICreateFastGeometryShader_2(const TArray<uint8>& Code, uint32 Usage)
+{
+#if PLATFORM_DESKTOP
+	if (!GSupportsFastGeometryShader)
+		return nullptr;
+
+	if (!bSupportSinglePassStereo())
+	{
+		return RHICreateFastGeometryShader(Code);
+	}
+
+	FShaderCodeReader ShaderCode(Code);
+
+	FD3D11GeometryShader* Shader = new FD3D11GeometryShader;
+
+	FMemoryReader Ar(Code, true);
+	Ar << Shader->ShaderResourceTable;
+	int32 Offset = Ar.Tell();
+	const uint8* CodePtr = Code.GetData() + Offset;
+	const size_t CodeSize = ShaderCode.GetActualShaderCodeSize() - Offset;
+
+	NvAPI_D3D11_CREATE_GEOMETRY_SHADER_EX CreateGeometryShaderExArgs = { 0 };
+	CreateGeometryShaderExArgs.version = NVAPI_D3D11_CREATEGEOMETRYSHADEREX_2_VERSION;
+	CreateGeometryShaderExArgs.UseViewportMask = (Usage == 0) ? true : false; /*true;*/
+	CreateGeometryShaderExArgs.OffsetRtIndexByVpIndex = false;
+	CreateGeometryShaderExArgs.ForceFastGS = true; /*true*/
+	CreateGeometryShaderExArgs.DontUseViewportOrder = false;
+	CreateGeometryShaderExArgs.UseAttributeSkipMask = false;
+	CreateGeometryShaderExArgs.UseCoordinateSwizzle = false;
+	CreateGeometryShaderExArgs.pCoordinateSwizzling = NULL;
+	SET_NV_CUSTOM_SEMANTICS(CreateGeometryShaderExArgs);
+	NvAPI_Status status = NvAPI_D3D11_CreateGeometryShaderEx_2(Direct3DDevice, (void*)CodePtr, CodeSize, nullptr, &CreateGeometryShaderExArgs, Shader->Resource.GetInitReference());
+	checkf(status == NVAPI_OK, TEXT("NvAPI_D3D11_CreateGeometryShaderEx_2() returned error code %d"), int(status));
+
+	ReadShaderOptionalData(ShaderCode, *Shader);
+
+	return Shader;
+#else
+	return nullptr;
+#endif
+}
+
 FHullShaderRHIRef FD3D11DynamicRHI::RHICreateHullShader(const TArray<uint8>& Code) 
 { 
+	if (bSupportSinglePassStereo())
+	{
+		return RHICreateHullShaderWithSinglePassStereo(Code);
+	}
+
 	FShaderCodeReader ShaderCode(Code);
 
 	FD3D11HullShader* Shader = new FD3D11HullShader;
@@ -144,8 +282,35 @@ FHullShaderRHIRef FD3D11DynamicRHI::RHICreateHullShader(const TArray<uint8>& Cod
 	return Shader;
 }
 
+FHullShaderRHIRef FD3D11DynamicRHI::RHICreateHullShaderWithSinglePassStereo(const TArray<uint8>& Code)
+{
+	FShaderCodeReader ShaderCode(Code);
+
+	FD3D11HullShader* Shader = new FD3D11HullShader;
+
+	FMemoryReader Ar(Code, true);
+	Ar << Shader->ShaderResourceTable;
+	int32 Offset = Ar.Tell();
+	const uint8* CodePtr = Code.GetData() + Offset;
+	const size_t CodeSize = ShaderCode.GetActualShaderCodeSize() - Offset;
+
+	NvAPI_D3D11_CREATE_HULL_SHADER_EX CreateHullShaderExArgs = { 0 };
+	CreateHullShaderExArgs.version = NVAPI_D3D11_CREATEHULLSHADEREX_VERSION;
+	SET_NV_CUSTOM_SEMANTICS(CreateHullShaderExArgs);
+	VERIFYD3D11RESULT(NvAPI_D3D11_CreateHullShaderEx(Direct3DDevice, (void*)CodePtr, CodeSize, NULL, &CreateHullShaderExArgs, Shader->Resource.GetInitReference()));
+
+	ReadShaderOptionalData(ShaderCode, *Shader);
+
+	return Shader;
+}
+
 FDomainShaderRHIRef FD3D11DynamicRHI::RHICreateDomainShader(const TArray<uint8>& Code) 
 { 
+	if (bSupportSinglePassStereo())
+	{
+		return RHICreateDomainShaderWithSinglePassStereo(Code);
+	}
+
 	FShaderCodeReader ShaderCode(Code);
 
 	FD3D11DomainShader* Shader = new FD3D11DomainShader;
@@ -158,6 +323,28 @@ FDomainShaderRHIRef FD3D11DynamicRHI::RHICreateDomainShader(const TArray<uint8>&
 
 	ReadShaderOptionalData(ShaderCode, *Shader);
 	VERIFYD3D11SHADERRESULT( Direct3DDevice->CreateDomainShader( (void*)CodePtr, CodeSize, NULL, Shader->Resource.GetInitReference() ), Shader, Direct3DDevice);
+
+	return Shader;
+}
+
+FDomainShaderRHIRef FD3D11DynamicRHI::RHICreateDomainShaderWithSinglePassStereo(const TArray<uint8>& Code)
+{
+	FShaderCodeReader ShaderCode(Code);
+
+	FD3D11DomainShader* Shader = new FD3D11DomainShader;
+
+	FMemoryReader Ar(Code, true);
+	Ar << Shader->ShaderResourceTable;
+	int32 Offset = Ar.Tell();
+	const uint8* CodePtr = Code.GetData() + Offset;
+	const size_t CodeSize = ShaderCode.GetActualShaderCodeSize() - Offset;
+
+	NvAPI_D3D11_CREATE_DOMAIN_SHADER_EX CreateDomainShaderExArgs = { 0 };
+	CreateDomainShaderExArgs.version = NVAPI_D3D11_CREATEDOMAINSHADEREX_VERSION;
+	SET_NV_CUSTOM_SEMANTICS(CreateDomainShaderExArgs);
+	VERIFYD3D11RESULT(NvAPI_D3D11_CreateDomainShaderEx(Direct3DDevice, (void*)CodePtr, CodeSize, NULL, &CreateDomainShaderExArgs, Shader->Resource.GetInitReference()));
+
+	ReadShaderOptionalData(ShaderCode, *Shader);
 
 	return Shader;
 }

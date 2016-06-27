@@ -37,6 +37,8 @@ bool GVisualizeMipLevels = false;
 #define IMPLEMENT_BASEPASS_VERTEXSHADER_TYPE(LightMapPolicyType,LightMapPolicyName) \
 	typedef TBasePassVS< LightMapPolicyType, false > TBasePassVS##LightMapPolicyName ; \
 	IMPLEMENT_MATERIAL_SHADER_TYPE(template<>,TBasePassVS##LightMapPolicyName,TEXT("BasePassVertexShader"),TEXT("Main"),SF_Vertex); \
+	typedef TBasePassFastGS< LightMapPolicyType > TBasePassGS##LightMapPolicyName; \
+	IMPLEMENT_MATERIAL_SHADER_TYPE(template<>,TBasePassGS##LightMapPolicyName,TEXT("BasePassVertexShader"),TEXT("VRProjectFastGS"),SF_Geometry); \
 	typedef TBasePassHS< LightMapPolicyType > TBasePassHS##LightMapPolicyName; \
 	IMPLEMENT_MATERIAL_SHADER_TYPE(template<>,TBasePassHS##LightMapPolicyName,TEXT("BasePassTessellationShaders"),TEXT("MainHull"),SF_Hull); \
 	typedef TBasePassDS< LightMapPolicyType > TBasePassDS##LightMapPolicyName; \
@@ -428,8 +430,8 @@ public:
 			Parameters.bEditorCompositeDepthTest,
 			/* bInEnableReceiveDecalOutput = */ Scene != nullptr
 			);
-		RHICmdList.BuildAndSetLocalBoundShaderState(DrawingPolicy.GetBoundShaderStateInput(View.GetFeatureLevel()));
-		DrawingPolicy.SetSharedState(RHICmdList, &View, typename TBasePassDrawingPolicy<LightMapPolicyType>::ContextDataType(Parameters.bIsInstancedStereo, false));
+		RHICmdList.BuildAndSetLocalBoundShaderState(DrawingPolicy.GetBoundShaderStateInput(View.GetFeatureLevel(), View.bVRProjectEnabled || Parameters.bIsSinglePassStereo));
+		DrawingPolicy.SetSharedState(RHICmdList, &View, typename TBasePassDrawingPolicy<LightMapPolicyType>::ContextDataType(Parameters.bIsInstancedStereo, false, Parameters.bIsSinglePassStereo));
 		const FMeshDrawingRenderState DrawRenderState(DitheredLODTransitionAlpha);
 
 		for( int32 BatchElementIndex = 0, Num = Parameters.Mesh.Elements.Num(); BatchElementIndex < Num; BatchElementIndex++ )
@@ -477,7 +479,8 @@ bool FBasePassOpaqueDrawingPolicyFactory::DrawDynamicMesh(
 	bool bPreFog,
 	const FPrimitiveSceneProxy* PrimitiveSceneProxy,
 	FHitProxyId HitProxyId, 
-	const bool bIsInstancedStereo
+	const bool bIsInstancedStereo,
+	const bool bIsSinglePassStereo
 	)
 {
 	// Determine the mesh's material and blend mode.
@@ -497,7 +500,8 @@ bool FBasePassOpaqueDrawingPolicyFactory::DrawDynamicMesh(
 				DrawingContext.bEditorCompositeDepthTest,
 				DrawingContext.TextureMode,
 				View.GetFeatureLevel(), 
-				bIsInstancedStereo
+				bIsInstancedStereo,
+				bIsSinglePassStereo
 				),
 			FDrawBasePassDynamicMeshAction(
 				View,
@@ -566,6 +570,7 @@ void GetUniformBasePassShaders(
 	bool bEnableSkyLight,
 	FBaseHS*& HullShader,
 	FBaseDS*& DomainShader,
+	TBasePassFastGeometryShaderPolicyParamType<FUniformLightMapPolicyShaderParametersType>*& FastGeometryShader,
 	TBasePassVertexShaderPolicyParamType<FUniformLightMapPolicyShaderParametersType>*& VertexShader,
 	TBasePassPixelShaderPolicyParamType<FUniformLightMapPolicyShaderParametersType>*& PixelShader
 	)
@@ -575,6 +580,8 @@ void GetUniformBasePassShaders(
 		HullShader = Material.GetShader<TBasePassHS<TUniformLightMapPolicy<Policy> > >(VertexFactoryType);
 		DomainShader = Material.GetShader<TBasePassDS<TUniformLightMapPolicy<Policy> > >(VertexFactoryType);
 	}
+
+	FastGeometryShader = Material.GetShader<TBasePassFastGS<TUniformLightMapPolicy<Policy> > >(VertexFactoryType);
 
 	if (bEnableAtmosphericFog)
 	{
@@ -604,6 +611,7 @@ void GetBasePassShaders<FUniformLightMapPolicy>(
 	bool bEnableSkyLight,
 	FBaseHS*& HullShader,
 	FBaseDS*& DomainShader,
+	TBasePassFastGeometryShaderPolicyParamType<FUniformLightMapPolicyShaderParametersType>*& FastGeometryShader,
 	TBasePassVertexShaderPolicyParamType<FUniformLightMapPolicyShaderParametersType>*& VertexShader,
 	TBasePassPixelShaderPolicyParamType<FUniformLightMapPolicyShaderParametersType>*& PixelShader
 	)
@@ -611,27 +619,27 @@ void GetBasePassShaders<FUniformLightMapPolicy>(
 	switch (LightMapPolicy.GetIndirectPolicy())
 	{
 	case LMP_CACHED_VOLUME_INDIRECT_LIGHTING:
-		GetUniformBasePassShaders<LMP_CACHED_VOLUME_INDIRECT_LIGHTING>(Material, VertexFactoryType, bNeedsHSDS, bEnableAtmosphericFog, bEnableSkyLight, HullShader, DomainShader, VertexShader, PixelShader);
+		GetUniformBasePassShaders<LMP_CACHED_VOLUME_INDIRECT_LIGHTING>(Material, VertexFactoryType, bNeedsHSDS, bEnableAtmosphericFog, bEnableSkyLight, HullShader, DomainShader, FastGeometryShader, VertexShader, PixelShader);
 		break;
 	case LMP_CACHED_POINT_INDIRECT_LIGHTING:
-		GetUniformBasePassShaders<LMP_CACHED_POINT_INDIRECT_LIGHTING>(Material, VertexFactoryType, bNeedsHSDS, bEnableAtmosphericFog, bEnableSkyLight, HullShader, DomainShader, VertexShader, PixelShader);
+		GetUniformBasePassShaders<LMP_CACHED_POINT_INDIRECT_LIGHTING>(Material, VertexFactoryType, bNeedsHSDS, bEnableAtmosphericFog, bEnableSkyLight, HullShader, DomainShader, FastGeometryShader, VertexShader, PixelShader);
 		break;
 	case LMP_SIMPLE_DYNAMIC_LIGHTING:
-		GetUniformBasePassShaders<LMP_SIMPLE_DYNAMIC_LIGHTING>(Material, VertexFactoryType, bNeedsHSDS, bEnableAtmosphericFog, bEnableSkyLight, HullShader, DomainShader, VertexShader, PixelShader);
+		GetUniformBasePassShaders<LMP_SIMPLE_DYNAMIC_LIGHTING>(Material, VertexFactoryType, bNeedsHSDS, bEnableAtmosphericFog, bEnableSkyLight, HullShader, DomainShader, FastGeometryShader, VertexShader, PixelShader);
 		break;
 	case LMP_LQ_LIGHTMAP:
-		GetUniformBasePassShaders<LMP_LQ_LIGHTMAP>(Material, VertexFactoryType, bNeedsHSDS, bEnableAtmosphericFog, bEnableSkyLight, HullShader, DomainShader, VertexShader, PixelShader);
+		GetUniformBasePassShaders<LMP_LQ_LIGHTMAP>(Material, VertexFactoryType, bNeedsHSDS, bEnableAtmosphericFog, bEnableSkyLight, HullShader, DomainShader, FastGeometryShader, VertexShader, PixelShader);
 		break;
 	case LMP_HQ_LIGHTMAP:
-		GetUniformBasePassShaders<LMP_HQ_LIGHTMAP>(Material, VertexFactoryType, bNeedsHSDS, bEnableAtmosphericFog, bEnableSkyLight, HullShader, DomainShader, VertexShader, PixelShader);
+		GetUniformBasePassShaders<LMP_HQ_LIGHTMAP>(Material, VertexFactoryType, bNeedsHSDS, bEnableAtmosphericFog, bEnableSkyLight, HullShader, DomainShader, FastGeometryShader, VertexShader, PixelShader);
 		break;
 	case LMP_DISTANCE_FIELD_SHADOWS_AND_HQ_LIGHTMAP:
-		GetUniformBasePassShaders<LMP_DISTANCE_FIELD_SHADOWS_AND_HQ_LIGHTMAP>(Material, VertexFactoryType, bNeedsHSDS, bEnableAtmosphericFog, bEnableSkyLight, HullShader, DomainShader, VertexShader, PixelShader);
+		GetUniformBasePassShaders<LMP_DISTANCE_FIELD_SHADOWS_AND_HQ_LIGHTMAP>(Material, VertexFactoryType, bNeedsHSDS, bEnableAtmosphericFog, bEnableSkyLight, HullShader, DomainShader, FastGeometryShader, VertexShader, PixelShader);
 		break;
 	default:										
 		check(false);
 	case LMP_NO_LIGHTMAP:
-		GetUniformBasePassShaders<LMP_NO_LIGHTMAP>(Material, VertexFactoryType, bNeedsHSDS, bEnableAtmosphericFog, bEnableSkyLight, HullShader, DomainShader, VertexShader, PixelShader);
+		GetUniformBasePassShaders<LMP_NO_LIGHTMAP>(Material, VertexFactoryType, bNeedsHSDS, bEnableAtmosphericFog, bEnableSkyLight, HullShader, DomainShader, FastGeometryShader, VertexShader, PixelShader);
 		break;
 	}
 }

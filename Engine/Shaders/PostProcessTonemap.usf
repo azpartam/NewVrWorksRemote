@@ -310,7 +310,16 @@ void MainPS(
 		LinearColor *= ExposureScale;
 
 		#if USE_VIGNETTE
-			LinearColor.rgb *= ComputeVignetteMask( InExposureScaleVignette.yz, TonemapperParams.x );
+			float2 VignettePos = InExposureScaleVignette.yz;
+			if (VRProjectionIsActive())
+			{
+				// Remap vignette position from multi-res to corresponding linear location
+				// @todo: Could be done in the vertex shader, by constructing a mesh that's split to match the
+				// multi-res viewports.
+				float2 LinearScreenPos = VRProjMapVRProjToLinear( UV) * float2(2, -2) + float2(-1, 1);
+				VignettePos = VignetteSpace(LinearScreenPos);
+			}
+			LinearColor.rgb *= ComputeVignetteMask(VignettePos, TonemapperParams.x);
 		#endif
 
 		#if USE_GRAIN_INTENSITY

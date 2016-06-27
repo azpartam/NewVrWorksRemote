@@ -285,6 +285,13 @@ void FRCPassPostProcessUpscale::Process(FRenderingCompositePassContext& Context)
 	FIntRect DestRect = (ViewFamily.bUseSeparateRenderTarget) ? View.ViewRect : View.UnscaledViewRect; // Simple upscaling, ES2 post process does not currently have a specific upscaling pass.
 	FIntPoint SrcSize = InputDesc->Extent;
 
+	// For upscaling multi-res on an HMD, UnscaledViewRect will not be correct; we need
+	// to get the destination size from NonVRProjectViewRect instead.
+	if (View.bVRProjectEnabled && GEngine->HMDDevice.IsValid() && View.Family->EngineShowFlags.StereoRendering)
+	{
+		DestRect = View.NonVRProjectViewRect;
+	}
+
 	const FSceneRenderTargetItem& DestRenderTarget = PassOutputs[0].RequestSurface(Context);
 	if (!DestRenderTarget.TargetableTexture)
 	{

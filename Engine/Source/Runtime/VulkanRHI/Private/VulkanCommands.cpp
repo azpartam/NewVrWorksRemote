@@ -828,6 +828,11 @@ void FVulkanCommandListContext::RHIEnableDepthBoundsTest(bool bEnable, float Min
 	VULKAN_SIGNAL_UNIMPLEMENTED();
 }
 
+void FVulkanCommandListContext::RHISetSinglePassStereoParameters(bool bEnable, uint32 RenderTargetIndexOffset, uint8 IndependentViewportMaskEnable)
+{
+	VULKAN_SIGNAL_UNIMPLEMENTED();
+}
+
 void FVulkanCommandListContext::SubmitCurrentCommands()
 {
 	if (IsImmediate())

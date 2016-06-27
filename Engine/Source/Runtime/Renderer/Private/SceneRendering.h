@@ -612,7 +612,8 @@ public:
 		const FMatrix& EffectiveTranslatedViewMatrix, 
 		const FMatrix& EffectiveViewToTranslatedWorld, 
 		FBox* OutTranslucentCascadeBoundsArray, 
-		int32 NumTranslucentCascades) const;
+		int32 NumTranslucentCascades,
+		bool SupportMultiRes = false) const;
 
 	/** Initializes the RHI resources used by this view. */
 	void InitRHIResources(const TArray<FProjectedShadowInfo*, SceneRenderingAllocator>* DirectionalLightShadowInfo);
@@ -645,7 +646,7 @@ public:
 	/** Instanced stereo only needs to render the left eye. */
 	bool ShouldRenderView() const 
 	{
-		if (!bIsInstancedStereoEnabled)
+		if (!bIsInstancedStereoEnabled && !bAllowSinglePassStereo)
 		{
 			return true;
 		}
@@ -936,6 +937,9 @@ protected:
 	void ClearPrimitiveSingleFramePrecomputedLightingBuffers();
 
 	void RenderPlanarReflection(class FPlanarReflectionSceneProxy* ReflectionSceneProxy);
+
+	/** Renders a depth mask to block out areas not visible with ModifiedW rendering **/
+	void RenderModifiedWBoundaryMask(FRHICommandListImmediate& RHICmdList);
 };
 
 /**

@@ -290,7 +290,10 @@ void CollideWithDepthBuffer(
 	float3 CollisionPosition = InPosition + CollisionOffset;
 	float4 SamplePosition = float4(CollisionPosition + View.PreViewTranslation,1);
 	float4 ClipPosition = mul(SamplePosition, View.TranslatedWorldToClip);
-	float2 ScreenPosition = ClipPosition.xy / ClipPosition.w;
+	float2 LinearScreenPosition = ClipPosition.xy / ClipPosition.w;
+
+	// compensate for possibly warped space
+	float2 ScreenPosition = VRProjMapNDCLinearToVRProj(LinearScreenPosition);
 
 	// Don't try to collide if the particle falls outside the view.
 	if (all(abs(ScreenPosition.xy) <= float2(1,1)))
@@ -302,7 +305,7 @@ void CollideWithDepthBuffer(
 		if (abs(ClipPosition.w - SceneDepth) < CollisionDepthBounds)
 		{
 			// Reconstruct world position.
-			float4 HomogeneousWorldPosition = mul(float4(ScreenPosition.xy * SceneDepth, SceneDepth, 1), View.ScreenToWorld);
+			float4 HomogeneousWorldPosition = mul(float4(LinearScreenPosition.xy * SceneDepth, SceneDepth, 1), View.ScreenToWorld);
 			float3 WorldPosition = HomogeneousWorldPosition.xyz / HomogeneousWorldPosition.w;
 
 			// Sample the normal buffer to create a plane to collide against.

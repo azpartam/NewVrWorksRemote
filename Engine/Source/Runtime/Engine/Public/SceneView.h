@@ -14,6 +14,7 @@
 #include "RHIStaticStates.h"
 #include "GlobalDistanceFieldParameters.h"
 #include "DebugViewModeHelpers.h"
+#include "VRProjection.h"
 
 class FSceneViewStateInterface;
 class FViewUniformShaderParameters;
@@ -399,6 +400,36 @@ BEGIN_UNIFORM_BUFFER_STRUCT_WITH_CONSTRUCTOR(FViewUniformShaderParameters, ENGIN
 	DECLARE_UNIFORM_BUFFER_STRUCT_MEMBER(FMatrix, PrevScreenToTranslatedWorld)
 	DECLARE_UNIFORM_BUFFER_STRUCT_MEMBER(FMatrix, ClipToPrevClip)
 	DECLARE_UNIFORM_BUFFER_STRUCT_MEMBER(FVector4, GlobalClippingPlane)
+
+	DECLARE_UNIFORM_BUFFER_STRUCT_MEMBER(FVector4, RenderTargetToViewRectUVScaleBias)	// Scale-bias for converting from render-target-relative UVs to view-rect-relative UVs
+	DECLARE_UNIFORM_BUFFER_STRUCT_MEMBER(FVector4, ViewRectToRenderTargetUVScaleBias)	// ...and vice versa
+
+	DECLARE_UNIFORM_BUFFER_STRUCT_MEMBER(FVector4, NDCSplitsX) // MultiRes splits for geometry shader
+	DECLARE_UNIFORM_BUFFER_STRUCT_MEMBER(FVector4, NDCSplitsY) // MultiRes splits for geometry shader
+	DECLARE_UNIFORM_BUFFER_STRUCT_MEMBER(FVector4, StereoNDCSplitsX) // MultiRes splits for geometry shader
+	DECLARE_UNIFORM_BUFFER_STRUCT_MEMBER(FVector4, StereoNDCSplitsY) // MultiRes splits for geometry shader
+
+	// MultiRes Parameters, should pack them better for efficiency
+	DECLARE_UNIFORM_BUFFER_STRUCT_MEMBER(FVector2D, LinearToVRProjectSplitsX)
+	DECLARE_UNIFORM_BUFFER_STRUCT_MEMBER(FVector2D, LinearToVRProjectSplitsY)
+	DECLARE_UNIFORM_BUFFER_STRUCT_MEMBER(FVector2D, LinearToVRProjectX0)
+	DECLARE_UNIFORM_BUFFER_STRUCT_MEMBER(FVector2D, LinearToVRProjectX1)
+	DECLARE_UNIFORM_BUFFER_STRUCT_MEMBER(FVector2D, LinearToVRProjectX2)
+	DECLARE_UNIFORM_BUFFER_STRUCT_MEMBER(FVector2D, LinearToVRProjectY0)
+	DECLARE_UNIFORM_BUFFER_STRUCT_MEMBER(FVector2D, LinearToVRProjectY1)
+	DECLARE_UNIFORM_BUFFER_STRUCT_MEMBER(FVector2D, LinearToVRProjectY2)
+	DECLARE_UNIFORM_BUFFER_STRUCT_MEMBER(FVector2D, VRProjectToLinearSplitsX)
+	DECLARE_UNIFORM_BUFFER_STRUCT_MEMBER(FVector2D, VRProjectToLinearSplitsY)
+	DECLARE_UNIFORM_BUFFER_STRUCT_MEMBER(FVector2D, VRProjectToLinearX0)
+	DECLARE_UNIFORM_BUFFER_STRUCT_MEMBER(FVector2D, VRProjectToLinearX1)
+	DECLARE_UNIFORM_BUFFER_STRUCT_MEMBER(FVector2D, VRProjectToLinearX2)
+	DECLARE_UNIFORM_BUFFER_STRUCT_MEMBER(FVector2D, VRProjectToLinearY0)
+	DECLARE_UNIFORM_BUFFER_STRUCT_MEMBER(FVector2D, VRProjectToLinearY1)
+	DECLARE_UNIFORM_BUFFER_STRUCT_MEMBER(FVector2D, VRProjectToLinearY2)
+	// additional ModifiedW params
+	DECLARE_UNIFORM_BUFFER_STRUCT_MEMBER(FVector2D, BoundingRectOrigin)
+	DECLARE_UNIFORM_BUFFER_STRUCT_MEMBER(FVector2D, BoundingRectSize)
+	DECLARE_UNIFORM_BUFFER_STRUCT_MEMBER(FVector2D, BoundingRectSizeInv)
 END_UNIFORM_BUFFER_STRUCT(FViewUniformShaderParameters)
 
 /** Copy of the view dependent uniform shader parameters associated with a view for instanced stereo. */
@@ -441,6 +472,36 @@ BEGIN_UNIFORM_BUFFER_STRUCT_WITH_CONSTRUCTOR(FInstancedViewUniformShaderParamete
 	DECLARE_UNIFORM_BUFFER_STRUCT_MEMBER(FMatrix, PrevScreenToTranslatedWorld)
 	DECLARE_UNIFORM_BUFFER_STRUCT_MEMBER(FMatrix, ClipToPrevClip)
 	DECLARE_UNIFORM_BUFFER_STRUCT_MEMBER(FVector4, GlobalClippingPlane)
+
+	DECLARE_UNIFORM_BUFFER_STRUCT_MEMBER(FVector4, RenderTargetToViewRectUVScaleBias)	// Scale-bias for converting from render-target-relative UVs to view-rect-relative UVs
+	DECLARE_UNIFORM_BUFFER_STRUCT_MEMBER(FVector4, ViewRectToRenderTargetUVScaleBias)	// ...and vice versa
+
+	DECLARE_UNIFORM_BUFFER_STRUCT_MEMBER(FVector4, NDCSplitsX) // MultiRes splits for geometry shader
+	DECLARE_UNIFORM_BUFFER_STRUCT_MEMBER(FVector4, NDCSplitsY) // MultiRes splits for geometry shader
+	DECLARE_UNIFORM_BUFFER_STRUCT_MEMBER(FVector4, StereoNDCSplitsX) // MultiRes splits for geometry shader
+	DECLARE_UNIFORM_BUFFER_STRUCT_MEMBER(FVector4, StereoNDCSplitsY) // MultiRes splits for geometry shader
+
+	// MultiRes Parameters, should pack them better for efficiency
+	DECLARE_UNIFORM_BUFFER_STRUCT_MEMBER(FVector2D, LinearToVRProjectSplitsX)
+	DECLARE_UNIFORM_BUFFER_STRUCT_MEMBER(FVector2D, LinearToVRProjectSplitsY)
+	DECLARE_UNIFORM_BUFFER_STRUCT_MEMBER(FVector2D, LinearToVRProjectX0)
+	DECLARE_UNIFORM_BUFFER_STRUCT_MEMBER(FVector2D, LinearToVRProjectX1)
+	DECLARE_UNIFORM_BUFFER_STRUCT_MEMBER(FVector2D, LinearToVRProjectX2)
+	DECLARE_UNIFORM_BUFFER_STRUCT_MEMBER(FVector2D, LinearToVRProjectY0)
+	DECLARE_UNIFORM_BUFFER_STRUCT_MEMBER(FVector2D, LinearToVRProjectY1)
+	DECLARE_UNIFORM_BUFFER_STRUCT_MEMBER(FVector2D, LinearToVRProjectY2)
+	DECLARE_UNIFORM_BUFFER_STRUCT_MEMBER(FVector2D, VRProjectToLinearSplitsX)
+	DECLARE_UNIFORM_BUFFER_STRUCT_MEMBER(FVector2D, VRProjectToLinearSplitsY)
+	DECLARE_UNIFORM_BUFFER_STRUCT_MEMBER(FVector2D, VRProjectToLinearX0)
+	DECLARE_UNIFORM_BUFFER_STRUCT_MEMBER(FVector2D, VRProjectToLinearX1)
+	DECLARE_UNIFORM_BUFFER_STRUCT_MEMBER(FVector2D, VRProjectToLinearX2)
+	DECLARE_UNIFORM_BUFFER_STRUCT_MEMBER(FVector2D, VRProjectToLinearY0)
+	DECLARE_UNIFORM_BUFFER_STRUCT_MEMBER(FVector2D, VRProjectToLinearY1)
+	DECLARE_UNIFORM_BUFFER_STRUCT_MEMBER(FVector2D, VRProjectToLinearY2)
+	// additional ModifiedW params
+	DECLARE_UNIFORM_BUFFER_STRUCT_MEMBER(FVector2D, BoundingRectOrigin)
+	DECLARE_UNIFORM_BUFFER_STRUCT_MEMBER(FVector2D, BoundingRectSize)
+	DECLARE_UNIFORM_BUFFER_STRUCT_MEMBER(FVector2D, BoundingRectSizeInv)
 END_UNIFORM_BUFFER_STRUCT(FInstancedViewUniformShaderParameters)
 
 /** The view independent uniform shader parameters associated with a view. */
@@ -527,6 +588,13 @@ BEGIN_UNIFORM_BUFFER_STRUCT_WITH_CONSTRUCTOR(FFrameUniformShaderParameters, ENGI
 	DECLARE_UNIFORM_BUFFER_STRUCT_MEMBER(float, GlobalVolumeDimension_UB)
 	DECLARE_UNIFORM_BUFFER_STRUCT_MEMBER(float, GlobalVolumeTexelSize_UB)
 	DECLARE_UNIFORM_BUFFER_STRUCT_MEMBER(float, MaxGlobalDistance_UB)
+
+	// SinglePassStereo
+	DECLARE_UNIFORM_BUFFER_STRUCT_MEMBER(uint32, bIsSinglePassStereo)
+
+	// Multires 
+	DECLARE_UNIFORM_BUFFER_STRUCT_MEMBER(uint32, VRProjectionMode)
+
 	DECLARE_UNIFORM_BUFFER_STRUCT_MEMBER_TEXTURE(Texture3D, GlobalDistanceFieldTexture0_UB)
 	DECLARE_UNIFORM_BUFFER_STRUCT_MEMBER_SAMPLER(SamplerState, GlobalDistanceFieldSampler0_UB)
 	DECLARE_UNIFORM_BUFFER_STRUCT_MEMBER_TEXTURE(Texture3D, GlobalDistanceFieldTexture1_UB)
@@ -791,6 +859,37 @@ public:
 	/** Feature level for this scene */
 	ERHIFeatureLevel::Type FeatureLevel;
 
+	/** multi-res settings for this view */
+	enum class EVRProjectMode
+	{
+		Planar, MultiRes, LensMatched
+	};
+
+	EVRProjectMode VRProjMode;
+	bool bVRProjectEnabled;
+	FIntRect NonVRProjectViewRect;	// View rect without multi-res scaling (but with any adjustments for ScreenPercentage, HMD rendering, etc.)
+
+	FMultiRes::Configuration MultiResConf;
+	mutable FMultiRes::StereoConfiguration MultiResStereoConf;
+	FMultiRes::Viewports MultiResViewports;
+	mutable FMultiRes::StereoViewports MultiResStereoViewports;
+
+	FLensMatchedShading::Configuration LensMatchedShadingConf;
+	mutable FLensMatchedShading::StereoConfiguration LensMatchedShadingStereoConf;
+	FLensMatchedShading::Viewports LensMatchedViewports;
+	mutable FLensMatchedShading::StereoViewports LensMatchedStereoViewports;
+
+	// These are the viewport and scissor tied to this view
+	mutable TArray<FViewportBounds> VRProjViewportArray;
+	mutable TArray<FIntRect> VRProjScissorArray;
+
+	// These arrays contain the versions that may change for instanced stereo rendering
+	// In this case, the viewport is shared by two views
+	mutable TArray<FViewportBounds> StereoVRProjectViewportArray;
+	mutable TArray<FIntRect> StereoVRProjectScissorArray;
+
+	bool bAllowSinglePassStereo;
+
 	/** Initialization constructor. */
 	FSceneView(const FSceneViewInitOptions& InitOptions);
 
@@ -922,7 +1021,18 @@ public:
 	EShaderPlatform GetShaderPlatform() const;
 
 	/** True if the view should render as an instanced stereo pass */
-	bool IsInstancedStereoPass() const { return bIsInstancedStereoEnabled && StereoPass == eSSP_LEFT_EYE; }
+	bool IsInstancedStereoPass() const { return bIsInstancedStereoEnabled && StereoPass == eSSP_LEFT_EYE && !bAllowSinglePassStereo; }
+
+	/** Apply vr projection to current ViewRect; sets up NonVRProjectViewRect and MultiResViewports or LensMatchedViewports */
+	void SetupVRProjection( int32 ViewportGap = 0);
+
+	/** Setup the viewports, scissors and modified w state required by vr projection */
+	void BeginVRProjectionStates(FRHICommandList& RHICmdList) const;
+	void EndVRProjectionStates(FRHICommandList& RHICmdList) const;
+
+	bool IsSinglePassStereoAllowed() const { return bAllowSinglePassStereo && StereoPass == eSSP_LEFT_EYE; }
+	void SetupSinglePassStereo();
+	void CheckSinglePassStereo();
 };
 
 //////////////////////////////////////////////////////////////////////////
@@ -1032,6 +1142,12 @@ public:
 	/** The height in screen pixels of the view family being rendered (maximum y of all viewports). */
 	uint32 FamilySizeY;
 
+	/** The width in screen pixels of the view family without MultiRes. */
+	uint32 FamilyLinearSizeX;
+
+	/** The height in screen pixels of the view family without MultiRes. */
+	uint32 FamilyLinearSizeY;
+
 	/** The render target which the views are being rendered to. */
 	const FRenderTarget* RenderTarget;
 
@@ -1079,6 +1195,10 @@ public:
 
     /** Extensions that can modify view parameters on the render thread. */
     TArray<TSharedPtr<class ISceneViewExtension, ESPMode::ThreadSafe> > ViewExtensions;
+
+	// These are the viewports and scissors used for single pass stereo
+	mutable TArray<FViewportBounds> SPSViewportArray;
+	mutable TArray<FIntRect> SPSScissorArray;
 
 #if WITH_EDITOR
 	// Override the LOD of landscape in this viewport

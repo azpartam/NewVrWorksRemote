@@ -176,10 +176,34 @@ void FRHICommandSetViewport::Execute(FRHICommandListBase& CmdList)
 	INTERNAL_DECORATOR(SetViewport)(MinX, MinY, MinZ, MaxX, MaxY, MaxZ);
 }
 
+void FRHICommandSetMultipleViewports::Execute(FRHICommandListBase& CmdList)
+{
+	RHISTAT(SetMultipleViewports);
+	INTERNAL_DECORATOR(SetMultipleViewports)(Num, Viewports);
+}
+
 void FRHICommandSetScissorRect::Execute(FRHICommandListBase& CmdList)
 {
 	RHISTAT(SetScissorRect);
 	INTERNAL_DECORATOR(SetScissorRect)(bEnable, MinX, MinY, MaxX, MaxY);
+}
+
+void FRHICommandSetMultipleScissorRects::Execute(FRHICommandListBase& CmdList)
+{
+	RHISTAT(SetMultipleScissorRects);
+	INTERNAL_DECORATOR(SetMultipleScissorRects)(bEnable, Num, Rects);
+}
+
+void FRHICommandSetModifiedWMode::Execute(FRHICommandListBase& CmdList)
+{
+	RHISTAT(SetModifiedWMode);
+	INTERNAL_DECORATOR(SetModifiedWMode)(Conf, bWarpForward, bEnable);
+}
+
+void FRHICommandSetModifiedWModeStereo::Execute(FRHICommandListBase& CmdList)
+{
+	RHISTAT(SetModifiedWModeStereo);
+	INTERNAL_DECORATOR(SetModifiedWModeStereo)(Conf, bWarpForward, bEnable);
 }
 
 void FRHICommandSetRenderTargets::Execute(FRHICommandListBase& CmdList)
@@ -299,6 +323,12 @@ void FRHICommandEnableDepthBoundsTest::Execute(FRHICommandListBase& CmdList)
 {
 	RHISTAT(EnableDepthBoundsTest);
 	INTERNAL_DECORATOR(EnableDepthBoundsTest)(bEnable, MinDepth, MaxDepth);
+}
+
+void FRHICommandSetSinglePassStereoParameters::Execute(FRHICommandListBase& CmdList)
+{
+	RHISTAT(SetSinglePassStereoParameters);
+	INTERNAL_DECORATOR(SetSinglePassStereoParameters)(bEnable, RenderTargetIndexOffset, IndependentViewportMaskEnable);
 }
 
 void FRHICommandClearUAV::Execute(FRHICommandListBase& CmdList)

@@ -247,14 +247,24 @@ bool FDeferredShadingSceneRenderer::RenderBasePassStaticDataType(FRHICommandList
 
 	bool bDirty = false;
 
-	if (!View.IsInstancedStereoPass())
+	if (!View.IsInstancedStereoPass() && !View.IsSinglePassStereoAllowed())
 	{
 		bDirty |= Scene->BasePassUniformLightMapPolicyDrawList[DrawType].DrawVisible(RHICmdList, View, View.StaticMeshVisibilityMap, View.StaticMeshBatchVisibility);
 	}
 	else
 	{
 		const StereoPair StereoView(Views[0], Views[1], Views[0].StaticMeshVisibilityMap, Views[1].StaticMeshVisibilityMap, Views[0].StaticMeshBatchVisibility, Views[1].StaticMeshBatchVisibility);
-		bDirty |= Scene->BasePassUniformLightMapPolicyDrawList[DrawType].DrawVisibleInstancedStereo(RHICmdList, StereoView);
+
+		if (View.IsSinglePassStereoAllowed())
+		{
+			SCOPED_DRAW_EVENT(RHICmdList, StaticOpaque);
+			bDirty |= Scene->BasePassUniformLightMapPolicyDrawList[DrawType].DrawVisibleSinglePassStereo(RHICmdList, StereoView);
+		}
+		else
+		{
+			SCOPED_DRAW_EVENT(RHICmdList, StaticOpaque);
+			bDirty |= Scene->BasePassUniformLightMapPolicyDrawList[DrawType].DrawVisibleInstancedStereo(RHICmdList, StereoView);
+		}
 	}
 
 	return bDirty;
@@ -262,14 +272,22 @@ bool FDeferredShadingSceneRenderer::RenderBasePassStaticDataType(FRHICommandList
 
 void FDeferredShadingSceneRenderer::RenderBasePassStaticDataTypeParallel(FParallelCommandListSet& ParallelCommandListSet, const EBasePassDrawListType DrawType)
 {
-	if (!ParallelCommandListSet.View.IsInstancedStereoPass())
+	if (!ParallelCommandListSet.View.IsInstancedStereoPass() && !ParallelCommandListSet.View.IsSinglePassStereoAllowed())
 	{
 		Scene->BasePassUniformLightMapPolicyDrawList[DrawType].DrawVisibleParallel(ParallelCommandListSet.View.StaticMeshVisibilityMap, ParallelCommandListSet.View.StaticMeshBatchVisibility, ParallelCommandListSet);
 	}
 	else
 	{
 		const StereoPair StereoView(Views[0], Views[1], Views[0].StaticMeshVisibilityMap, Views[1].StaticMeshVisibilityMap, Views[0].StaticMeshBatchVisibility, Views[1].StaticMeshBatchVisibility);
-		Scene->BasePassUniformLightMapPolicyDrawList[DrawType].DrawVisibleParallelInstancedStereo(StereoView, ParallelCommandListSet);
+
+		if (ParallelCommandListSet.View.IsSinglePassStereoAllowed())
+		{
+			Scene->BasePassUniformLightMapPolicyDrawList[DrawType].DrawVisibleParallelSinglePassStereo(StereoView, ParallelCommandListSet);
+		}
+		else
+		{
+			Scene->BasePassUniformLightMapPolicyDrawList[DrawType].DrawVisibleParallelInstancedStereo(StereoView, ParallelCommandListSet);
+		}
 	}
 }
 
@@ -424,7 +442,8 @@ void FDeferredShadingSceneRenderer::RenderBasePassDynamicData(FRHICommandList& R
 			&& MeshBatchAndRelevance.bRenderInMainPass)
 		{
 			const FMeshBatch& MeshBatch = *MeshBatchAndRelevance.Mesh;
-			FBasePassOpaqueDrawingPolicyFactory::DrawDynamicMesh(RHICmdList, View, Context, MeshBatch, false, true, MeshBatchAndRelevance.PrimitiveSceneProxy, MeshBatch.BatchHitProxyId, View.IsInstancedStereoPass());
+			FBasePassOpaqueDrawingPolicyFactory::DrawDynamicMesh(RHICmdList, View, Context, MeshBatch, false, true, MeshBatchAndRelevance.PrimitiveSceneProxy,
+				MeshBatch.BatchHitProxyId, View.IsInstancedStereoPass(), View.IsSinglePassStereoAllowed());
 		}
 	}
 
@@ -503,7 +522,32 @@ static void SetupBasePassView(FRHICommandList& RHICmdList, const FViewInfo& View
 	}
 	RHICmdList.SetScissorRect(false, 0, 0, 0, 0);
 
-	if (!View.IsInstancedStereoPass() || bIsEditorPrimitivePass)
+	bool bIsSinglePassStereo = View.IsSinglePassStereoAllowed() && !bIsEditorPrimitivePass;
+	if (View.bVRProjectEnabled && !bIsSinglePassStereo)
+	{
+		// Set the true viewports, but leave Context.ViewPortRect alone
+		RHICmdList.SetMultipleViewports(View.StereoVRProjectViewportArray.Num(), View.StereoVRProjectViewportArray.GetData());
+		RHICmdList.SetMultipleScissorRects(true, View.StereoVRProjectScissorArray.Num(), View.StereoVRProjectScissorArray.GetData());
+
+		if (View.VRProjMode == FSceneView::EVRProjectMode::LensMatched)
+		{
+			if(View.IsInstancedStereoPass())
+				RHICmdList.SetModifiedWModeStereo(View.LensMatchedShadingStereoConf, true, true);
+			else
+				RHICmdList.SetModifiedWMode(View.LensMatchedShadingConf, true, true);
+		}
+	}
+	else if (bIsSinglePassStereo)
+	{
+		RHICmdList.SetSinglePassStereoParameters(true, 0, true);
+		RHICmdList.SetMultipleViewports(View.Family->SPSViewportArray.Num(), View.Family->SPSViewportArray.GetData());
+		RHICmdList.SetMultipleScissorRects(true, View.Family->SPSScissorArray.Num(), View.Family->SPSScissorArray.GetData());
+		if (View.bVRProjectEnabled && View.VRProjMode == FSceneView::EVRProjectMode::LensMatched)
+		{
+			RHICmdList.SetModifiedWModeStereo(View.LensMatchedShadingStereoConf, true, true);
+		}
+	}
+	else if(!View.IsInstancedStereoPass() || bIsEditorPrimitivePass)
 	{
 		RHICmdList.SetViewport(View.ViewRect.Min.X, View.ViewRect.Min.Y, 0, View.ViewRect.Max.X, View.ViewRect.Max.Y, 1);
 	}
@@ -533,6 +577,18 @@ public:
 	virtual ~FBasePassParallelCommandListSet()
 	{
 		Dispatch();
+
+		if (View.bVRProjectEnabled)
+		{
+			View.EndVRProjectionStates(ParentCmdList);
+		}
+
+		if (View.IsSinglePassStereoAllowed())
+		{
+			ParentCmdList.SetSinglePassStereoParameters(false, 0, true);
+			ParentCmdList.SetScissorRect(false, 0, 0, 0, 0);
+		}
+
 	}
 
 	virtual void SetStateOnCommandList(FRHICommandList& CmdList) override
@@ -587,6 +643,12 @@ void FDeferredShadingSceneRenderer::RenderEditorPrimitives(FRHICommandList& RHIC
 	{
 		bOutDirty = true;
 	}
+
+	if (View.bVRProjectEnabled)
+	{
+		// Reset viewport and scissor after rendering to vr projection view
+		View.EndVRProjectionStates(RHICmdList);
+	}
 }
 
 bool FDeferredShadingSceneRenderer::RenderBasePassView(FRHICommandListImmediate& RHICmdList, FViewInfo& View)
@@ -595,6 +657,18 @@ bool FDeferredShadingSceneRenderer::RenderBasePassView(FRHICommandListImmediate&
 	SetupBasePassView(RHICmdList, View, ViewFamily.EngineShowFlags.ShaderComplexity);
 	bDirty |= RenderBasePassStaticData(RHICmdList, View);
 	RenderBasePassDynamicData(RHICmdList, View, bDirty);
+
+	if (View.bVRProjectEnabled)
+	{
+		// Reset viewport and scissor after rendering to vr projection view
+		View.EndVRProjectionStates(RHICmdList);
+	}
+
+	if (View.IsSinglePassStereoAllowed())
+	{
+		RHICmdList.SetSinglePassStereoParameters(false, 0, true);
+		RHICmdList.SetScissorRect(false, 0, 0, 0, 0);
+	}
 
 	return bDirty;
 }
@@ -709,7 +783,7 @@ static FORCEINLINE bool HasHiddenAreaMask()
 {
 	static const auto* const HiddenAreaMaskCVar = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("vr.HiddenAreaMask"));
 	return (HiddenAreaMaskCVar != nullptr &&
-		HiddenAreaMaskCVar->GetValueOnRenderThread() == 1 &&
+		HiddenAreaMaskCVar->GetValueOnRenderThread() != 0 &&
 		GEngine &&
 		GEngine->HMDDevice.IsValid() &&
 		GEngine->HMDDevice->HasHiddenAreaMesh());
@@ -1241,17 +1315,32 @@ void FDeferredShadingSceneRenderer::Render(FRHICommandListImmediate& RHICmdList)
 	{
 		SCOPED_DRAW_EVENT(RHICmdList, ClearStencilFromBasePass);
 
-		FRHISetRenderTargetsInfo Info(0, NULL, FRHIDepthRenderTargetView(
-			SceneContext.GetSceneDepthSurface(),
-			ERenderTargetLoadAction::ENoAction,
-			ERenderTargetStoreAction::ENoAction,
-			ERenderTargetLoadAction::EClear,
-			ERenderTargetStoreAction::EStore,
-			FExclusiveDepthStencil::DepthNop_StencilWrite));
-
-		// Clear stencil to 0 now that deferred decals are done using what was setup in the base pass
-		// Shadow passes and other users of stencil assume it is cleared to 0 going in
-		RHICmdList.SetRenderTargetsAndClear(Info);
+		if (Views[0].bVRProjectEnabled && Views[0].VRProjMode == FSceneView::EVRProjectMode::LensMatched)
+		{
+			FRHISetRenderTargetsInfo Info(0, NULL, FRHIDepthRenderTargetView(
+				SceneContext.GetSceneDepthSurface(),
+				ERenderTargetLoadAction::ELoad,
+				ERenderTargetStoreAction::ENoAction,
+				ERenderTargetLoadAction::EClear,
+				ERenderTargetStoreAction::EStore,
+				FExclusiveDepthStencil::DepthNop_StencilWrite));
+			// Clear stencil to 0 now that deferred decals are done using what was setup in the base pass
+			// Shadow passes and other users of stencil assume it is cleared to 0 going in
+			RHICmdList.SetRenderTargetsAndClear(Info);
+		}
+		else
+		{
+			FRHISetRenderTargetsInfo Info(0, NULL, FRHIDepthRenderTargetView(
+				SceneContext.GetSceneDepthSurface(),
+				ERenderTargetLoadAction::ENoAction,
+				ERenderTargetStoreAction::ENoAction,
+				ERenderTargetLoadAction::EClear,
+				ERenderTargetStoreAction::EStore,
+				FExclusiveDepthStencil::DepthNop_StencilWrite));
+			// Clear stencil to 0 now that deferred decals are done using what was setup in the base pass
+			// Shadow passes and other users of stencil assume it is cleared to 0 going in
+			RHICmdList.SetRenderTargetsAndClear(Info);
+		}
 
 		RHICmdList.TransitionResource(EResourceTransitionAccess::EReadable, SceneContext.GetSceneDepthSurface());
 	}
@@ -1530,7 +1619,8 @@ bool FDeferredShadingSceneRenderer::RenderPrePassViewDynamic(FRHICommandList& RH
 
 			if (bShouldUseAsOccluder)
 			{
-				FDepthDrawingPolicyFactory::DrawDynamicMesh(RHICmdList, View, Context, MeshBatch, false, true, PrimitiveSceneProxy, MeshBatch.BatchHitProxyId, View.IsInstancedStereoPass());
+				FDepthDrawingPolicyFactory::DrawDynamicMesh(RHICmdList, View, Context, MeshBatch, false, true, PrimitiveSceneProxy,
+					MeshBatch.BatchHitProxyId, View.IsInstancedStereoPass(), false, View.IsSinglePassStereoAllowed());
 			}
 		}
 	}
@@ -1547,7 +1637,36 @@ static void SetupPrePassView(FRHICommandList& RHICmdList, const FViewInfo& View)
 	RHICmdList.SetRasterizerState(TStaticRasterizerState<FM_Solid, CM_None>::GetRHI());
 	RHICmdList.SetScissorRect(false, 0, 0, 0, 0);
 
-	if (!View.IsInstancedStereoPass())
+	bool bIsSinglePassStereo = View.IsSinglePassStereoAllowed();
+	if (View.bVRProjectEnabled && !bIsSinglePassStereo)
+	{
+		// Set the true viewports, but leave Context.ViewPortRect alone
+		RHICmdList.SetMultipleViewports(View.StereoVRProjectViewportArray.Num(), View.StereoVRProjectViewportArray.GetData());
+		RHICmdList.SetMultipleScissorRects(true, View.StereoVRProjectScissorArray.Num(), View.StereoVRProjectScissorArray.GetData());
+
+		if (View.VRProjMode == FSceneView::EVRProjectMode::LensMatched)
+		{
+			if (View.IsInstancedStereoPass())
+			{
+				RHICmdList.SetModifiedWModeStereo(View.LensMatchedShadingStereoConf, true, true);
+			}
+			else
+			{
+				RHICmdList.SetModifiedWMode(View.LensMatchedShadingConf, true, true);
+			}
+		}
+	}
+	else if (bIsSinglePassStereo)
+	{
+		RHICmdList.SetSinglePassStereoParameters(true, 0, true);
+		RHICmdList.SetMultipleViewports(View.Family->SPSViewportArray.Num(), View.Family->SPSViewportArray.GetData());
+		RHICmdList.SetMultipleScissorRects(true, View.Family->SPSScissorArray.Num(), View.Family->SPSScissorArray.GetData());
+		if (View.bVRProjectEnabled && View.VRProjMode == FSceneView::EVRProjectMode::LensMatched)
+		{
+			RHICmdList.SetModifiedWModeStereo(View.LensMatchedShadingStereoConf, true, true);
+		}
+	}
+	else if(!View.IsInstancedStereoPass())
 	{
 		RHICmdList.SetViewport(View.ViewRect.Min.X, View.ViewRect.Min.Y, 0.0f, View.ViewRect.Max.X, View.ViewRect.Max.Y, 1.0f);
 	}
@@ -1563,8 +1682,18 @@ static void RenderHiddenAreaMaskView(FRHICommandList& RHICmdList, const FViewInf
 	const auto FeatureLevel = GMaxRHIFeatureLevel;
 	const auto ShaderMap = GetGlobalShaderMap(FeatureLevel);
 	TShaderMapRef<TOneColorVS<true> > VertexShader(ShaderMap);
-	static FGlobalBoundShaderState BoundShaderState;
-	SetGlobalBoundShaderState(RHICmdList, FeatureLevel, BoundShaderState, GetVertexDeclarationFVector4(), *VertexShader, nullptr);
+	if (View.bVRProjectEnabled)
+	{
+		static FGlobalBoundShaderState BoundShaderState;
+		TShaderMapRef<TOneColorFastGS<> > GeometryShader(ShaderMap);
+		SetGlobalBoundShaderState(RHICmdList, FeatureLevel, BoundShaderState, GetVertexDeclarationFVector4(), *VertexShader, nullptr, *GeometryShader);
+		GeometryShader->SetParameters(RHICmdList, View);
+	}
+	else
+	{
+		static FGlobalBoundShaderState BoundShaderState;
+		SetGlobalBoundShaderState(RHICmdList, FeatureLevel, BoundShaderState, GetVertexDeclarationFVector4(), *VertexShader, nullptr);
+	}
 	GEngine->HMDDevice->DrawHiddenAreaMesh_RenderThread(RHICmdList, View.StereoPass);
 }
 
@@ -1576,7 +1705,7 @@ bool FDeferredShadingSceneRenderer::RenderPrePassView(FRHICommandList& RHICmdLis
 
 	// Draw the static occluder primitives using a depth drawing policy.
 
-	if (!View.IsInstancedStereoPass())
+	if (!View.IsInstancedStereoPass() && !View.IsSinglePassStereoAllowed())
 	{
 		{
 			// Draw opaque occluders which support a separate position-only
@@ -1601,25 +1730,58 @@ bool FDeferredShadingSceneRenderer::RenderPrePassView(FRHICommandList& RHICmdLis
 	else
 	{
 		const StereoPair StereoView(Views[0], Views[1], Views[0].StaticMeshOccluderMap, Views[1].StaticMeshOccluderMap, Views[0].StaticMeshBatchVisibility, Views[1].StaticMeshBatchVisibility);
+		if (View.IsSinglePassStereoAllowed())
 		{
-			SCOPED_DRAW_EVENT(RHICmdList, PosOnlyOpaque);
-			bDirty |= Scene->PositionOnlyDepthDrawList.DrawVisibleInstancedStereo(RHICmdList, StereoView);
-		}
-		{
-			SCOPED_DRAW_EVENT(RHICmdList, Opaque);
-			bDirty |= Scene->DepthDrawList.DrawVisibleInstancedStereo(RHICmdList, StereoView);
-		}
+			{
+				SCOPED_DRAW_EVENT(RHICmdList, PosOnlyOpaque);
+				bDirty |= Scene->PositionOnlyDepthDrawList.DrawVisibleSinglePassStereo(RHICmdList, StereoView);
+			}
+			{
+				SCOPED_DRAW_EVENT(RHICmdList, Opaque);
+				bDirty |= Scene->DepthDrawList.DrawVisibleSinglePassStereo(RHICmdList, StereoView);
+			}
 
-		if (EarlyZPassMode >= DDM_AllOccluders)
+			if (EarlyZPassMode >= DDM_AllOccluders)
+			{
+				SCOPED_DRAW_EVENT(RHICmdList, Opaque);
+				bDirty |= Scene->MaskedDepthDrawList.DrawVisibleSinglePassStereo(RHICmdList, StereoView);
+			}
+		}
+		else
 		{
-			SCOPED_DRAW_EVENT(RHICmdList, Masked);
-			bDirty |= Scene->MaskedDepthDrawList.DrawVisibleInstancedStereo(RHICmdList, StereoView);
+			{
+				SCOPED_DRAW_EVENT(RHICmdList, PosOnlyOpaque);
+				bDirty |= Scene->PositionOnlyDepthDrawList.DrawVisibleInstancedStereo(RHICmdList, StereoView);
+			}
+			{
+				SCOPED_DRAW_EVENT(RHICmdList, Opaque);
+				bDirty |= Scene->DepthDrawList.DrawVisibleInstancedStereo(RHICmdList, StereoView);
+			}
+
+			if (EarlyZPassMode >= DDM_AllOccluders)
+			{
+				SCOPED_DRAW_EVENT(RHICmdList, Masked);
+				bDirty |= Scene->MaskedDepthDrawList.DrawVisibleInstancedStereo(RHICmdList, StereoView);
+			}
 		}
 	}
 	
 	{
 		SCOPED_DRAW_EVENT(RHICmdList, Dynamic);
 		bDirty |= RenderPrePassViewDynamic(RHICmdList, View);
+	}
+
+
+	if (View.bVRProjectEnabled)
+	{
+		// Reset viewport and scissor after rendering to vr projection view
+		View.EndVRProjectionStates(RHICmdList);
+	}
+
+	if (View.IsSinglePassStereoAllowed())
+	{
+		RHICmdList.SetSinglePassStereoParameters(false, 0, true);
+		RHICmdList.SetScissorRect(false, 0, 0, 0, 0);
 	}
 
 	return bDirty;
@@ -1674,6 +1836,18 @@ public:
 		// Do not copy-paste. this is a very unusual FParallelCommandListSet because it is a prepass and we want to do some work after starting some tasks
 		SetStateOnCommandList(ParentCmdList);
 		Dispatch(true);
+	
+		if (View.bVRProjectEnabled)
+		{
+			// Reset viewport and scissor after rendering to vr projection view
+			View.EndVRProjectionStates(ParentCmdList);
+		}
+
+		if (View.IsSinglePassStereoAllowed())
+		{
+			ParentCmdList.SetSinglePassStereoParameters(false, 0, true);
+			ParentCmdList.SetScissorRect(false, 0, 0, 0, 0);
+		}
 	}
 
 	virtual void SetStateOnCommandList(FRHICommandList& CmdList) override
@@ -1705,7 +1879,7 @@ bool FDeferredShadingSceneRenderer::RenderPrePassViewParallel(const FViewInfo& V
 		CVarRHICmdPrePassDeferredContexts.GetValueOnRenderThread() > 0, 
 		CVarRHICmdFlushRenderThreadTasksPrePass.GetValueOnRenderThread() == 0  && CVarRHICmdFlushRenderThreadTasks.GetValueOnRenderThread() == 0);
 
-	if (!View.IsInstancedStereoPass())
+	if (!View.IsInstancedStereoPass() && !View.IsSinglePassStereoAllowed())
 	{
 		// Draw the static occluder primitives using a depth drawing policy.
 		// Draw opaque occluders which support a separate position-only
@@ -1725,13 +1899,25 @@ bool FDeferredShadingSceneRenderer::RenderPrePassViewParallel(const FViewInfo& V
 	else
 	{
 		const StereoPair StereoView(Views[0], Views[1], Views[0].StaticMeshOccluderMap, Views[1].StaticMeshOccluderMap, Views[0].StaticMeshBatchVisibility, Views[1].StaticMeshBatchVisibility);
-
-		Scene->PositionOnlyDepthDrawList.DrawVisibleParallelInstancedStereo(StereoView, ParallelCommandListSet);
-		Scene->DepthDrawList.DrawVisibleParallelInstancedStereo(StereoView, ParallelCommandListSet);
-
-		if (EarlyZPassMode >= DDM_AllOccluders)
+		if (View.IsSinglePassStereoAllowed())
 		{
-			Scene->MaskedDepthDrawList.DrawVisibleParallelInstancedStereo(StereoView, ParallelCommandListSet);
+			Scene->PositionOnlyDepthDrawList.DrawVisibleParallelSinglePassStereo(StereoView, ParallelCommandListSet);
+			Scene->DepthDrawList.DrawVisibleParallelSinglePassStereo(StereoView, ParallelCommandListSet);
+
+			if (EarlyZPassMode >= DDM_AllOccluders)
+			{
+				Scene->MaskedDepthDrawList.DrawVisibleParallelSinglePassStereo(StereoView, ParallelCommandListSet);
+			}
+		}
+		else
+		{
+			Scene->PositionOnlyDepthDrawList.DrawVisibleParallelInstancedStereo(StereoView, ParallelCommandListSet);
+			Scene->DepthDrawList.DrawVisibleParallelInstancedStereo(StereoView, ParallelCommandListSet);
+
+			if (EarlyZPassMode >= DDM_AllOccluders)
+			{
+				Scene->MaskedDepthDrawList.DrawVisibleParallelInstancedStereo(StereoView, ParallelCommandListSet);
+			}
 		}
 	}
 
@@ -1934,9 +2120,22 @@ bool FDeferredShadingSceneRenderer::RenderPrePass(FRHICommandListImmediate& RHIC
 
 bool FDeferredShadingSceneRenderer::RenderPrePassHMD(FRHICommandListImmediate& RHICmdList)
 {
+	static const auto* const HiddenAreaMaskCVar = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("vr.HiddenAreaMask"));
+	const int32 HiddenAreaMaskVal = HiddenAreaMaskCVar->GetValueOnRenderThread();
 
-	// Early out before we change any state if there's not a mask to render
-	if (!HasHiddenAreaMask())
+	// EHartNV - ToDo
+	//  The HMD PrePass has specialized its setup to where it seems to no longer be compatible with the general
+	//  Need to understand differences and determine safe solution for multires setup
+
+	bool IsLMSEnabled = false;
+	for (int32 ViewIndex = 0; ViewIndex < Views.Num(); ++ViewIndex)
+	{
+		const FViewInfo& View = Views[ViewIndex];
+		IsLMSEnabled |= (View.bVRProjectEnabled && View.VRProjMode == FSceneView::EVRProjectMode::LensMatched);
+	}
+
+	// Early out before we change any state if there's not a mask to render and lens matched shading is off
+	if (!HasHiddenAreaMask() && !IsLMSEnabled)
 	{
 		return false;
 	}
@@ -1952,12 +2151,48 @@ bool FDeferredShadingSceneRenderer::RenderPrePassHMD(FRHICommandListImmediate& R
 	for (int32 ViewIndex = 0; ViewIndex < Views.Num(); ++ViewIndex)
 	{
 		const FViewInfo& View = Views[ViewIndex];
-		if (View.StereoPass != eSSP_FULL)
+
+		if (View.bVRProjectEnabled)
+		{
+			// Set the true viewports, but leave Context.ViewPortRect alone
+			RHICmdList.SetMultipleViewports(View.StereoVRProjectViewportArray.Num(), View.StereoVRProjectViewportArray.GetData());
+			RHICmdList.SetMultipleScissorRects(true, View.StereoVRProjectScissorArray.Num(), View.StereoVRProjectScissorArray.GetData());
+
+			if (View.VRProjMode == FSceneView::EVRProjectMode::LensMatched)
+			{
+				if (View.IsInstancedStereoPass())
+				{
+					RHICmdList.SetModifiedWModeStereo(View.LensMatchedShadingStereoConf, true, true);
+				}
+				else
+				{
+					RHICmdList.SetModifiedWMode(View.LensMatchedShadingConf, true, true);
+				}
+
+				// always render boundary mask if ModifiedW is on
+				RenderModifiedWBoundaryMask(RHICmdList);
+			}
+		}
+		else
 		{
 			RHICmdList.SetViewport(View.ViewRect.Min.X, View.ViewRect.Min.Y, 0.0f, View.ViewRect.Max.X, View.ViewRect.Max.Y, 1.0f);
+		}
+
+		// Hidden area mask needs to be forced on for now in multires mode
+		if (View.StereoPass != eSSP_FULL && !(View.bVRProjectEnabled && HiddenAreaMaskVal != 2))
+		{
 			RenderHiddenAreaMaskView(RHICmdList, View);
 		}
+
+		// turn off ModifiedW if necessary
+		if (View.VRProjMode == FSceneView::EVRProjectMode::LensMatched)
+		{
+			RHICmdList.SetModifiedWMode(FLensMatchedShading::Configuration(), true, false);
+		}
 	}
+
+	// return scissor to normal after multires
+	RHICmdList.SetScissorRect(false, 0, 0, 0, 0);
 
 	SceneContext.FinishRenderingPrePass(RHICmdList);
 

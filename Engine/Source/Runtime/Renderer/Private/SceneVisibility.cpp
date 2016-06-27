@@ -1889,7 +1889,7 @@ void FSceneRenderer::GatherDynamicMeshElements(
 			Collector.AddViewMeshArrays(&InViews[ViewIndex], &InViews[ViewIndex].DynamicMeshElements, &InViews[ViewIndex].SimpleElementCollector, InViewFamily.GetFeatureLevel());
 		}
 
-		const bool bIsInstancedStereo = (InViews.Num() > 0) ? InViews[0].IsInstancedStereoPass() : false;
+		const bool bIsInstancedStereo = (InViews.Num() > 0) ? (InViews[0].IsInstancedStereoPass() || InViews[0].IsSinglePassStereoAllowed()) : false;
 
 		for (int32 PrimitiveIndex = 0; PrimitiveIndex < NumPrimitives; ++PrimitiveIndex)
 		{
@@ -2024,6 +2024,23 @@ void FSceneRenderer::PreVisibilityFrameSetup(FRHICommandListImmediate& RHICmdLis
 					LightList = LightList->GetNextLight();
 				}
 			}
+		}
+	}
+
+	uint8 LeftTemporalAASampleIndex = 0;
+	bool bIsSinglePassStereo = false;
+	for (int32 ViewIndex = 0; ViewIndex < Views.Num(); ViewIndex++)
+	{
+		FViewInfo& View = Views[ViewIndex];
+		FSceneViewState* ViewState = View.ViewState;
+		if (View.IsSinglePassStereoAllowed())
+		{
+			bIsSinglePassStereo = true;
+			LeftTemporalAASampleIndex = ViewState->GetCurrentTemporalAASampleIndex();
+		}
+		else if (bIsSinglePassStereo && View.StereoPass == eSSP_RIGHT_EYE)
+		{
+			ViewState->SetCurrentTemporalAASampleIndex(LeftTemporalAASampleIndex);
 		}
 	}
 

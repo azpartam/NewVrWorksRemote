@@ -24,6 +24,9 @@ enum EDepthDrawingMode
 template<bool>
 class TDepthOnlyVS;
 
+template<bool>
+class TDepthOnlyFastGS;
+
 class FDepthOnlyPS;
 
 /**
@@ -62,7 +65,9 @@ public:
 	* @param DynamicStride - optional stride for dynamic vertex data
 	* @return new bound shader state object
 	*/
-	FBoundShaderStateInput GetBoundShaderStateInput(ERHIFeatureLevel::Type InFeatureLevel);
+	FBoundShaderStateInput GetBoundShaderStateInput(ERHIFeatureLevel::Type InFeatureLevel, bool bMultiRes = false);
+
+	FGeometryShaderRHIRef GetMultiResFastGS();
 
 	void SetMeshRenderState(
 		FRHICommandList& RHICmdList, 
@@ -85,6 +90,7 @@ private:
 
 	FShaderPipeline* ShaderPipeline;
 	TDepthOnlyVS<false>* VertexShader;
+	TDepthOnlyFastGS<false>* FastGeometryShader;
 	FDepthOnlyPS* PixelShader;
 };
 
@@ -120,7 +126,9 @@ public:
 	* as well as the shaders needed to draw the mesh
 	* @return new bound shader state object
 	*/
-	FBoundShaderStateInput GetBoundShaderStateInput(ERHIFeatureLevel::Type InFeatureLevel);
+	FBoundShaderStateInput GetBoundShaderStateInput(ERHIFeatureLevel::Type InFeatureLevel, bool bMultiRes = false);
+
+	FGeometryShaderRHIRef GetMultiResFastGS();
 
 	void SetMeshRenderState(
 		FRHICommandList& RHICmdList, 
@@ -141,6 +149,7 @@ public:
 private:
 	FShaderPipeline* ShaderPipeline;
 	TDepthOnlyVS<true> * VertexShader;
+	TDepthOnlyFastGS<true> * FastGeometryShader;
 };
 
 /**
@@ -175,7 +184,8 @@ public:
 		const FPrimitiveSceneProxy* PrimitiveSceneProxy,
 		FHitProxyId HitProxyId, 
 		const bool bIsInstancedStereo = false, 
-		const bool bNeedsInstancedStereoBias = false
+		const bool bNeedsInstancedStereoBias = false,
+		const bool bIsSinglePassStereo = false
 		);
 
 	static bool DrawStaticMesh(
@@ -208,6 +218,7 @@ private:
 		const FPrimitiveSceneProxy* PrimitiveSceneProxy,
 		FHitProxyId HitProxyId, 
 		const bool bIsInstancedStereo = false, 
-		const bool bNeedsInstancedStereoBias = false
+		const bool bNeedsInstancedStereoBias = false,
+		const bool bIsSinglePassStereo = false
 		);
 };

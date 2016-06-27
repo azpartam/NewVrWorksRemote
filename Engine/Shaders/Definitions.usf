@@ -200,6 +200,27 @@
 #define TEX_COORD_SCALE_ANALYSIS						0		
 #endif
 
+#ifndef USE_EYE
+#define USE_EYE										    0
+#endif
+
+#ifndef INSTANCED_STEREO
+#define INSTANCED_STEREO								0
+#endif	
+
+#ifndef MULTIRES
+#define MULTIRES										0
+#endif
+
+#ifndef LENS_MATCHED
+#define LENS_MATCHED										    0
+#endif
+
+#ifndef SINGLE_PASS_STEREO
+#define SINGLE_PASS_STEREO										0
+#endif
+
+
 #if SM5_PROFILE || COMPILER_SUPPORTS_ATTRIBUTES
 /** Avoids flow control constructs. */
 #define UNROLL											[unroll]

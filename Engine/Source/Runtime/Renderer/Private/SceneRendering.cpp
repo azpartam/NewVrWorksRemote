@@ -73,6 +73,24 @@ static TAutoConsoleVariable<int32> CVarInstancedStereo(
 	TEXT("0 to disable instanced stereo (default), 1 to enable."),
 	ECVF_ReadOnly | ECVF_RenderThreadSafe);
 
+static TAutoConsoleVariable<int32> CVarMultiRes(
+	TEXT("vr.MultiRes"),
+	0,
+	TEXT("0 to disable MultiRes support, 1 to enable."),
+	ECVF_ReadOnly | ECVF_RenderThreadSafe);
+
+static TAutoConsoleVariable<int32> CVarLensMatchedShading(
+	TEXT("vr.LensMatchedShading"),
+	0,
+	TEXT("0 to disable ModifiedW support, 1 to enable."),
+	ECVF_ReadOnly | ECVF_RenderThreadSafe);
+
+static TAutoConsoleVariable<int32> CVarSinglePassStereo(
+	TEXT("vr.SinglePassStereo"),
+	0,
+	TEXT("0 to disable SinglePassStereo support, 1 to enable."),
+	ECVF_ReadOnly | ECVF_RenderThreadSafe);
+
 #if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
 static TAutoConsoleVariable<float> CVarGeneralPurposeTweak(
 	TEXT("r.GeneralPurposeTweak"),
@@ -572,7 +590,8 @@ void FViewInfo::CreateUniformBuffer(
 	const FMatrix& EffectiveTranslatedViewMatrix, 
 	const FMatrix& EffectiveViewToTranslatedWorld, 
 	FBox* OutTranslucentCascadeBoundsArray, 
-	int32 NumTranslucentCascades) const
+	int32 NumTranslucentCascades,
+	bool  SupportMultiRes) const
 {
 	FSceneRenderTargets& SceneContext = FSceneRenderTargets::Get(RHICmdList);
 
@@ -1053,6 +1072,84 @@ void FViewInfo::CreateUniformBuffer(
 
 	FrameUniformShaderParameters.ReflectionCubemapMaxMip = FMath::FloorLog2(UReflectionCaptureComponent::GetReflectionCaptureSize_RenderThread());
 
+	ViewUniformShaderParameters.RenderTargetToViewRectUVScaleBias = FVector4(
+		FVector2D(BufferSize) / FVector2D(ViewRect.Size()),
+		-FVector2D(ViewRect.Min) / FVector2D(ViewRect.Size()));
+	ViewUniformShaderParameters.ViewRectToRenderTargetUVScaleBias = FVector4(
+		FVector2D(ViewRect.Size()) / FVector2D(BufferSize),
+		FVector2D(ViewRect.Min) / FVector2D(BufferSize));
+
+	if (bVRProjectEnabled && SupportMultiRes)
+	{
+		FVRProjection::FastGSCBData GSCBData;
+		FVRProjection::FastGSCBData StereoGSCBData;
+		FVRProjection::RemapCBData RemapCBData;
+		if (VRProjMode == FSceneView::EVRProjectMode::MultiRes)
+		{
+			FMultiRes::CalculateFastGSCBData(&MultiResConf, &GSCBData);
+			FMultiRes::CalculateFastGSCBData(&MultiResStereoConf, &StereoGSCBData);
+			FMultiRes::CalculateRemapCBData(&MultiResConf, &MultiResViewports, &RemapCBData);
+		}
+		else if (VRProjMode == FSceneView::EVRProjectMode::LensMatched)
+		{
+			FLensMatchedShading::CalculateFastGSCBData(&LensMatchedShadingConf, &GSCBData);
+			FLensMatchedShading::CalculateFastGSCBData(&LensMatchedShadingStereoConf, &StereoGSCBData);
+			FLensMatchedShading::CalculateRemapCBData(&LensMatchedShadingConf, &LensMatchedViewports, &RemapCBData);
+		}
+
+		ViewUniformShaderParameters.VRProjectToLinearSplitsX = RemapCBData.VRProjectToLinearSplitsX;
+		ViewUniformShaderParameters.VRProjectToLinearSplitsY = RemapCBData.VRProjectToLinearSplitsY;
+		ViewUniformShaderParameters.VRProjectToLinearX0 = RemapCBData.VRProjectToLinearX[0];
+		ViewUniformShaderParameters.VRProjectToLinearX1 = RemapCBData.VRProjectToLinearX[1];
+		ViewUniformShaderParameters.VRProjectToLinearX2 = RemapCBData.VRProjectToLinearX[2];
+		ViewUniformShaderParameters.VRProjectToLinearY0 = RemapCBData.VRProjectToLinearY[0];
+		ViewUniformShaderParameters.VRProjectToLinearY1 = RemapCBData.VRProjectToLinearY[1];
+		ViewUniformShaderParameters.VRProjectToLinearY2 = RemapCBData.VRProjectToLinearY[2];
+
+		ViewUniformShaderParameters.LinearToVRProjectSplitsX = RemapCBData.LinearToVRProjectSplitsX;
+		ViewUniformShaderParameters.LinearToVRProjectSplitsY = RemapCBData.LinearToVRProjectSplitsY;
+		ViewUniformShaderParameters.LinearToVRProjectX0 = RemapCBData.LinearToVRProjectX[0];
+		ViewUniformShaderParameters.LinearToVRProjectX1 = RemapCBData.LinearToVRProjectX[1];
+		ViewUniformShaderParameters.LinearToVRProjectX2 = RemapCBData.LinearToVRProjectX[2];
+		ViewUniformShaderParameters.LinearToVRProjectY0 = RemapCBData.LinearToVRProjectY[0];
+		ViewUniformShaderParameters.LinearToVRProjectY1 = RemapCBData.LinearToVRProjectY[1];
+		ViewUniformShaderParameters.LinearToVRProjectY2 = RemapCBData.LinearToVRProjectY[2];
+
+		ViewUniformShaderParameters.NDCSplitsX = GSCBData.NDCSplitsX;
+		ViewUniformShaderParameters.NDCSplitsY = GSCBData.NDCSplitsY;
+
+		ViewUniformShaderParameters.StereoNDCSplitsX = StereoGSCBData.NDCSplitsX;
+		ViewUniformShaderParameters.StereoNDCSplitsY = StereoGSCBData.NDCSplitsY;
+
+		ViewUniformShaderParameters.BoundingRectOrigin = RemapCBData.BoundingRectOrigin;
+		ViewUniformShaderParameters.BoundingRectSize = RemapCBData.BoundingRectSize;
+		ViewUniformShaderParameters.BoundingRectSizeInv = RemapCBData.BoundingRectSizeInv;
+
+		if (VRProjMode == FSceneView::EVRProjectMode::MultiRes)
+		{
+			FrameUniformShaderParameters.VRProjectionMode = 1;
+		}
+		else if (VRProjMode == FSceneView::EVRProjectMode::LensMatched)
+		{
+			FrameUniformShaderParameters.VRProjectionMode = 2;
+		}
+
+		//Need to account for scaling factors introduced by multires
+		if ((Family != nullptr) && (StereoPass == eSSP_LEFT_EYE) && (Family->Views.Num() > 1))
+		{
+			check(Family->Views.Num() == 2);
+			const float EyePaddingSize = static_cast<float>(Family->Views[1]->ViewRect.Min.X - ViewRect.Max.X) / MultiResStereoConf.DensityScaleX[2];
+			const float FamilySizeX = static_cast<float>(NonVRProjectViewRect.Max.X - NonVRProjectViewRect.Min.X)*2.0f + EyePaddingSize;
+			FrameUniformShaderParameters.HMDEyePaddingOffset = (FamilySizeX - EyePaddingSize) / FamilySizeX;
+		}
+	}
+	else
+	{
+		FrameUniformShaderParameters.VRProjectionMode = 0;
+	}
+
+	FrameUniformShaderParameters.bIsSinglePassStereo = bAllowSinglePassStereo ? 1 : 0;
+
 	OutViewUniformBuffer = TUniformBufferRef<FViewUniformShaderParameters>::CreateUniformBufferImmediate(ViewUniformShaderParameters, UniformBuffer_SingleFrame);
 	OutFrameUniformBuffer = TUniformBufferRef<FFrameUniformShaderParameters>::CreateUniformBufferImmediate(FrameUniformShaderParameters, UniformBuffer_SingleFrame);
 }
@@ -1221,7 +1318,8 @@ void FViewInfo::InitRHIResources(const TArray<FProjectedShadowInfo*, SceneRender
 		TranslatedViewMatrix,
 		InvViewMatrix * FTranslationMatrix(ViewMatrices.PreViewTranslation),
 		VolumeBounds,
-		TVC_MAX);
+		TVC_MAX,
+		true);
 
 	for (int32 CascadeIndex = 0; CascadeIndex < TVC_MAX; CascadeIndex++)
 	{

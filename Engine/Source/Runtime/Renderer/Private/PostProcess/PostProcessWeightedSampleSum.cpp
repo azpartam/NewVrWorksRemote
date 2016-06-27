@@ -104,11 +104,12 @@ public:
 		AdditiveTextureSampler.Bind(Initializer.ParameterMap,TEXT("AdditiveTextureSampler"));
 		SampleWeights.Bind(Initializer.ParameterMap,TEXT("SampleWeights"));
 		
-		if (CompileTimeNumSamples == 0)
+		// EHartNV : ToDo - determine if there is any detriment to simply attempting to bind a potentially unused parameter
 		{
 			// dynamic loop do UV offset in the pixel shader, and requires the number of samples.
 			SampleOffsets.Bind(Initializer.ParameterMap,TEXT("SampleOffsets"));
 			SampleCount.Bind(Initializer.ParameterMap,TEXT("SampleCount"));
+			ForceLinear.Bind(Initializer.ParameterMap, TEXT("ForceLinear"));
 		}
 	}
 
@@ -116,23 +117,25 @@ public:
 	virtual bool Serialize(FArchive& Ar) override
 	{
 		bool bShaderHasOutdatedParameters = FGlobalShader::Serialize(Ar);
-		Ar << FilterTexture << FilterTextureSampler << AdditiveTexture << AdditiveTextureSampler << SampleWeights << SampleOffsets << SampleCount;
+		Ar << FilterTexture << FilterTextureSampler << AdditiveTexture << AdditiveTextureSampler << SampleWeights << SampleOffsets << SampleCount << ForceLinear;
 		return bShaderHasOutdatedParameters;
 	}
 
 	/** Sets shader parameter values */
 	void SetParameters(
 		FRHICommandList& RHICmdList, FSamplerStateRHIParamRef SamplerStateRHI, FTextureRHIParamRef FilterTextureRHI, FTextureRHIParamRef AdditiveTextureRHI, 
-		const FLinearColor* SampleWeightValues, const FVector2D* SampleOffsetValues, uint32 NumSamples )
+		const FLinearColor* SampleWeightValues, const FVector2D* SampleOffsetValues, uint32 NumSamples, bool InForceLinear, const FSceneView& View)
 	{
 		check(CompileTimeNumSamples == 0 && NumSamples > 0 && NumSamples <= MAX_FILTER_SAMPLES || CompileTimeNumSamples == NumSamples);
 		const FPixelShaderRHIParamRef ShaderRHI = GetPixelShader();
+
+		FGlobalShader::SetParameters(RHICmdList, ShaderRHI, View);
 
 		SetTextureParameter(RHICmdList, ShaderRHI, FilterTexture, FilterTextureSampler, SamplerStateRHI, FilterTextureRHI);
 		SetTextureParameter(RHICmdList, ShaderRHI, AdditiveTexture, AdditiveTextureSampler, SamplerStateRHI, AdditiveTextureRHI);
 		SetShaderValueArray(RHICmdList, ShaderRHI, SampleWeights, SampleWeightValues, NumSamples);
 
-		if (CompileTimeNumSamples == 0)
+		if (CompileTimeNumSamples == 0 || View.bVRProjectEnabled)
 		{
 			// we needs additional setups for the dynamic loop
 			FVector4 PackedSampleOffsetsValues[MAX_PACKED_SAMPLES_OFFSET];
@@ -151,6 +154,8 @@ public:
 			SetShaderValueArray(RHICmdList, ShaderRHI, SampleOffsets, PackedSampleOffsetsValues, MAX_PACKED_SAMPLES_OFFSET);
 			SetShaderValue(RHICmdList, ShaderRHI, SampleCount, NumSamples);
 		}
+
+		SetShaderValue(RHICmdList, ShaderRHI, ForceLinear, InForceLinear ? 1 : 0);
 	}
 
 	static const TCHAR* GetSourceFilename()
@@ -173,6 +178,9 @@ protected:
 	// parameters only for CompileTimeNumSamples == 0
 	FShaderParameter SampleOffsets;
 	FShaderParameter SampleCount;
+
+	// parameter for forcing linear sampling with MultiRes
+	FShaderParameter ForceLinear;
 };
 
 
@@ -323,6 +331,8 @@ void SetFilterShaders(
 	FVector2D* SampleOffsets,
 	FLinearColor* SampleWeights,
 	uint32 NumSamples,
+	bool ForceLinear,
+	const FSceneView& View,
 	FShader** OutVertexShader
 	)
 {
@@ -345,7 +355,7 @@ void SetFilterShaders(
 				static FGlobalBoundShaderState BoundShaderState;
 				SetGlobalBoundShaderState(RHICmdList, FeatureLevel, BoundShaderState, GFilterVertexDeclaration.VertexDeclarationRHI, *VertexShader, *PixelShader);
 			}
-			PixelShader->SetParameters(RHICmdList, SamplerStateRHI, FilterTextureRHI, AdditiveTextureRHI, SampleWeights, SampleOffsets, NumSamples);
+			PixelShader->SetParameters(RHICmdList, SamplerStateRHI, FilterTextureRHI, AdditiveTextureRHI, SampleWeights, SampleOffsets, NumSamples, ForceLinear, View);
 		}
 		else if(CombineMethodInt == 1)
 		{
@@ -354,7 +364,7 @@ void SetFilterShaders(
 				static FGlobalBoundShaderState BoundShaderState;
 				SetGlobalBoundShaderState(RHICmdList, FeatureLevel, BoundShaderState, GFilterVertexDeclaration.VertexDeclarationRHI, *VertexShader, *PixelShader);
 			}
-			PixelShader->SetParameters(RHICmdList, SamplerStateRHI, FilterTextureRHI, AdditiveTextureRHI, SampleWeights, SampleOffsets, NumSamples);
+			PixelShader->SetParameters(RHICmdList, SamplerStateRHI, FilterTextureRHI, AdditiveTextureRHI, SampleWeights, SampleOffsets, NumSamples, ForceLinear, View);
 		}
 		else\
 		{
@@ -363,7 +373,7 @@ void SetFilterShaders(
 				static FGlobalBoundShaderState BoundShaderState;
 				SetGlobalBoundShaderState(RHICmdList, FeatureLevel, BoundShaderState, GFilterVertexDeclaration.VertexDeclarationRHI, *VertexShader, *PixelShader);
 			}
-			PixelShader->SetParameters(RHICmdList, SamplerStateRHI, FilterTextureRHI, AdditiveTextureRHI, SampleWeights, SampleOffsets, NumSamples);
+			PixelShader->SetParameters(RHICmdList, SamplerStateRHI, FilterTextureRHI, AdditiveTextureRHI, SampleWeights, SampleOffsets, NumSamples, ForceLinear, View);
 		}
 		return;
 	}
@@ -381,7 +391,7 @@ void SetFilterShaders(
 				static FGlobalBoundShaderState BoundShaderState; \
 				SetGlobalBoundShaderState(RHICmdList, FeatureLevel, BoundShaderState, GFilterVertexDeclaration.VertexDeclarationRHI, *VertexShader, *PixelShader); \
 			} \
-			PixelShader->SetParameters(RHICmdList, SamplerStateRHI, FilterTextureRHI, AdditiveTextureRHI, SampleWeights, SampleOffsets, NumSamples); \
+			PixelShader->SetParameters(RHICmdList, SamplerStateRHI, FilterTextureRHI, AdditiveTextureRHI, SampleWeights, SampleOffsets, NumSamples, ForceLinear, View); \
 		} \
 		else if(CombineMethodInt == 1) \
 		{ \
@@ -390,7 +400,7 @@ void SetFilterShaders(
 				static FGlobalBoundShaderState BoundShaderState; \
 				SetGlobalBoundShaderState(RHICmdList, FeatureLevel, BoundShaderState, GFilterVertexDeclaration.VertexDeclarationRHI, *VertexShader, *PixelShader); \
 			} \
-			PixelShader->SetParameters(RHICmdList, SamplerStateRHI, FilterTextureRHI, AdditiveTextureRHI, SampleWeights, SampleOffsets, NumSamples); \
+			PixelShader->SetParameters(RHICmdList, SamplerStateRHI, FilterTextureRHI, AdditiveTextureRHI, SampleWeights, SampleOffsets, NumSamples, ForceLinear, View); \
 		} \
 		else\
 		{ \
@@ -399,7 +409,7 @@ void SetFilterShaders(
 				static FGlobalBoundShaderState BoundShaderState; \
 				SetGlobalBoundShaderState(RHICmdList, FeatureLevel, BoundShaderState, GFilterVertexDeclaration.VertexDeclarationRHI, *VertexShader, *PixelShader); \
 			} \
-			PixelShader->SetParameters(RHICmdList, SamplerStateRHI, FilterTextureRHI, AdditiveTextureRHI, SampleWeights, SampleOffsets, NumSamples); \
+			PixelShader->SetParameters(RHICmdList, SamplerStateRHI, FilterTextureRHI, AdditiveTextureRHI, SampleWeights, SampleOffsets, NumSamples, ForceLinear, View); \
 		} \
 		VertexShader->SetParameters(RHICmdList, SampleOffsets); \
 		break; \
@@ -554,13 +564,14 @@ static uint32 Compute1DGaussianFilterKernel(ERHIFeatureLevel::Type InFeatureLeve
 	return NumSamples;
 }
 
-FRCPassPostProcessWeightedSampleSum::FRCPassPostProcessWeightedSampleSum(EFilterShape InFilterShape, EFilterCombineMethod InCombineMethod, float InSizeScale, const TCHAR* InDebugName, FLinearColor InTintValue)
+FRCPassPostProcessWeightedSampleSum::FRCPassPostProcessWeightedSampleSum(EFilterShape InFilterShape, EFilterCombineMethod InCombineMethod, float InSizeScale, bool InForceLinear, const TCHAR* InDebugName, FLinearColor InTintValue)
 	: FilterShape(InFilterShape)
 	, CombineMethod(InCombineMethod)
 	, SizeScale(InSizeScale)
 	, TintValue(InTintValue)
 	, DebugName(InDebugName)
 	, CrossCenterWeight(0.0f)
+	, ForceLinear(InForceLinear)
 {
 }
 
@@ -585,7 +596,12 @@ void FRCPassPostProcessWeightedSampleSum::Process(FRenderingCompositePassContext
 	FSceneRenderTargets& SceneContext = FSceneRenderTargets::Get(Context.RHICmdList);
 
 	// e.g. 4 means the input texture is 4x smaller than the buffer size
-	const FIntPoint BufferSize = SceneContext.GetBufferSizeXY();
+	FIntPoint BufferSize = SceneContext.GetBufferSizeXY();
+
+	if (ForceLinear)
+	{
+		BufferSize = SceneContext.GetLinearBufferSizeXY();
+	}
 
 	const uint32 SrcScaleFactorX = FMath::DivideAndRoundUp(BufferSize.X, SrcSize.X);
 	const uint32 SrcScaleFactorY = FMath::DivideAndRoundUp(BufferSize.Y, SrcSize.Y);
@@ -606,6 +622,14 @@ void FRCPassPostProcessWeightedSampleSum::Process(FRenderingCompositePassContext
 	FVector2D InvSrcSize(1.0f / SrcSize.X, 1.0f / SrcSize.Y);
 	// we scale by width because FOV is defined horizontally
 	float SrcSizeForThisAxis = View.ViewRect.Width() / (float)SrcScaleFactor.X;
+
+	// For multi-res, use the non-multi-res (but still ScreenPercentage-scaled) view rect to set up the blur size,
+	// so that the center viewport has correct pixel offsets
+	if (View.bVRProjectEnabled)
+	{
+		SrcSizeForThisAxis = View.NonVRProjectViewRect.Width() / (float)SrcScaleFactor.X;
+		//InvSrcSize *= FVector2D(View.ViewRect.Size()) / FVector2D(View.NonVRProjectViewRect.Size());
+	}
 
 	if(bDoFastBlur && FilterShape == EFS_Vert)
 	{
@@ -631,6 +655,11 @@ void FRCPassPostProcessWeightedSampleSum::Process(FRenderingCompositePassContext
 	SCOPED_DRAW_EVENTF(Context.RHICmdList, PostProcessWeightedSampleSum, TEXT("PostProcessWeightedSampleSum#%d %dx%d in %dx%d"),
 		NumSamples, DestRect.Width(), DestRect.Height(), DestSize.X, DestSize.Y);
 
+	if (ForceLinear)
+	{
+		DestRect = FIntRect::DivideAndRoundUp(View.NonVRProjectViewRect, DstScaleFactor);
+	}
+
 	// compute weights as weighted contributions of the TintValue
 	for(uint32 i = 0; i < NumSamples; ++i)
 	{
@@ -654,6 +683,7 @@ void FRCPassPostProcessWeightedSampleSum::Process(FRenderingCompositePassContext
 	Context.SetViewportAndCallRHI(0, 0, 0.0f, DestSize.X, DestSize.Y, 1.0f);
 
 	FIntRect SrcRect = FIntRect::DivideAndRoundUp(View.ViewRect, SrcScaleFactor);
+
 	if (bRequiresClear)
 	{
 		DrawClear(Context.RHICmdList, FeatureLevel, bDoFastBlur, SrcRect, DestRect, DestSize);
@@ -718,10 +748,18 @@ void FRCPassPostProcessWeightedSampleSum::Process(FRenderingCompositePassContext
 		BlurOffsets,
 		BlurWeights,
 		NumSamples,
+		ForceLinear,
+		View,
 		&VertexShader
 		);	
 
-	DrawQuad(Context.RHICmdList, FeatureLevel, bDoFastBlur, SrcRect, DestRect, DestSize, SrcSize, VertexShader);
+
+	if (View.bVRProjectEnabled)
+	{
+		SrcRect = FIntRect::DivideAndRoundUp(View.NonVRProjectViewRect, SrcScaleFactor);
+	}
+
+    DrawQuad(Context.RHICmdList, FeatureLevel, bDoFastBlur, SrcRect, DestRect, DestSize, SrcSize, VertexShader);
 
 	Context.RHICmdList.CopyToResolveTarget(DestRenderTarget.TargetableTexture, DestRenderTarget.ShaderResourceTexture, false, FResolveParams());
 }

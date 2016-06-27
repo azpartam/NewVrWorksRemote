@@ -128,9 +128,9 @@ public:
 	/** Context data required by the drawing policy that is not known when caching policies in static mesh draw lists. */
 	struct ContextDataType
 	{
-		ContextDataType(const bool InbIsInstancedStereo, const bool InbNeedsInstancedStereoBias) : bIsInstancedStereo(InbIsInstancedStereo), bNeedsInstancedStereoBias(InbNeedsInstancedStereoBias){};
-		ContextDataType() : bIsInstancedStereo(false), bNeedsInstancedStereoBias(false){};
-		bool bIsInstancedStereo, bNeedsInstancedStereoBias;
+		ContextDataType(const bool InbIsInstancedStereo, const bool InbNeedsInstancedStereoBias, const bool InIsSinglePassStereo) : bIsInstancedStereo(InbIsInstancedStereo), bNeedsInstancedStereoBias(InbNeedsInstancedStereoBias), bIsSinglePassStereo(InIsSinglePassStereo) {};
+		ContextDataType() : bIsInstancedStereo(false), bNeedsInstancedStereoBias(false), bIsSinglePassStereo(false) {};
+		bool bIsInstancedStereo, bNeedsInstancedStereoBias, bIsSinglePassStereo;
 	};
 
 	FMeshDrawingPolicy(
@@ -251,6 +251,7 @@ public:
 	const FVertexFactory* GetVertexFactory() const { return VertexFactory; }
 	const FMaterialRenderProxy* GetMaterialRenderProxy() const { return MaterialRenderProxy; }
 
+
 #if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
 	FORCEINLINE EDebugViewShaderMode GetDebugViewShaderMode() const { return (EDebugViewShaderMode)DebugViewShaderMode; }
 	FORCEINLINE bool UseDebugViewPS() const { return DebugViewShaderMode != DVSM_None; }
@@ -258,6 +259,8 @@ public:
 	FORCEINLINE EDebugViewShaderMode GetDebugViewShaderMode() const { return DVSM_None; }
 	FORCEINLINE bool UseDebugViewPS() const { return false; }
 #endif
+
+	FORCEINLINE FGeometryShaderRHIRef GetMultiResFastGS() { return FGeometryShaderRHIRef(); }
 
 protected:
 	const FVertexFactory* VertexFactory;

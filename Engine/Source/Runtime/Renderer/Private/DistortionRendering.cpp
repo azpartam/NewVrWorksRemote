@@ -233,10 +233,48 @@ protected:
 	}
 };
 
+/**
+* A geometry shader for rendering distortion meshes for multi-res
+*/
+template<class DistortMeshPolicy>
+class TDistortionMeshFastGS : public FMeshMaterialShader
+{
+	DECLARE_SHADER_TYPE(TDistortionMeshFastGS, MeshMaterial);
+
+protected:
+
+	TDistortionMeshFastGS(const ShaderMetaType::CompiledShaderInitializerType& Initializer)
+		: FMeshMaterialShader(Initializer)
+	{}
+
+	TDistortionMeshFastGS() {}
+
+	static bool ShouldCache(EShaderPlatform Platform, const FMaterial* Material, const FVertexFactoryType* VertexFactoryType)
+	{
+		return IsFeatureLevelSupported(Platform, ERHIFeatureLevel::SM5)
+			&& DistortMeshPolicy::ShouldCache(Platform, Material, VertexFactoryType);
+	}
+
+	static const bool IsFastGeometryShader = true;
+
+public:
+
+	void SetParameters(FRHICommandList& RHICmdList, const FVertexFactory* VertexFactory, const FMaterialRenderProxy* MaterialRenderProxy, const FSceneView* View)
+	{
+		FMeshMaterialShader::SetParameters(RHICmdList, (FGeometryShaderRHIParamRef)GetGeometryShader(), MaterialRenderProxy, *MaterialRenderProxy->GetMaterial(View->GetFeatureLevel()), *View, ESceneRenderTargetsMode::SetTextures);
+	}
+
+	void SetMesh(FRHICommandList& RHICmdList, const FVertexFactory* VertexFactory, const FSceneView& View, const FPrimitiveSceneProxy* Proxy, const FMeshBatchElement& BatchElement, const FMeshDrawingRenderState& DrawRenderState)
+	{
+		FMeshMaterialShader::SetMesh(RHICmdList, (FGeometryShaderRHIParamRef)GetGeometryShader(), VertexFactory, View, Proxy, BatchElement, DrawRenderState);
+	}
+};
 
 IMPLEMENT_MATERIAL_SHADER_TYPE(template<>,TDistortionMeshVS<FDistortMeshAccumulatePolicy>,TEXT("DistortAccumulateVS"),TEXT("Main"),SF_Vertex); 
 IMPLEMENT_MATERIAL_SHADER_TYPE(template<>,TDistortionMeshHS<FDistortMeshAccumulatePolicy>,TEXT("DistortAccumulateVS"),TEXT("MainHull"),SF_Hull); 
 IMPLEMENT_MATERIAL_SHADER_TYPE(template<>,TDistortionMeshDS<FDistortMeshAccumulatePolicy>,TEXT("DistortAccumulateVS"),TEXT("MainDomain"),SF_Domain);
+IMPLEMENT_MATERIAL_SHADER_TYPE(template<>,TDistortionMeshFastGS<FDistortMeshAccumulatePolicy>, TEXT("DistortAccumulateVS"), TEXT("VRProjectFastGS"), SF_Geometry);
+
 
 
 /**
@@ -353,7 +391,12 @@ public:
 	* as well as the shaders needed to draw the mesh
 	* @return new bound shader state object
 	*/
-	FBoundShaderStateInput GetBoundShaderStateInput(ERHIFeatureLevel::Type InFeatureLevel);
+	FBoundShaderStateInput GetBoundShaderStateInput(ERHIFeatureLevel::Type InFeatureLevel, bool bMultiRes = false);
+
+	FGeometryShaderRHIRef GetMultiResFastGS()
+	{
+		return GETSAFERHISHADER_GEOMETRY(FastGeometryShader);
+	}
 
 	/**
 	* Sets the render states for drawing a mesh.
@@ -379,6 +422,7 @@ private:
 
 	TDistortionMeshHS<DistortMeshPolicy>* HullShader;
 	TDistortionMeshDS<DistortMeshPolicy>* DomainShader;
+	TDistortionMeshFastGS<DistortMeshPolicy>* FastGeometryShader;
 
 	/** whether we are initializing offsets or accumulating them */
 	bool bInitializeOffsets;
@@ -420,6 +464,8 @@ TDistortionMeshDrawingPolicy<DistortMeshPolicy>::TDistortionMeshDrawingPolicy(
 
 	VertexShader = InMaterialResource.GetShader<TDistortionMeshVS<DistortMeshPolicy> >(InVertexFactory->GetType());
 
+	FastGeometryShader = InMaterialResource.GetShader<TDistortionMeshFastGS<DistortMeshPolicy> >(InVertexFactory->GetType());
+
 	if (bInitializeOffsets)
 	{
 //later		InitializePixelShader = GetGlobalShaderMap(View.ShaderMap)->GetShader<FShaderComplexityAccumulatePixelShader>();
@@ -445,10 +491,12 @@ FDrawingPolicyMatchResult TDistortionMeshDrawingPolicy<DistortMeshPolicy>::Match
 	DRAWING_POLICY_MATCH_BEGIN
 		DRAWING_POLICY_MATCH(FMeshDrawingPolicy::Matches(Other)) &&
 		DRAWING_POLICY_MATCH(VertexShader == Other.VertexShader) &&
+		DRAWING_POLICY_MATCH(FastGeometryShader == Other.FastGeometryShader) &&
 		DRAWING_POLICY_MATCH(HullShader == Other.HullShader) &&
 		DRAWING_POLICY_MATCH(DomainShader == Other.DomainShader) &&
 		DRAWING_POLICY_MATCH(bInitializeOffsets == Other.bInitializeOffsets) &&
 		DRAWING_POLICY_MATCH(DistortPixelShader == Other.DistortPixelShader); //&&
+
 	//later	InitializePixelShader == Other.InitializePixelShader;
 	DRAWING_POLICY_MATCH_END
 }
@@ -479,6 +527,11 @@ void TDistortionMeshDrawingPolicy<DistortMeshPolicy>::SetSharedState(
 
 	if (UseDebugViewPS())
 	{
+		if (View->bVRProjectEnabled)
+		{
+			FastGeometryShader->SetParameters(RHICmdList, VertexFactory, MaterialRenderProxy, View);
+	 	}
+
 		check(!bInitializeOffsets);
 //later		TShaderMapRef<FShaderComplexityAccumulatePixelShader> ShaderComplexityPixelShader(GetGlobalShaderMap(View->ShaderMap));
 		//don't add any vertex complexity
@@ -500,7 +553,7 @@ void TDistortionMeshDrawingPolicy<DistortMeshPolicy>::SetSharedState(
 * @return new bound shader state object
 */
 template<class DistortMeshPolicy>
-FBoundShaderStateInput TDistortionMeshDrawingPolicy<DistortMeshPolicy>::GetBoundShaderStateInput(ERHIFeatureLevel::Type InFeatureLevel)
+FBoundShaderStateInput TDistortionMeshDrawingPolicy<DistortMeshPolicy>::GetBoundShaderStateInput(ERHIFeatureLevel::Type InFeatureLevel, bool bMultiRes /* = false */)
 {
 	FPixelShaderRHIParamRef PixelShaderRHIRef = NULL;
 
@@ -526,7 +579,7 @@ FBoundShaderStateInput TDistortionMeshDrawingPolicy<DistortMeshPolicy>::GetBound
 		GETSAFERHISHADER_HULL(HullShader), 
 		GETSAFERHISHADER_DOMAIN(DomainShader),
 		PixelShaderRHIRef,
-		FGeometryShaderRHIRef());
+		(bMultiRes ? GetMultiResFastGS() : FGeometryShaderRHIRef()));
 
 }
 
@@ -561,6 +614,10 @@ void TDistortionMeshDrawingPolicy<DistortMeshPolicy>::SetMeshRenderState(
 		DomainShader->SetMesh(RHICmdList, VertexFactory,View,PrimitiveSceneProxy,BatchElement,DrawRenderState);
 	}
 	
+	if (View.bVRProjectEnabled)
+	{
+		FastGeometryShader->SetMesh(RHICmdList, VertexFactory, View, PrimitiveSceneProxy, BatchElement, DrawRenderState);
+	}
 
 	// Don't set pixel shader constants if we are overriding with the shader complexity pixel shader
 	if (!bInitializeOffsets && !UseDebugViewPS())
@@ -650,7 +707,7 @@ bool TDistortionMeshDrawingPolicyFactory<DistortMeshPolicy>::DrawDynamicMesh(
 			View.Family->GetDebugViewShaderMode(),
 			FeatureLevel
 			);
-		RHICmdList.BuildAndSetLocalBoundShaderState(DrawingPolicy.GetBoundShaderStateInput(View.GetFeatureLevel()));
+		RHICmdList.BuildAndSetLocalBoundShaderState(DrawingPolicy.GetBoundShaderStateInput(View.GetFeatureLevel(), View.bVRProjectEnabled));
 		DrawingPolicy.SetSharedState(RHICmdList, &View, typename TDistortionMeshDrawingPolicy<DistortMeshPolicy>::ContextDataType());
 		const FMeshDrawingRenderState DrawRenderState(Mesh.DitheredLODTransitionAlpha);
 		for (int32 BatchElementIndex = 0; BatchElementIndex < Mesh.Elements.Num(); BatchElementIndex++)
@@ -700,7 +757,7 @@ bool TDistortionMeshDrawingPolicyFactory<DistortMeshPolicy>::DrawStaticMesh(
 			View->Family->GetDebugViewShaderMode(),
 			FeatureLevel
 			);
-		RHICmdList.BuildAndSetLocalBoundShaderState(DrawingPolicy.GetBoundShaderStateInput(View->GetFeatureLevel()));
+		RHICmdList.BuildAndSetLocalBoundShaderState(DrawingPolicy.GetBoundShaderStateInput(View->GetFeatureLevel(), View->bVRProjectEnabled));
 		DrawingPolicy.SetSharedState(RHICmdList, View, typename TDistortionMeshDrawingPolicy<DistortMeshPolicy>::ContextDataType());
 		const FMeshDrawingRenderState DrawRenderState(View->GetDitheredLODTransitionState(StaticMesh));
 		int32 BatchElementIndex = 0;
@@ -891,8 +948,20 @@ void FSceneRenderer::RenderDistortion(FRHICommandListImmediate& RHICmdList)
 				// additive blending of offsets (or complexity if the shader complexity viewmode is enabled)
 				RHICmdList.SetBlendState(TStaticBlendState<CW_RGBA, BO_Add, BF_One, BF_One, BO_Add, BF_One, BF_One>::GetRHI());
 
+				// For vr projection, set up viewports and scissors *after* the clear!
+				if (View.bVRProjectEnabled)
+				{
+					View.BeginVRProjectionStates(RHICmdList);
+				}
+
 				// draw only distortion meshes to accumulate their offsets
 				bDirty |= View.DistortionPrimSet.DrawAccumulatedOffsets(RHICmdList, View, false);
+
+				if (View.bVRProjectEnabled)
+				{
+					// Reset viewport and scissor after rendering to vr projection view
+					View.EndVRProjectionStates(RHICmdList);
+				}
 			}
 
 			if (bDirty)

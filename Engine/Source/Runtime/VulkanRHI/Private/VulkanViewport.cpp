@@ -421,3 +421,19 @@ void FVulkanCommandListContext::RHISetScissorRect(bool bEnable, uint32 MinX, uin
 	FVulkanPendingState& state = Device->GetPendingState();
 	state.SetScissor(bEnable, MinX, MinY, MaxX, MaxY);
 }
+
+void FVulkanCommandListContext::RHISetMultipleScissorRects(bool bEnable, uint32 Num, const FIntRect* Rects)
+{
+	UE_LOG(LogRHI, Fatal, TEXT("Vulkan RHI does not yet support multiple scissor rects!"));
+}
+
+void FVulkanCommandListContext::RHISetModifiedWMode(const FLensMatchedShading::Configuration& Conf, const bool bWarpForward, const bool bEnable)
+{
+	UE_LOG(LogRHI, Fatal, TEXT("Vulkan RHI does not yet support w-warp!"));
+}
+
+void FVulkanCommandListContext::RHISetModifiedWModeStereo(const FLensMatchedShading::StereoConfiguration& Conf, const bool bWarpForward, const bool bEnable)
+{
+	UE_LOG(LogRHI, Fatal, TEXT("Vulkan RHI does not yet support w-warp!"));
+}
+

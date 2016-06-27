@@ -763,6 +763,10 @@ float4 VertexFactoryGetPreviousWorldPosition(FVertexFactoryInput Input, FVertexF
 		}
 	#endif
 
+	#if INSTANCED_STEREO
+		O.InterpolantsVSToPS.PackedEyeIndex = a.InterpolantsVSToPS.PackedEyeIndex;
+	#endif
+
 		return O;
 	}
 

@@ -1,0 +1,59 @@
+// Copyright 1998-2016 Epic Games, Inc. All Rights Reserved.
+
+/*=============================================================================
+	ModifiedWBoundaryMask.usf: VS and GS for drawing ModifiedW boundary mask
+=============================================================================*/
+
+// INSIDE defines the inner boundary of the mask. If <1.0, it will be visible on the final render (useful for debugging)
+#define INSIDE 1.f
+// GUARD defines the outer boundary. The required value differs depending on the ModifiedW warp factors, so just setting
+// it to a sufficiently large number will do
+#define GUARD 100.f
+
+// We generate the vertices in the VS rather than passing in through a vertex buffer
+static const float2 MaskVerts[8] = {
+	{ -INSIDE, INSIDE },
+	{ INSIDE, INSIDE },
+	{ INSIDE, -INSIDE },
+	{ -INSIDE, -INSIDE },
+	{ -GUARD, GUARD },
+	{ GUARD, GUARD },
+	{ GUARD, -GUARD },
+	{ -GUARD, -GUARD }
+};
+
+// The mask itself is composed of eight triangles arranged in four trapezoids which border the rectangular viewport
+static const int MaskInds[24] = {
+	0, 1, 4,
+	1, 5, 4,
+	1, 2, 5,
+	2, 6, 5,
+	3, 6, 2,
+	3, 7, 6,
+	4, 7, 0,
+	0, 7, 3
+};
+
+// The draw call itself will be eight triangles, so simply look up values in the vertex/index constant arrays
+void VSMain(in uint InVertexId : SV_VertexID,
+	out float4 OutPosition : SV_Position)
+{
+	float2 CurrentVertex = MaskVerts[MaskInds[InVertexId]];
+	OutPosition = float4(CurrentVertex.xy, 1, 1); // depth=1 maps to near plane
+}
+
+// Simple FastGS to just broadcast to all viewports
+struct FFastGSOutput
+{
+	float4		Position : SV_Position;
+	uint		ViewportMask : SV_ViewportArrayIndex;
+};
+
+[maxvertexcount(1)]
+void FGSMain(triangle float4 InVertices[3] : SV_Position, inout TriangleStream<FFastGSOutput> OutTriStream)
+{
+	FFastGSOutput Output;
+	Output.Position = InVertices[0];
+	Output.ViewportMask = 0xF; // we assume that Lens Matched Shading uses four viewports
+	OutTriStream.Append(Output);
+}

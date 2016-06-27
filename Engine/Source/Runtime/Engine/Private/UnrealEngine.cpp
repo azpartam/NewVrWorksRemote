@@ -37,6 +37,7 @@
 #include "Net/NetworkProfiler.h"
 #include "MallocProfiler.h"
 #include "StereoRendering.h"
+#include "SceneViewExtension.h"
 #include "IHeadMountedDisplayModule.h"
 #include "IHeadMountedDisplay.h"
 #include "IMotionController.h"
@@ -1912,17 +1913,19 @@ bool UEngine::UseSound() const
 /**
  * A fake stereo rendering device used to test stereo rendering without an attached device.
  */
-class FFakeStereoRenderingDevice : public IStereoRendering
+class FFakeStereoRenderingDevice : public IStereoRendering, public ISceneViewExtension
 {
 public:
 	FFakeStereoRenderingDevice() 
 	: FOVInDegrees(100)
 	, Width(640)
 	, Height(480)
+	, ViewportGap(0)
 	{
 		static TAutoConsoleVariable<float> CVarEmulateStereoFOV(TEXT("r.StereoEmulationFOV"), 0, TEXT("FOV in degrees, of the imaginable HMD for stereo emulation"));
 		static TAutoConsoleVariable<int32> CVarEmulateStereoWidth(TEXT("r.StereoEmulationWidth"), 0, TEXT("Width of the imaginable HMD for stereo emulation"));
 		static TAutoConsoleVariable<int32> CVarEmulateStereoHeight(TEXT("r.StereoEmulationHeight"), 0, TEXT("Height of the imaginable HMD for stereo emulation"));
+		static TAutoConsoleVariable<int32> CVarEmulateStereoViewportGap(TEXT("r.StereoEmulationViewportGap"), 0, TEXT("Width of the gap between viewports of the imaginable HMD for stereo emulation"));
 		float FOV = CVarEmulateStereoFOV.GetValueOnAnyThread();
 		if (FOV != 0)
 		{
@@ -1930,6 +1933,7 @@ public:
 		}
 		int32 W = CVarEmulateStereoWidth.GetValueOnAnyThread();
 		int32 H = CVarEmulateStereoHeight.GetValueOnAnyThread();
+		int32 Gap = CVarEmulateStereoViewportGap.GetValueOnAnyThread();
 		if (W != 0)
 		{
 			Width = FMath::Clamp(W, 100, 10000);
@@ -1937,6 +1941,10 @@ public:
 		if (H != 0)
 		{
 			Height = FMath::Clamp(H, 100, 10000);
+		}
+		if (Gap != 0)
+		{
+			ViewportGap = Gap;
 		}
 	}
 
@@ -1954,6 +1962,8 @@ public:
 			X += SizeX;
 		}
 	}
+
+	virtual int32 GetViewportGap() const override { return ViewportGap; }
 
 	virtual void CalculateStereoViewOffset(const enum EStereoscopicPass StereoPassType, const FRotator& ViewRotation, const float WorldToMeters, FVector& ViewLocation) override
 	{
@@ -2021,6 +2031,27 @@ public:
 
 	float FOVInDegrees;		// max(HFOV, VFOV) in degrees of imaginable HMD
 	int32 Width, Height;	// resolution of imaginable HMD
+	int32 ViewportGap;		// gap between the eye viewport in pixels
+
+	// SceneViewExtension interface
+	virtual void SetupViewFamily(FSceneViewFamily& InViewFamily) {}
+
+	virtual void SetupView(FSceneViewFamily& InViewFamily, FSceneView& InView)
+	{
+		// just tweak the views for the gap
+		if (InView.StereoPass == eSSP_RIGHT_EYE)
+		{
+			InView.ViewRect.Min.X += ViewportGap / 2;
+		}
+		else
+		{
+			InView.ViewRect.Max.X -= ViewportGap / 2;
+		}
+	}
+
+	virtual void BeginRenderViewFamily(FSceneViewFamily& InViewFamily){}
+	virtual void PreRenderViewFamily_RenderThread(FRHICommandListImmediate& RHICmdList, FSceneViewFamily& InViewFamily) {}
+	virtual void PreRenderView_RenderThread(FRHICommandListImmediate& RHICmdList, FSceneView& InView){}
 };
 
 bool UEngine::InitializeHMDDevice()
@@ -2032,6 +2063,7 @@ bool UEngine::InitializeHMDDevice()
 		{
 			TSharedPtr<FFakeStereoRenderingDevice, ESPMode::ThreadSafe> FakeStereoDevice(new FFakeStereoRenderingDevice());
 			StereoRenderingDevice = FakeStereoDevice;
+			ViewExtensions.Add(FakeStereoDevice);
 		}
 		// No reason to connect an HMD on a dedicated server.  Also fixes dedicated servers stealing the oculus connection.
 		else if (!HMDDevice.IsValid() && !FParse::Param(FCommandLine::Get(), TEXT("nohmd")) && !IsRunningDedicatedServer())

@@ -158,9 +158,42 @@ protected:
 	}
 };
 
+// Fast geometry shader for multi-res depth rendering
+class FVelocityFastGS : public FMeshMaterialShader
+{
+	DECLARE_SHADER_TYPE(FVelocityFastGS, MeshMaterial);
+protected:
+
+	FVelocityFastGS() {}
+	FVelocityFastGS(const FMeshMaterialShaderType::CompiledShaderInitializerType& Initializer) :
+		FMeshMaterialShader(Initializer)
+	{}
+
+public:
+
+	static bool ShouldCache(EShaderPlatform Platform, const FMaterial* Material, const FVertexFactoryType* VertexFactoryType)
+	{
+		// Same rules as VS
+		return IsFeatureLevelSupported(Platform, ERHIFeatureLevel::SM5) && FVelocityVS::ShouldCache(Platform, Material, VertexFactoryType);
+	}
+
+	void SetParameters(FRHICommandList& RHICmdList, const FVertexFactory* VertexFactory, const FMaterialRenderProxy* MaterialRenderProxy, const FViewInfo& View)
+	{
+		FMeshMaterialShader::SetParameters(RHICmdList, (FGeometryShaderRHIParamRef)GetGeometryShader(), MaterialRenderProxy, *MaterialRenderProxy->GetMaterial(View.GetFeatureLevel()), View, ESceneRenderTargetsMode::DontSet);
+	}
+
+	void SetMesh(FRHICommandList& RHICmdList, const FVertexFactory* VertexFactory, const FMeshBatch& Mesh, int32 BatchElementIndex, const FMeshDrawingRenderState& DrawRenderState, const FViewInfo& View, const FPrimitiveSceneProxy* Proxy)
+	{
+		FMeshMaterialShader::SetMesh(RHICmdList, (FGeometryShaderRHIParamRef)GetGeometryShader(), VertexFactory, View, Proxy, Mesh.Elements[BatchElementIndex], DrawRenderState);
+	}
+
+	static const bool IsFastGeometryShader = true;
+};
+
 IMPLEMENT_MATERIAL_SHADER_TYPE(,FVelocityVS,TEXT("VelocityShader"),TEXT("MainVertexShader"),SF_Vertex); 
 IMPLEMENT_MATERIAL_SHADER_TYPE(,FVelocityHS,TEXT("VelocityShader"),TEXT("MainHull"),SF_Hull); 
 IMPLEMENT_MATERIAL_SHADER_TYPE(,FVelocityDS,TEXT("VelocityShader"),TEXT("MainDomain"),SF_Domain);
+IMPLEMENT_MATERIAL_SHADER_TYPE(, FVelocityFastGS, TEXT("VelocityShader"), TEXT("VRProjectFastGS"), SF_Geometry);
 
 //=============================================================================
 /** Encapsulates the Velocity pixel shader. */
@@ -214,6 +247,7 @@ public:
 
 IMPLEMENT_MATERIAL_SHADER_TYPE(,FVelocityPS,TEXT("VelocityShader"),TEXT("MainPixelShader"),SF_Pixel);
 
+// EHartNV : ToDo - investigate shader pipeline needs
 IMPLEMENT_SHADERPIPELINE_TYPE_VSPS(VelocityPipeline, FVelocityVS, FVelocityPS, true);
 
 //=============================================================================
@@ -235,6 +269,7 @@ FVelocityDrawingPolicy::FVelocityDrawingPolicy(
 	DomainShader = nullptr;
 	VertexShader = nullptr;
 	PixelShader = nullptr;
+	FastGeometryShader = nullptr;
 
 	const EMaterialTessellationMode MaterialTessellationMode = InMaterialResource.GetTessellationMode();
 	if (RHISupportsTessellation(GShaderPlatformForFeatureLevel[InFeatureLevel])
@@ -269,6 +304,15 @@ FVelocityDrawingPolicy::FVelocityDrawingPolicy(
 		VertexShader = bHasVertexShader ? MeshShaderIndex->GetShader<FVelocityVS>() : nullptr;
 		PixelShader = bHasPixelShader ? MeshShaderIndex->GetShader<FVelocityPS>() : nullptr;
 	}
+
+	// EHartNV : ToDo - need to add geometry shader support to shader pipelines
+	//  Above if !VertexShader is the no shader pipeline path, which is why GS needs to be separate
+	if (!FastGeometryShader)
+	{
+		bool bHasGeometryShader = MeshShaderIndex->HasShader(&FVelocityFastGS::StaticType);
+
+		FastGeometryShader = bHasGeometryShader ? MeshShaderIndex->GetShader<FVelocityFastGS>() : nullptr;
+	}
 }
 
 bool FVelocityDrawingPolicy::SupportsVelocity() const
@@ -290,6 +334,12 @@ void FVelocityDrawingPolicy::SetSharedState(FRHICommandList& RHICmdList, const F
 
 	VertexShader->SetParameters(RHICmdList, VertexFactory, MaterialRenderProxy, *View);
 	PixelShader->SetParameters(RHICmdList, VertexFactory, MaterialRenderProxy, *View);
+
+	if (View->bVRProjectEnabled)
+	{
+		check(FastGeometryShader);
+		FastGeometryShader->SetParameters(RHICmdList, VertexFactory, MaterialRenderProxy, *View);
+	}
 
 	if(HullShader && DomainShader)
 	{
@@ -336,6 +386,12 @@ void FVelocityDrawingPolicy::SetMeshRenderState(
 	{
 		DomainShader->SetMesh(RHICmdList, VertexFactory, View, PrimitiveSceneProxy, Mesh.Elements[BatchElementIndex], DrawRenderState);
 		HullShader->SetMesh(RHICmdList, VertexFactory, View, PrimitiveSceneProxy, Mesh.Elements[BatchElementIndex], DrawRenderState);
+	}
+
+	if (View.bVRProjectEnabled)
+	{
+		check(FastGeometryShader);
+		FastGeometryShader->SetMesh(RHICmdList, VertexFactory, Mesh, BatchElementIndex, DrawRenderState, View, PrimitiveSceneProxy);
 	}
 
 	PixelShader->SetMesh(RHICmdList, VertexFactory, Mesh, BatchElementIndex, DrawRenderState, View, PrimitiveSceneProxy, bBackFace);
@@ -420,7 +476,7 @@ bool FVelocityDrawingPolicy::HasVelocityOnBasePass(const FViewInfo& View,const F
 	return Material->MaterialModifiesMeshPosition_RenderThread() && Material->OutputsVelocityOnBasePass();
 }
 
-FBoundShaderStateInput FVelocityDrawingPolicy::GetBoundShaderStateInput(ERHIFeatureLevel::Type InFeatureLevel)
+FBoundShaderStateInput FVelocityDrawingPolicy::GetBoundShaderStateInput(ERHIFeatureLevel::Type InFeatureLevel, bool bMultiRes /*= false*/)
 {
 	return FBoundShaderStateInput(
 		FMeshDrawingPolicy::GetVertexDeclaration(), 
@@ -428,7 +484,12 @@ FBoundShaderStateInput FVelocityDrawingPolicy::GetBoundShaderStateInput(ERHIFeat
 		GETSAFERHISHADER_HULL(HullShader), 
 		GETSAFERHISHADER_DOMAIN(DomainShader),
 		PixelShader->GetPixelShader(),
-		FGeometryShaderRHIRef());
+		(bMultiRes ? GetMultiResFastGS() : FGeometryShaderRHIRef()));
+}
+
+FGeometryShaderRHIRef FVelocityDrawingPolicy::GetMultiResFastGS()
+{
+	return GETSAFERHISHADER_GEOMETRY(FastGeometryShader);
 }
 
 int32 Compare(const FVelocityDrawingPolicy& A,const FVelocityDrawingPolicy& B)
@@ -437,6 +498,7 @@ int32 Compare(const FVelocityDrawingPolicy& A,const FVelocityDrawingPolicy& B)
 	COMPAREDRAWINGPOLICYMEMBERS(PixelShader);
 	COMPAREDRAWINGPOLICYMEMBERS(HullShader);
 	COMPAREDRAWINGPOLICYMEMBERS(DomainShader);
+	COMPAREDRAWINGPOLICYMEMBERS(FastGeometryShader);
 	COMPAREDRAWINGPOLICYMEMBERS(VertexFactory);
 	COMPAREDRAWINGPOLICYMEMBERS(MaterialRenderProxy);
 	return 0;
@@ -507,7 +569,7 @@ bool FVelocityDrawingPolicyFactory::DrawDynamicMesh(
 		FVelocityDrawingPolicy DrawingPolicy(Mesh.VertexFactory, MaterialRenderProxy, *MaterialRenderProxy->GetMaterial(FeatureLevel), FeatureLevel);
 		if(DrawingPolicy.SupportsVelocity())
 		{			
-			RHICmdList.BuildAndSetLocalBoundShaderState(DrawingPolicy.GetBoundShaderStateInput(FeatureLevel));
+			RHICmdList.BuildAndSetLocalBoundShaderState(DrawingPolicy.GetBoundShaderStateInput(FeatureLevel, View.bVRProjectEnabled));
 			DrawingPolicy.SetSharedState(RHICmdList, &View, FVelocityDrawingPolicy::ContextDataType());
 			const FMeshDrawingRenderState DrawRenderState(Mesh.DitheredLODTransitionAlpha);
 			for (int32 BatchElementIndex = 0, BatchElementCount = Mesh.Elements.Num(); BatchElementIndex < BatchElementCount; ++BatchElementIndex)
@@ -637,6 +699,8 @@ static void BeginVelocityRendering(FRHICommandList& RHICmdList, TRefCountPtr<IPo
 
 static void SetVelocitiesState(FRHICommandList& RHICmdList, const FViewInfo& View, TRefCountPtr<IPooledRenderTarget>& VelocityRT)
 {
+	// EHartNV : ToDo - This code change needs to be reexamined, it appears faulty 
+#if 0
 	const FIntPoint BufferSize = FSceneRenderTargets::Get(RHICmdList).GetBufferSizeXY();
 	const FIntPoint VelocityBufferSize = BufferSize;		// full resolution so we can reuse the existing full res z buffer
 
@@ -646,6 +710,17 @@ static void SetVelocitiesState(FRHICommandList& RHICmdList, const FViewInfo& Vie
 	const uint32 MaxY = View.ViewRect.Max.Y * VelocityBufferSize.Y / BufferSize.Y;
 
 	RHICmdList.SetViewport(MinX, MinY, 0.0f, MaxX, MaxY, 1.0f);
+#else
+	if (View.bVRProjectEnabled)
+	{
+		View.BeginVRProjectionStates(RHICmdList);
+	}
+	else
+	{
+		RHICmdList.SetViewport(View.ViewRect.Min.X, View.ViewRect.Min.Y, 0, View.ViewRect.Max.X, View.ViewRect.Max.Y, 1);
+		RHICmdList.SetScissorRect(false, 0, 0, 0, 0);
+	}
+#endif
 
 	RHICmdList.SetBlendState(TStaticBlendState<CW_RGBA>::GetRHI());
 	RHICmdList.SetDepthStencilState(TStaticDepthStencilState<false,CF_DepthNearOrEqual>::GetRHI());
@@ -669,6 +744,11 @@ public:
 	virtual ~FVelocityPassParallelCommandListSet()
 	{
 		Dispatch();
+		if (View.bVRProjectEnabled)
+		{
+			// Reset viewport and scissor after rendering to vr projection view
+			View.EndVRProjectionStates(ParentCmdList);
+		}
 	}	
 
 	virtual void SetStateOnCommandList(FRHICommandList& CmdList) override
@@ -741,6 +821,19 @@ void FDeferredShadingSceneRenderer::RenderVelocitiesInner(FRHICommandListImmedia
 		Scene->VelocityDrawList.DrawVisible(RHICmdList, View, View.StaticMeshVelocityMap, View.StaticMeshBatchVisibility);
 
 		RenderDynamicVelocitiesMeshElementsInner(RHICmdList, View, 0, View.DynamicMeshElements.Num() - 1);
+
+		// EHartNV : ToDo - confirm that this really should be reset per loop iteration, rather than on function exit
+		// Reset scissor after rendering to multi-res view
+		if (View.bVRProjectEnabled)
+		{
+			// Reset viewport and scissor after rendering to vr projection view
+			RHICmdList.SetScissorRect(false, 0, 0, 0, 0);
+
+			if (View.VRProjMode == FSceneView::EVRProjectMode::LensMatched)
+			{
+				RHICmdList.SetModifiedWMode(View.LensMatchedShadingConf, true, false);
+			}
+		}
 	}
 }
 

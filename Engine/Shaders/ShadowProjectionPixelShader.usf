@@ -66,7 +66,11 @@ void Main(
 {
 	float2 ScreenUV = float2( SVPos.xy * Frame.BufferSizeAndInvSize.zw );
 	float SceneW = CalcSceneDepth( ScreenUV );
-	float2 ScreenPosition = ( ScreenUV.xy - View.ScreenPositionScaleBias.wz ) / View.ScreenPositionScaleBias.xy;
+
+	// Remap for warped viewports, no-op for regular viewports
+	float2 LinearScreenUV = VRProjMapRenderTargetVRProjToLinear(ScreenUV);
+
+	float2 ScreenPosition = (LinearScreenUV.xy - View.ScreenPositionScaleBias.wz) / View.ScreenPositionScaleBias.xy;
 	float4 ShadowPosition = mul(float4(ScreenPosition.xy * SceneW,SceneW,1), ScreenToShadowMatrix);
 
 	ShadowPosition.xy /= ShadowPosition.w;
@@ -218,7 +222,11 @@ void MainOnePassPointLightPS(
 
 	float2 ScreenUV = float2( SVPos.xy * Frame.BufferSizeAndInvSize.zw );
 	float SceneW = CalcSceneDepth( ScreenUV );
-	float2 ScreenPosition = ( ScreenUV.xy - View.ScreenPositionScaleBias.wz ) / View.ScreenPositionScaleBias.xy;
+
+	// Remap for warped viewports, no-op for regular viewports
+	float2 LinearScreenUV = VRProjMapRenderTargetVRProjToLinear(ScreenUV);
+
+	float2 ScreenPosition = (LinearScreenUV.xy - View.ScreenPositionScaleBias.wz) / View.ScreenPositionScaleBias.xy;
 	float4 HomogeneousWorldPosition = mul(float4(ScreenPosition.xy * SceneW, SceneW, 1), View.ScreenToWorld);
  	float3 WorldPosition = HomogeneousWorldPosition.xyz / HomogeneousWorldPosition.w;
 

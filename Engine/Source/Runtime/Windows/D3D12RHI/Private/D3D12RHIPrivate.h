@@ -166,6 +166,11 @@ public:
 	virtual FDomainShaderRHIRef RHICreateDomainShader(const TArray<uint8>& Code) final override;
 	virtual FGeometryShaderRHIRef RHICreateGeometryShader(const TArray<uint8>& Code) final override;
 	virtual FGeometryShaderRHIRef RHICreateGeometryShaderWithStreamOutput(const TArray<uint8>& Code, const FStreamOutElementList& ElementList, uint32 NumStrides, const uint32* Strides, int32 RasterizedStream) final override;
+	virtual FGeometryShaderRHIRef RHICreateFastGeometryShader(const TArray<uint8>& Code) final override;
+	virtual FVertexShaderRHIRef RHICreateVertexShaderWithSinglePassStereo(const TArray<uint8>& Code) final override;
+	virtual FHullShaderRHIRef RHICreateHullShaderWithSinglePassStereo(const TArray<uint8>& Code) final override;
+	virtual FDomainShaderRHIRef RHICreateDomainShaderWithSinglePassStereo(const TArray<uint8>& Code) final override;
+	virtual FGeometryShaderRHIRef RHICreateFastGeometryShader_2(const TArray<uint8>& Code, uint32 Usage) final override;
 	virtual FComputeShaderRHIRef RHICreateComputeShader(const TArray<uint8>& Code) final override;
 	virtual FComputeFenceRHIRef RHICreateComputeFence(const FName& Name) final override;
 	virtual FBoundShaderStateRHIRef RHICreateBoundShaderState(FVertexDeclarationRHIParamRef VertexDeclaration, FVertexShaderRHIParamRef VertexShader, FHullShaderRHIParamRef HullShader, FDomainShaderRHIParamRef DomainShader, FPixelShaderRHIParamRef PixelShader, FGeometryShaderRHIParamRef GeometryShader) final override;

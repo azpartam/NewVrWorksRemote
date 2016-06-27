@@ -919,6 +919,12 @@ FGeometryShaderRHIRef FOpenGLDynamicRHI::RHICreateGeometryShader(const TArray<ui
 	return CompileOpenGLShader<FOpenGLGeometryShader>(Code);
 }
 
+FGeometryShaderRHIRef FOpenGLDynamicRHI::RHICreateFastGeometryShader(const TArray<uint8>& Code)
+{
+	UE_LOG(LogRHI, Fatal, TEXT("OpenGL Render path does not support fast geometry shader!"));
+	return NULL;
+}
+
 FHullShaderRHIRef FOpenGLDynamicRHI::RHICreateHullShader(const TArray<uint8>& Code)
 {
 	check(GMaxRHIFeatureLevel >= ERHIFeatureLevel::SM5);
@@ -937,6 +943,29 @@ FGeometryShaderRHIRef FOpenGLDynamicRHI::RHICreateGeometryShaderWithStreamOutput
 	return NULL;
 }
 
+FVertexShaderRHIRef  FOpenGLDynamicRHI::RHICreateVertexShaderWithSinglePassStereo(const TArray<uint8>& Code)
+{
+	UE_LOG(LogRHI, Fatal, TEXT("Not supported yet"));
+	return NULL;
+}
+
+FHullShaderRHIRef  FOpenGLDynamicRHI::RHICreateHullShaderWithSinglePassStereo(const TArray<uint8>& Code)
+{
+	UE_LOG(LogRHI, Fatal, TEXT("Not supported yet"));
+	return NULL;
+}
+
+FDomainShaderRHIRef  FOpenGLDynamicRHI::RHICreateDomainShaderWithSinglePassStereo(const TArray<uint8>& Code)
+{
+	UE_LOG(LogRHI, Fatal, TEXT("Not supported yet"));
+	return NULL;
+}
+
+FGeometryShaderRHIRef  FOpenGLDynamicRHI::RHICreateFastGeometryShader_2(const TArray<uint8>& Code, uint32 Usage)
+{
+	UE_LOG(LogRHI, Fatal, TEXT("Not supported yet"));
+	return NULL;
+}
 
 static void MarkShaderParameterCachesDirty(FOpenGLShaderParameterCache* ShaderParameters, bool UpdateCompute)
 {

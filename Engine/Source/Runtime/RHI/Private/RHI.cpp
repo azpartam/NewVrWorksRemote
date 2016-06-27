@@ -275,6 +275,8 @@ FString GGPUTraceFileName;
 bool GRHISupportsTextureStreaming = false;
 bool GSupportsDepthBoundsTest = false;
 bool GSupportsEfficientAsyncCompute = false;
+bool GSupportsFastGeometryShader = false;
+bool GSupportsModifiedW = false;
 bool GRHISupportsBaseVertexIndex = true;
 bool GRHISupportsInstancing = true;
 bool GRHISupportsFirstInstance = false;
@@ -285,6 +287,8 @@ bool GSupportsHDR32bppEncodeModeIntrinsic = false;
 bool GSupportsParallelOcclusionQueries = false;
 
 bool GRHISupportsMSAADepthSampleAccess = false;
+
+bool GSupportsSinglePassStereo = false;
 
 /** Whether we are profiling GPU hitches. */
 bool GTriggerGPUHitchProfile = false;

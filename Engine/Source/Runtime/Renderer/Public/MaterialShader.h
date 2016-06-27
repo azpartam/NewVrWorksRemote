@@ -123,7 +123,7 @@ public:
 #endif
 
 		// Skip if instanced stereo is not enabled
-		if (View.bIsInstancedStereoEnabled && View.Family->Views.Num() > 0)
+		if ((View.bAllowSinglePassStereo || View.bIsInstancedStereoEnabled) && View.Family->Views.Num() > 0)
 		{
 			// When drawing the left eye in a stereo scene, copy the right eye view values into the instanced view uniform buffer.
 			const EStereoscopicPass StereoPassIndex = (View.StereoPass != eSSP_FULL) ? eSSP_RIGHT_EYE : eSSP_FULL;

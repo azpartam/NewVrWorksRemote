@@ -2781,7 +2781,7 @@ protected:
 		{
 			return Errorf(TEXT("Invalid node used in hull/domain shader input!"));
 		}
-		return AddInlinedCodeChunk(MCT_Float, TEXT("GetScreenPosition(Parameters).w"));		
+		return AddInlinedCodeChunk(MCT_Float, TEXT("CalcPixelDepth(GetScreenPosition(Parameters))"));
 	}
 
 	/** Calculate screen aligned UV coordinates from an offset fraction or texture coordinate */

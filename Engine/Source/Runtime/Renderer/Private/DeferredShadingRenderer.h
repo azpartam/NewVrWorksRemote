@@ -120,6 +120,7 @@ public:
 
 	/** bound shader state for occlusion test prims */
 	static FGlobalBoundShaderState OcclusionTestBoundShaderState;
+	static FGlobalBoundShaderState OcclusionTestMultiResBoundShaderState;
 
 private:
 

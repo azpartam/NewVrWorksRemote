@@ -1145,6 +1145,19 @@ void FRCPassPostProcessTonemap::Process(FRenderingCompositePassContext& Context)
 		ConfigIndexPC, bDoGammaOnly, bDoScreenPercentageInTonemapper, DestRect.Width(), DestRect.Height());
 
 	const FSceneRenderTargetItem& DestRenderTarget = PassOutputs[0].RequestSurface(Context);
+	
+	// Set the view family's render target/viewport.
+	FSceneRenderTargets& SceneContext = FSceneRenderTargets::Get(Context.RHICmdList);
+	if (View.VRProjMode == FSceneView::EVRProjectMode::LensMatched && View.bVRProjectEnabled && !bDoScreenPercentageInTonemapper)
+	{
+		SetRenderTarget(Context.RHICmdList, DestRenderTarget.TargetableTexture, SceneContext.GetSceneDepthSurface(), ESimpleRenderTargetMode::EUninitializedColorExistingDepth, FExclusiveDepthStencil::DepthRead_StencilNop);
+		Context.RHICmdList.SetDepthStencilState(TStaticDepthStencilState<false, CF_DepthNear>::GetRHI());
+	}
+	else
+	{
+		SetRenderTarget(Context.RHICmdList, DestRenderTarget.TargetableTexture, FTextureRHIParamRef(), ESimpleRenderTargetMode::EUninitializedColorAndDepth);
+		Context.RHICmdList.SetDepthStencilState(TStaticDepthStencilState<false, CF_Always>::GetRHI());
+	}
 
 	const EShaderPlatform ShaderPlatform = GShaderPlatformForFeatureLevel[Context.GetFeatureLevel()];
 
@@ -1178,7 +1191,6 @@ void FRCPassPostProcessTonemap::Process(FRenderingCompositePassContext& Context)
 	// set the state
 	Context.RHICmdList.SetBlendState(TStaticBlendState<>::GetRHI());
 	Context.RHICmdList.SetRasterizerState(TStaticRasterizerState<>::GetRHI());
-	Context.RHICmdList.SetDepthStencilState(TStaticDepthStencilState<false, CF_Always>::GetRHI());
 
 	switch (ConfigIndexPC)
 	{
@@ -1197,7 +1209,6 @@ void FRCPassPostProcessTonemap::Process(FRenderingCompositePassContext& Context)
 	}
 
 	
-	FSceneRenderTargets& SceneContext = FSceneRenderTargets::Get(Context.RHICmdList);
 
 	FShader* VertexShader;
 	if (bDoEyeAdaptation)
