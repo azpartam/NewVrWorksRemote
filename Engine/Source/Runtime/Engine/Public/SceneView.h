@@ -830,21 +830,14 @@ public:
 	FMultiRes::Configuration MultiResConf;
 	mutable FMultiRes::StereoConfiguration MultiResStereoConf;
 	FMultiRes::Viewports MultiResViewports;
-	mutable FMultiRes::StereoViewports MultiResStereoViewports;
 
 	FLensMatchedShading::Configuration LensMatchedShadingConf;
 	mutable FLensMatchedShading::StereoConfiguration LensMatchedShadingStereoConf;
 	FLensMatchedShading::Viewports LensMatchedViewports;
-	mutable FLensMatchedShading::StereoViewports LensMatchedStereoViewports;
 
 	// These are the viewport and scissor tied to this view
 	mutable TArray<FViewportBounds> VRProjViewportArray;
 	mutable TArray<FIntRect> VRProjScissorArray;
-
-	// These arrays contain the versions that may change for instanced stereo rendering
-	// In this case, the viewport is shared by two views
-	mutable TArray<FViewportBounds> StereoVRProjectViewportArray;
-	mutable TArray<FIntRect> StereoVRProjectScissorArray;
 
 	bool bAllowSinglePassStereo;
 
@@ -982,7 +975,7 @@ public:
 	bool IsInstancedStereoPass() const { return bIsInstancedStereoEnabled && StereoPass == eSSP_LEFT_EYE && !bAllowSinglePassStereo; }
 
 	/** Apply vr projection to current ViewRect; sets up NonVRProjectViewRect and MultiResViewports or LensMatchedViewports */
-	void SetupVRProjection( int32 ViewportGap = 0);
+	void SetupVRProjection(int32 ViewportGap = 0);
 
 	/** Setup the viewports, scissors and modified w state required by vr projection */
 	void BeginVRProjectionStates(FRHICommandList& RHICmdList) const;
@@ -1154,6 +1147,14 @@ public:
     /** Extensions that can modify view parameters on the render thread. */
     TArray<TSharedPtr<class ISceneViewExtension, ESPMode::ThreadSafe> > ViewExtensions;
 
+	// These arrays contain the versions that may change for instanced stereo rendering
+	// In this case, the viewport is shared by two views
+	mutable FMultiRes::StereoViewports MultiResStereoViewports;
+	mutable FLensMatchedShading::StereoViewports LensMatchedStereoViewports;
+
+	mutable TArray<FViewportBounds> StereoVRProjectViewportArray;
+	mutable TArray<FIntRect> StereoVRProjectScissorArray;
+
 	// These are the viewports and scissors used for single pass stereo
 	mutable TArray<FViewportBounds> SPSViewportArray;
 	mutable TArray<FIntRect> SPSScissorArray;
@@ -1187,6 +1188,9 @@ public:
 
 	/** Returns the appropriate view for a given eye in a stereo pair. */
 	const FSceneView& GetStereoEyeView(const EStereoscopicPass Eye) const;
+
+	/** Setup StereoVRProjectViewportArray and StereoVRProjectScissorArray. */
+	void SetupVRProjectionInstancedStereo();
 };
 
 /**

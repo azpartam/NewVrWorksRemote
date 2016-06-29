@@ -550,8 +550,8 @@ static void SetupBasePassView(FRHICommandList& RHICmdList, const FViewInfo& View
 	if (View.bVRProjectEnabled && !bIsSinglePassStereo)
 	{
 		// Set the true viewports, but leave Context.ViewPortRect alone
-		RHICmdList.SetMultipleViewports(View.StereoVRProjectViewportArray.Num(), View.StereoVRProjectViewportArray.GetData());
-		RHICmdList.SetMultipleScissorRects(true, View.StereoVRProjectScissorArray.Num(), View.StereoVRProjectScissorArray.GetData());
+		RHICmdList.SetMultipleViewports(View.Family->StereoVRProjectViewportArray.Num(), View.Family->StereoVRProjectViewportArray.GetData());
+		RHICmdList.SetMultipleScissorRects(true, View.Family->StereoVRProjectScissorArray.Num(), View.Family->StereoVRProjectScissorArray.GetData());
 
 		if (View.VRProjMode == FSceneView::EVRProjectMode::LensMatched)
 		{
@@ -1562,8 +1562,8 @@ static void SetupPrePassView(FRHICommandList& RHICmdList, const FViewInfo& View)
 	if (View.bVRProjectEnabled && !bIsSinglePassStereo)
 	{
 		// Set the true viewports, but leave Context.ViewPortRect alone
-		RHICmdList.SetMultipleViewports(View.StereoVRProjectViewportArray.Num(), View.StereoVRProjectViewportArray.GetData());
-		RHICmdList.SetMultipleScissorRects(true, View.StereoVRProjectScissorArray.Num(), View.StereoVRProjectScissorArray.GetData());
+		RHICmdList.SetMultipleViewports(View.Family->StereoVRProjectViewportArray.Num(), View.Family->StereoVRProjectViewportArray.GetData());
+		RHICmdList.SetMultipleScissorRects(true, View.Family->StereoVRProjectScissorArray.Num(), View.Family->StereoVRProjectScissorArray.GetData());
 
 		if (View.VRProjMode == FSceneView::EVRProjectMode::LensMatched)
 		{

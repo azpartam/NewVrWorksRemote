@@ -1395,6 +1395,7 @@ FSceneRenderer::FSceneRenderer(const FSceneViewFamily* InViewFamily,FHitProxyCon
 	}
 
 	ViewFamily.ComputeFamilySize();
+	ViewFamily.SetupVRProjectionInstancedStereo();
 
 	// copy off the requests
 	// (I apologize for the const_cast, but didn't seem worth refactoring just for the freezerendering command)
