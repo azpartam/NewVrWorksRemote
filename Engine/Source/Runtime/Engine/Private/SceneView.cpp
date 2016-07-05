@@ -1973,11 +1973,11 @@ void FSceneViewFamily::SetupVRProjectionInstancedStereo()
 	if (bHasInstancedStereo)
 	{
 		check(Views.Num() == 2);
-		const FSceneView* LeftView = nullptr;
-		const FSceneView* RightView = nullptr;
+		FSceneView* LeftView = nullptr;
+		FSceneView* RightView = nullptr;
 		for (int32 ViewIndex = 0; ViewIndex < Views.Num(); ViewIndex++)
 		{
-			const FSceneView* View = Views[ViewIndex];
+			FSceneView* View = const_cast<FSceneView*>(Views[ViewIndex]);
 
 			if (View->StereoPass == eSSP_LEFT_EYE)
 			{
@@ -1991,44 +1991,45 @@ void FSceneViewFamily::SetupVRProjectionInstancedStereo()
 
 		check(LeftView);
 		check(RightView);
-		if (Views[0]->VRProjMode == FSceneView::EVRProjectMode::MultiRes)
+		check(LeftView->IsInstancedStereoPass());
+		if (LeftView->VRProjMode == FSceneView::EVRProjectMode::MultiRes)
 		{
 			const FMultiRes::Viewports& MultiResViewportsLeft = LeftView->MultiResViewports;
 			const FMultiRes::Viewports& MultiResViewportsRight = RightView->MultiResViewports;
 
-			MultiResStereoViewports = FMultiRes::Viewports::Merge(MultiResViewportsLeft, MultiResViewportsRight);
+			LeftView->MultiResStereoViewports = FMultiRes::Viewports::Merge(MultiResViewportsLeft, MultiResViewportsRight);
 
-			StereoVRProjectViewportArray.SetNum(FMultiRes::StereoViewports::Count, true);
-			StereoVRProjectScissorArray.SetNum(FMultiRes::StereoViewports::Count, true);
+			LeftView->StereoVRProjectViewportArray.SetNum(FMultiRes::StereoViewports::Count, true);
+			LeftView->StereoVRProjectScissorArray.SetNum(FMultiRes::StereoViewports::Count, true);
 
 			for (int i = 0; i < FMultiRes::StereoViewports::Count; ++i)
 			{
-				StereoVRProjectViewportArray[i] = FViewportBounds(
-					MultiResStereoViewports.Views[i].TopLeftX,
-					MultiResStereoViewports.Views[i].TopLeftY,
-					MultiResStereoViewports.Views[i].Width,
-					MultiResStereoViewports.Views[i].Height);
-				StereoVRProjectScissorArray[i] = MultiResStereoViewports.Scissors[i];;
+				LeftView->StereoVRProjectViewportArray[i] = FViewportBounds(
+					LeftView->MultiResStereoViewports.Views[i].TopLeftX,
+					LeftView->MultiResStereoViewports.Views[i].TopLeftY,
+					LeftView->MultiResStereoViewports.Views[i].Width,
+					LeftView->MultiResStereoViewports.Views[i].Height);
+				LeftView->StereoVRProjectScissorArray[i] = LeftView->MultiResStereoViewports.Scissors[i];;
 			}
 		}
-		else if (Views[0]->VRProjMode == FSceneView::EVRProjectMode::LensMatched) // Set up stereo viewports and scissors for lens matched shading
+		else if (LeftView->VRProjMode == FSceneView::EVRProjectMode::LensMatched) // Set up stereo viewports and scissors for lens matched shading
 		{
 			const FLensMatchedShading::Viewports& LensMatchedViewportsLeft = LeftView->LensMatchedViewports;
 			const FLensMatchedShading::Viewports& LensMatchedViewportsRight = RightView->LensMatchedViewports;
 
-			LensMatchedStereoViewports = FLensMatchedShading::Viewports::Merge(LensMatchedViewportsLeft, LensMatchedViewportsRight);
+			LeftView->LensMatchedStereoViewports = FLensMatchedShading::Viewports::Merge(LensMatchedViewportsLeft, LensMatchedViewportsRight);
 
-			StereoVRProjectViewportArray.SetNum(FLensMatchedShading::StereoViewports::Count, true);
-			StereoVRProjectScissorArray.SetNum(FLensMatchedShading::StereoViewports::Count, true);
+			LeftView->StereoVRProjectViewportArray.SetNum(FLensMatchedShading::StereoViewports::Count, true);
+			LeftView->StereoVRProjectScissorArray.SetNum(FLensMatchedShading::StereoViewports::Count, true);
 
 			for (int i = 0; i < FLensMatchedShading::StereoViewports::Count; ++i)
 			{
-				StereoVRProjectViewportArray[i] = FViewportBounds(
-					LensMatchedStereoViewports.Views[i].TopLeftX,
-					LensMatchedStereoViewports.Views[i].TopLeftY,
-					LensMatchedStereoViewports.Views[i].Width,
-					LensMatchedStereoViewports.Views[i].Height);
-				StereoVRProjectScissorArray[i] = LensMatchedStereoViewports.Scissors[i];;
+				LeftView->StereoVRProjectViewportArray[i] = FViewportBounds(
+					LeftView->LensMatchedStereoViewports.Views[i].TopLeftX,
+					LeftView->LensMatchedStereoViewports.Views[i].TopLeftY,
+					LeftView->LensMatchedStereoViewports.Views[i].Width,
+					LeftView->LensMatchedStereoViewports.Views[i].Height);
+				LeftView->StereoVRProjectScissorArray[i] = LeftView->LensMatchedStereoViewports.Scissors[i];;
 			}
 		}
 	}
@@ -2107,6 +2108,15 @@ void FSceneView::SetupVRProjection(int32 ViewportGap)
 			VRProjMode = EVRProjectMode::MultiRes;
 		else
 			check(0);
+
+		// Correcting the right viewport to have the same size as the left viewport.
+		if (StereoPass == eSSP_RIGHT_EYE)
+		{
+			const FSceneView* LeftView = Family->Views[0];
+
+			ViewRect.Min.X = LeftView->NonVRProjectViewRect.Max.X + GEngine->StereoRenderingDevice->GetViewportGap();
+			ViewRect.Max.X = ViewRect.Min.X + LeftView->NonVRProjectViewRect.Width();
+		}
 	}
 	else
 	{
@@ -2135,82 +2145,14 @@ void FSceneView::SetupVRProjection(int32 ViewportGap)
 			MultiResConf = FMultiRes::Configuration_SuperAggressive;
 		}
 
-		// Adjust config for more ideal viewport sizing
-		{
-			// correct density scale for integer viewports
-			{
-				int32 width[3];
-				int32 height[3];
-
-				width[0] = 1 * FMath::FloorToInt(1.f *(float(ViewRect.Width())  * MultiResConf.DensityScaleX[0]));
-				width[1] = 1 * FMath::FloorToInt(1.f *(float(ViewRect.Width())  * MultiResConf.DensityScaleX[1]));
-				width[2] = 1 * FMath::FloorToInt(1.f *(float(ViewRect.Width())  * MultiResConf.DensityScaleX[2]));
-				height[0] = 1 * FMath::FloorToInt(1.f *(float(ViewRect.Height()) * MultiResConf.DensityScaleY[0]));
-				height[1] = 1 * FMath::FloorToInt(1.f *(float(ViewRect.Height()) * MultiResConf.DensityScaleY[1]));
-				height[2] = 1 * FMath::FloorToInt(1.f *(float(ViewRect.Height()) * MultiResConf.DensityScaleY[2]));
-
-				MultiResConf.DensityScaleX[0] = float(width[0]) / float(ViewRect.Width());
-				MultiResConf.DensityScaleX[1] = float(width[1]) / float(ViewRect.Width());
-				MultiResConf.DensityScaleX[2] = float(width[2]) / float(ViewRect.Width());
-				MultiResConf.DensityScaleY[0] = float(height[0]) / float(ViewRect.Height());
-				MultiResConf.DensityScaleY[1] = float(height[1]) / float(ViewRect.Height());
-				MultiResConf.DensityScaleY[2] = float(height[2]) / float(ViewRect.Height());
-			}
-
-			// correct center X, Y, Width, Height for integer splits
-			{
-				float splitX[3];
-				float splitY[3];
-				int splitXi[3];
-				int splitYi[3];
-
-				splitX[0] = MultiResConf.DensityScaleX[0] * ViewRect.Width() * (MultiResConf.CenterX - 0.5f * MultiResConf.CenterWidth);
-				splitX[1] = MultiResConf.DensityScaleX[1] * ViewRect.Width() * (MultiResConf.CenterWidth);
-				splitX[2] = MultiResConf.DensityScaleX[2] * ViewRect.Width() * (1.f - (MultiResConf.CenterX + 0.5f * MultiResConf.CenterWidth));
-				splitY[0] = MultiResConf.DensityScaleY[0] * ViewRect.Height() * (MultiResConf.CenterY - 0.5f * MultiResConf.CenterHeight);
-				splitY[1] = MultiResConf.DensityScaleY[1] * ViewRect.Height() * (MultiResConf.CenterHeight);
-				splitY[2] = MultiResConf.DensityScaleY[2] * ViewRect.Height() * (1.f - (MultiResConf.CenterY + 0.5f * MultiResConf.CenterHeight));
-
-				splitXi[0] = 1 * FMath::FloorToInt(1.f * splitX[0]);
-				splitXi[1] = 1 * FMath::FloorToInt(1.f * splitX[1]);
-				splitXi[2] = 1 * FMath::FloorToInt(1.f * splitX[2]);
-				splitYi[0] = 1 * FMath::FloorToInt(1.f * splitY[0]);
-				splitYi[1] = 1 * FMath::FloorToInt(1.f * splitY[1]);
-				splitYi[2] = 1 * FMath::FloorToInt(1.f * splitY[2]);
-
-				splitX[0] = splitXi[0] / (MultiResConf.DensityScaleX[0] * ViewRect.Width());
-				splitX[1] = splitXi[1] / (MultiResConf.DensityScaleX[1] * ViewRect.Width());
-				splitX[2] = splitXi[2] / (MultiResConf.DensityScaleX[2] * ViewRect.Width());
-				splitY[0] = splitYi[0] / (MultiResConf.DensityScaleY[0] * ViewRect.Height());
-				splitY[1] = splitYi[1] / (MultiResConf.DensityScaleY[1] * ViewRect.Height());
-				splitY[2] = splitYi[2] / (MultiResConf.DensityScaleY[2] * ViewRect.Height());
-
-				float remX = 1.f - (splitX[0] + splitX[1] + splitX[2]);
-				float remY = 1.f - (splitY[0] + splitY[1] + splitY[2]);
-				splitX[1] += remX;
-				splitY[1] += remY;
-
-				// update config with new splits
-				MultiResConf.CenterX = splitX[0] + 0.5f * splitX[1];
-				MultiResConf.CenterY = splitY[0] + 0.5f * splitY[1];
-				MultiResConf.CenterWidth = splitX[1];
-				MultiResConf.CenterHeight = splitY[1];
-
-				MultiResConf.SplitsX[0] = splitX[0];
-				MultiResConf.SplitsX[1] = splitX[0] + splitX[1];
-				MultiResConf.SplitsY[0] = splitY[0];
-				MultiResConf.SplitsY[1] = splitY[0] + splitY[1];
-			}
-		}
-
 		// Calculate splits
 		FIntRect OriginalViewport = ViewRect;
 		// AHR: disable this for now
-		//FMultiRes::CalculateSplits(&OriginalViewport, &MultiResConf);
+		FMultiRes::CalculateSplits(&OriginalViewport, &MultiResConf);
 
 		// AHR: disable this for now
-		//// round locations before mirroring
-		////FMultiRes::RoundSplitsToNearestPixel(&OriginalViewport, &MultiResConf);
+		// round locations before mirroring
+		FMultiRes::RoundSplitsToNearestPixel(&OriginalViewport, &MultiResConf);
 
 		// need special 5x3 mirrored stereo for instance stereo rendering
 		FMultiRes::CalculateStereoConfig(&MultiResConf, &OriginalViewport, ViewportGap, &MultiResStereoConf);
@@ -2249,13 +2191,13 @@ void FSceneView::SetupVRProjection(int32 ViewportGap)
 		// compute view rect configuration for base pass
 		if (!IsInstancedStereoPass())
 		{
-			Family->StereoVRProjectViewportArray.SetNum(FMultiRes::Viewports::Count, true);
-			Family->StereoVRProjectScissorArray.SetNum(FMultiRes::Viewports::Count, true);
+			StereoVRProjectViewportArray.SetNum(FMultiRes::Viewports::Count, true);
+			StereoVRProjectScissorArray.SetNum(FMultiRes::Viewports::Count, true);
 
 			for (int i = 0; i < FMultiRes::Viewports::Count; ++i)
 			{
-				Family->StereoVRProjectViewportArray[i] = VRProjViewportArray[i];
-				Family->StereoVRProjectScissorArray[i] = VRProjScissorArray[i];
+				StereoVRProjectViewportArray[i] = VRProjViewportArray[i];
+				StereoVRProjectScissorArray[i] = VRProjScissorArray[i];
 			}
 		}
 
@@ -2309,13 +2251,13 @@ void FSceneView::SetupVRProjection(int32 ViewportGap)
 		// compute view rect configuration for base pass
 		if (!IsInstancedStereoPass())
 		{
-			Family->StereoVRProjectViewportArray.SetNum(FLensMatchedShading::Viewports::Count, true);
-			Family->StereoVRProjectScissorArray.SetNum(FLensMatchedShading::Viewports::Count, true);
+			StereoVRProjectViewportArray.SetNum(FLensMatchedShading::Viewports::Count, true);
+			StereoVRProjectScissorArray.SetNum(FLensMatchedShading::Viewports::Count, true);
 
 			for (int i = 0; i < FLensMatchedShading::Viewports::Count; ++i)
 			{
-				Family->StereoVRProjectViewportArray[i] = VRProjViewportArray[i];
-				Family->StereoVRProjectScissorArray[i] = VRProjScissorArray[i];
+				StereoVRProjectViewportArray[i] = VRProjViewportArray[i];
+				StereoVRProjectScissorArray[i] = VRProjScissorArray[i];
 			}
 		}
 

@@ -839,6 +839,14 @@ public:
 	mutable TArray<FViewportBounds> VRProjViewportArray;
 	mutable TArray<FIntRect> VRProjScissorArray;
 
+	// These arrays contain the versions that may change for instanced stereo rendering
+	// In this case, the viewport is shared by two views
+	mutable FMultiRes::StereoViewports MultiResStereoViewports;
+	mutable FLensMatchedShading::StereoViewports LensMatchedStereoViewports;
+
+	mutable TArray<FViewportBounds> StereoVRProjectViewportArray;
+	mutable TArray<FIntRect> StereoVRProjectScissorArray;
+
 	bool bAllowSinglePassStereo;
 
 	/** Initialization constructor. */
@@ -1146,14 +1154,6 @@ public:
 
     /** Extensions that can modify view parameters on the render thread. */
     TArray<TSharedPtr<class ISceneViewExtension, ESPMode::ThreadSafe> > ViewExtensions;
-
-	// These arrays contain the versions that may change for instanced stereo rendering
-	// In this case, the viewport is shared by two views
-	mutable FMultiRes::StereoViewports MultiResStereoViewports;
-	mutable FLensMatchedShading::StereoViewports LensMatchedStereoViewports;
-
-	mutable TArray<FViewportBounds> StereoVRProjectViewportArray;
-	mutable TArray<FIntRect> StereoVRProjectScissorArray;
 
 	// These are the viewports and scissors used for single pass stereo
 	mutable TArray<FViewportBounds> SPSViewportArray;
