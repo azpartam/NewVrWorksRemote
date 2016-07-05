@@ -687,6 +687,8 @@ FGBufferData GetGBufferData(float2 UV, bool bGetNormalizedNormal = true)
 	float4 GBufferC = Texture2DSampleLevel(GBuffers.GBufferCTexture, GBuffers.GBufferCTextureSampler, UV, 0);
 	float4 GBufferD = Texture2DSampleLevel(GBuffers.GBufferDTexture, GBuffers.GBufferDTextureSampler, UV, 0);
 	float CustomNativeDepth = Texture2DSampleLevel(CustomDepthTexture, CustomDepthTextureSampler, UV, 0).r;
+	if (LensMatchedShadingIsActive())
+		CustomNativeDepth = LensMatchedCorrectDeviceZ(CustomNativeDepth, UV);
 
 #if FEATURE_LEVEL >= FEATURE_LEVEL_SM4
 	int2 IntUV = (int2)trunc(UV * Frame.BufferSizeAndInvSize.xy);
