@@ -1522,3 +1522,8 @@ void FD3D12DynamicRHI::RHIRead3DSurfaceFloatData(FTextureRHIParamRef TextureRHI,
 
 	TempTexture3D->GetResource()->Unmap(0, nullptr);
 }
+
+void FD3D12CommandContext::RHICopyResourceToGPU(FTextureRHIParamRef SourceTextureRHI, FTextureRHIParamRef DestTextureRHI, uint32 DestGPUIndex, uint32 SrcGPUIndex, const FResolveParams& ResolveParams)
+{
+	UE_LOG(LogRHI, Fatal, TEXT("D3D12 render path does not support copy to GPU!"));
+}

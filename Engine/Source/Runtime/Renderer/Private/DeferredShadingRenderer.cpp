@@ -520,6 +520,21 @@ void FDeferredShadingSceneRenderer::RenderBasePassDynamicDataParallel(FParallelC
 	ParallelCommandListSet.AddParallelCommandList(CmdList, AnyThreadCompletionEvent);
 }
 
+static void SetupPassViewScissorAndMask(FRHICommandListImmediate& RHICmdList, const FViewInfo& View)
+{
+	if (GRHISupportsMultipleGPUStereo && View.StereoPass != eSSP_FULL)
+	{
+		// note: we need to be sure the scissor rect is not enabled downstream. 
+		RHICmdList.SetGPUMask(View.StereoPass);
+		RHICmdList.SetScissorRect(true, View.ViewRect.Min.X, View.ViewRect.Min.Y, View.ViewRect.Max.X, View.ViewRect.Max.Y);
+		RHICmdList.SetGPUMask(0);
+	}
+	else
+	{
+		RHICmdList.SetScissorRect(false, 0, 0, 0, 0);
+	}
+}
+
 static void SetupBasePassView(FRHICommandList& RHICmdList, const FViewInfo& View, const bool bShaderComplexity, const bool bIsEditorPrimitivePass = false)
 {
 	if (bShaderComplexity)
@@ -544,7 +559,6 @@ static void SetupBasePassView(FRHICommandList& RHICmdList, const FViewInfo& View
 
 		RHICmdList.SetDepthStencilState(TStaticDepthStencilState<true,CF_DepthNearOrEqual>::GetRHI());
 	}
-	RHICmdList.SetScissorRect(false, 0, 0, 0, 0);
 
 	bool bIsSinglePassStereo = View.IsSinglePassStereoAllowed() && !bIsEditorPrimitivePass;
 	if (View.bVRProjectEnabled && !bIsSinglePassStereo)
@@ -845,13 +859,19 @@ void FDeferredShadingSceneRenderer::RenderOcclusion(FRHICommandListImmediate& RH
 
 			for (int32 ViewIndex = 0; ViewIndex < Views.Num(); ViewIndex++)
 			{
-				const uint32 bSSR = DoScreenSpaceReflections(Views[ViewIndex]);
+				FViewInfo& View = Views[ViewIndex];
+
+				RHICmdList.SetGPUMask(View.StereoPass);
+
+				const uint32 bSSR = DoScreenSpaceReflections(View);
 
 				if (bSSAO || bHzbOcclusion || bSSR)
 				{
-					BuildHZB(RHICmdList, Views[ViewIndex]);
+					BuildHZB(RHICmdList, View);
 				}
 			}
+
+			RHICmdList.SetGPUMask(0);
 		}
 
 		// Issue occlusion queries
@@ -953,6 +973,7 @@ void FDeferredShadingSceneRenderer::Render(FRHICommandListImmediate& RHICmdList)
 
 		for (int32 ViewIndex = 0; ViewIndex < Views.Num(); ViewIndex++)
 		{
+			RHICmdList.SetGPUMask(Views[ViewIndex].StereoPass);
 			Views[ViewIndex].HeightfieldLightingViewInfo.SetupVisibleHeightfields(Views[ViewIndex], RHICmdList);
 
 			if (UseGlobalDistanceField())
@@ -962,6 +983,7 @@ void FDeferredShadingSceneRenderer::Render(FRHICommandListImmediate& RHICmdList)
 				UpdateGlobalDistanceFieldVolume(RHICmdList, Views[ViewIndex], Scene, OcclusionMaxDistance, Views[ViewIndex].GlobalDistanceFieldInfo);
 			}
 		}	
+		RHICmdList.SetGPUMask(0);
 	}
 
 	if (GRHIThread)
@@ -1106,9 +1128,11 @@ void FDeferredShadingSceneRenderer::Render(FRHICommandListImmediate& RHICmdList)
 		for(int32 ViewIndex = 0;ViewIndex < Views.Num();ViewIndex++)
 		{	
 			SCOPED_CONDITIONAL_DRAW_EVENTF(RHICmdList, EventView,Views.Num() > 1, TEXT("View%d"), ViewIndex);
-
+			
+			RHICmdList.SetGPUMask(Views[ViewIndex].StereoPass);
 			GCompositionLighting.ProcessBeforeBasePass(RHICmdList, Views[ViewIndex]);
 		}
+		RHICmdList.SetGPUMask(0);
 		//GBuffer pass will want to write to SceneDepthZ
 		RHICmdList.TransitionResource(EResourceTransitionAccess::EWritable, SceneContext.GetSceneDepthTexture());
 		ServiceLocalQueue();
@@ -1238,8 +1262,10 @@ void FDeferredShadingSceneRenderer::Render(FRHICommandListImmediate& RHICmdList)
 		for (int32 ViewIndex = 0; ViewIndex < Views.Num(); ViewIndex++)
 		{
 			SCOPED_CONDITIONAL_DRAW_EVENTF(RHICmdList, EventView, Views.Num() > 1, TEXT("View%d"), ViewIndex);
+			RHICmdList.SetGPUMask(Views[ViewIndex].StereoPass);
 			GCompositionLighting.ProcessAfterBasePass(RHICmdList, Views[ViewIndex]);
 		}
+		RHICmdList.SetGPUMask(0);
 		ServiceLocalQueue();
 	}
 
@@ -1316,11 +1342,12 @@ void FDeferredShadingSceneRenderer::Render(FRHICommandListImmediate& RHICmdList)
 			if(IsLpvIndirectPassRequired(View))
 			{
 				SCOPED_CONDITIONAL_DRAW_EVENTF(RHICmdList, EventView,Views.Num() > 1, TEXT("View%d"), ViewIndex);
-
+				RHICmdList.SetGPUMask(Views[ViewIndex].StereoPass);
 				GCompositionLighting.ProcessLpvIndirect(RHICmdList, View);
 				ServiceLocalQueue();
 			}
 		}
+		RHICmdList.SetGPUMask(0);
 
 		TRefCountPtr<IPooledRenderTarget> DynamicBentNormalAO;
 		RenderDynamicSkyLighting(RHICmdList, VelocityRT, DynamicBentNormalAO);
@@ -1338,8 +1365,10 @@ void FDeferredShadingSceneRenderer::Render(FRHICommandListImmediate& RHICmdList)
 		for(int32 ViewIndex = 0; ViewIndex < Views.Num(); ++ViewIndex)
 		{	
 			SCOPED_CONDITIONAL_DRAW_EVENTF(RHICmdList, EventView,Views.Num() > 1, TEXT("View%d"), ViewIndex);
+			RHICmdList.SetGPUMask(Views[ViewIndex].StereoPass);
 			GCompositionLighting.ProcessAfterLighting(RHICmdList, Views[ViewIndex]);
 		}
+		RHICmdList.SetGPUMask(0);
 		ServiceLocalQueue();
 	}
 
@@ -1403,9 +1432,11 @@ void FDeferredShadingSceneRenderer::Render(FRHICommandListImmediate& RHICmdList)
 		for (int32 ViewIndex = 0; ViewIndex < Views.Num(); ++ViewIndex)
 		{
 			const FViewInfo& View = Views[ViewIndex];
+			RHICmdList.SetGPUMask(View.StereoPass);
 			RHICmdList.SetViewport(View.ViewRect.Min.X, View.ViewRect.Min.Y, 0.0f, View.ViewRect.Max.X, View.ViewRect.Max.Y, 1.0f);
 			GetRendererModule().RenderPostOpaqueExtensions(View, RHICmdList, SceneContext);
 		}
+		RHICmdList.SetGPUMask(0);
 
 		SceneContext.FinishRenderingSceneColor(RHICmdList, true);
 	}
@@ -1480,10 +1511,11 @@ void FDeferredShadingSceneRenderer::Render(FRHICommandListImmediate& RHICmdList)
 		for(int32 ViewIndex = 0; ViewIndex < Views.Num(); ViewIndex++)
 		{
 			SCOPED_CONDITIONAL_DRAW_EVENTF(RHICmdList, EventView, Views.Num() > 1, TEXT("View%d"), ViewIndex);
-
+			RHICmdList.SetGPUMask(Views[ViewIndex].StereoPass);
 			GPostProcessing.Process(RHICmdList, Views[ ViewIndex ], VelocityRT);
 
 		}
+		RHICmdList.SetGPUMask(0);
 		// we rendered to it during the frame, seems we haven't made use of it, because it should be released
 		check(!FSceneRenderTargets::Get(RHICmdList).SeparateTranslucencyRT);
 	}
@@ -1491,6 +1523,18 @@ void FDeferredShadingSceneRenderer::Render(FRHICommandListImmediate& RHICmdList)
 	{
 		// Release the original reference on the scene render targets
 		SceneContext.AdjustGBufferRefCount(RHICmdList, -1);
+	}
+
+	if (Views.Num() == 2)
+	{
+		FResolveParams Params;
+		Params.Rect.X2 = ViewFamily.RenderTarget->GetRenderTargetTexture()->GetSizeX();
+		Params.Rect.Y2 = ViewFamily.RenderTarget->GetRenderTargetTexture()->GetSizeY();
+
+		Params.Rect.X1 = Params.Rect.X2 / 2;
+		Params.Rect.Y1 = 0;
+
+		RHICmdList.CopyResourceToGPU(ViewFamily.RenderTarget->GetRenderTargetTexture(), ViewFamily.RenderTarget->GetRenderTargetTexture(), 0, 1, Params);
 	}
 
 	//grab the new transform out of the proxies for next frame
@@ -1556,7 +1600,6 @@ static void SetupPrePassView(FRHICommandList& RHICmdList, const FViewInfo& View)
 	RHICmdList.SetDepthStencilState(TStaticDepthStencilState<true, CF_DepthNearOrEqual>::GetRHI());
 	
 	RHICmdList.SetRasterizerState(TStaticRasterizerState<FM_Solid, CM_None>::GetRHI());
-	RHICmdList.SetScissorRect(false, 0, 0, 0, 0);
 
 	bool bIsSinglePassStereo = View.IsSinglePassStereoAllowed();
 	if (View.bVRProjectEnabled && !bIsSinglePassStereo)
@@ -1948,12 +1991,19 @@ bool FDeferredShadingSceneRenderer::RenderPrePass(FRHICommandListImmediate& RHIC
 			{
 				SCOPED_CONDITIONAL_DRAW_EVENTF(RHICmdList, EventView, Views.Num() > 1, TEXT("View%d"), ViewIndex);
 				const FViewInfo& View = Views[ViewIndex];
+				SetupPassViewScissorAndMask(RHICmdList, View);
+
 				if (View.ShouldRenderView())
 				{
+					RHICmdList.SetGPUMask(View.bIsInstancedStereoEnabled ? 0 : View.StereoPass);
+
 					RenderPrePassViewParallel(View, RHICmdList);
 					bDirty = true; // assume dirty since we are not going to wait
 				}
 			}
+
+			RHICmdList.SetGPUMask(0);
+			RHICmdList.SetScissorRect(false, 0, 0, 0, 0);
 		}
 		else
 		{
@@ -1961,11 +2011,18 @@ bool FDeferredShadingSceneRenderer::RenderPrePass(FRHICommandListImmediate& RHIC
 			{
 				SCOPED_CONDITIONAL_DRAW_EVENTF(RHICmdList, EventView, Views.Num() > 1, TEXT("View%d"), ViewIndex);
 				const FViewInfo& View = Views[ViewIndex];
+				SetupPassViewScissorAndMask(RHICmdList, View);
+
 				if (View.ShouldRenderView())
 				{
+					RHICmdList.SetGPUMask(View.bIsInstancedStereoEnabled ? 0 : View.StereoPass);
+
 					bDirty |= RenderPrePassView(RHICmdList, View);
 				}
 			}
+
+			RHICmdList.SetGPUMask(0);
+			RHICmdList.SetScissorRect(false, 0, 0, 0, 0);
 		}
 	}
 
@@ -2087,12 +2144,19 @@ bool FDeferredShadingSceneRenderer::RenderBasePass(FRHICommandListImmediate& RHI
 			{
 				SCOPED_CONDITIONAL_DRAW_EVENTF(RHICmdList, EventView, Views.Num() > 1, TEXT("View%d"), ViewIndex);
 				FViewInfo& View = Views[ViewIndex];
+				SetupPassViewScissorAndMask(RHICmdList, View);
+
 				if (View.ShouldRenderView())
 				{
+					RHICmdList.SetGPUMask(View.bIsInstancedStereoEnabled ? 0 : View.StereoPass);
+
 					RenderBasePassViewParallel(View, RHICmdList);
 				}
 
 				RenderEditorPrimitives(RHICmdList, View, bDirty);
+
+				RHICmdList.SetGPUMask(0);
+				RHICmdList.SetScissorRect(false, 0, 0, 0, 0);
 			}
 
 			bDirty = true; // assume dirty since we are not going to wait
@@ -2103,12 +2167,19 @@ bool FDeferredShadingSceneRenderer::RenderBasePass(FRHICommandListImmediate& RHI
 			{
 				SCOPED_CONDITIONAL_DRAW_EVENTF(RHICmdList, EventView, Views.Num() > 1, TEXT("View%d"), ViewIndex);
 				FViewInfo& View = Views[ViewIndex];
+				SetupPassViewScissorAndMask(RHICmdList, View);
+
 				if (View.ShouldRenderView())
 				{
+					RHICmdList.SetGPUMask(View.bIsInstancedStereoEnabled ? 0 : View.StereoPass);
+
 					bDirty |= RenderBasePassView(RHICmdList, View);
 				}
 
 				RenderEditorPrimitives(RHICmdList, View, bDirty);
+
+				RHICmdList.SetGPUMask(0);
+				RHICmdList.SetScissorRect(false, 0, 0, 0, 0);
 			}
 		}	
 	}

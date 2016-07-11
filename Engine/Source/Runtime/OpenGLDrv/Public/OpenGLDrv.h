@@ -489,6 +489,8 @@ public:
 	virtual void RHIBeginAsyncComputeJob_DrawThread(EAsyncComputePriority Priority) override;
 	virtual void RHIEndAsyncComputeJob_DrawThread(uint32 FenceIndex) override;
 	virtual void RHIGraphicsWaitOnAsyncComputeJob(uint32 FenceIndex) override;
+	virtual void RHISetGPUMask(uint32 Mask) final override;
+	virtual void RHICopyResourceToGPU(FTextureRHIParamRef SourceTextureRHI, FTextureRHIParamRef DestTextureRHI, uint32 DestGPUIndex, uint32 SrcGPUIndex, const FResolveParams& ResolveParams) final override;
 
 	void Cleanup();
 

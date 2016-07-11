@@ -927,6 +927,9 @@ void FSceneRenderer::RenderDistortion(FRHICommandListImmediate& RHICmdList)
 				SCOPED_CONDITIONAL_DRAW_EVENTF(RHICmdList, EventView, Views.Num() > 1, TEXT("View%d"), ViewIndex);
 
 				FViewInfo& View = Views[ViewIndex];
+
+				RHICmdList.SetGPUMask(View.StereoPass);
+
 				// viewport to match view size
 				RHICmdList.SetViewport(View.ViewRect.Min.X, View.ViewRect.Min.Y, 0.0f, View.ViewRect.Max.X, View.ViewRect.Max.Y, 1.0f);
 
@@ -954,6 +957,7 @@ void FSceneRenderer::RenderDistortion(FRHICommandListImmediate& RHICmdList)
 					View.EndVRProjectionStates(RHICmdList);
 				}
 			}
+			RHICmdList.SetGPUMask(0);
 
 			if (bDirty)
 			{
@@ -986,6 +990,8 @@ void FSceneRenderer::RenderDistortion(FRHICommandListImmediate& RHICmdList)
 			SCOPED_CONDITIONAL_DRAW_EVENTF(RHICmdList, EventView, Views.Num() > 1, TEXT("View%d"), ViewIndex);
 
 			FViewInfo& View = Views[ViewIndex];
+
+			RHICmdList.SetGPUMask(View.StereoPass);
 
 			// useful when we move this into the compositing graph
 			FRenderingCompositePassContext Context(RHICmdList, View);
@@ -1020,6 +1026,7 @@ void FSceneRenderer::RenderDistortion(FRHICommandListImmediate& RHICmdList)
 				*VertexShader,
 				EDRF_UseTriangleOptimization);
 		}
+		RHICmdList.SetGPUMask(0);
 
 		// Resolve and merge distortion to main scene
 		RHICmdList.CopyToResolveTarget(DestRenderTarget.TargetableTexture, DestRenderTarget.ShaderResourceTexture, false, FResolveParams());
@@ -1030,6 +1037,8 @@ void FSceneRenderer::RenderDistortion(FRHICommandListImmediate& RHICmdList)
 			SCOPED_CONDITIONAL_DRAW_EVENTF(RHICmdList, EventView, Views.Num() > 1, TEXT("View%d"), ViewIndex);
 
 			FViewInfo& View = Views[ViewIndex];
+
+			RHICmdList.SetGPUMask(View.StereoPass);
 
 			// useful when we move this into the compositing graph
 			FRenderingCompositePassContext Context(RHICmdList, View);
@@ -1060,6 +1069,7 @@ void FSceneRenderer::RenderDistortion(FRHICommandListImmediate& RHICmdList)
 				*VertexShader,
 				EDRF_UseTriangleOptimization);
 		}
+		RHICmdList.SetGPUMask(0);
 
 		// restore state
 		RHICmdList.SetDepthStencilState(TStaticDepthStencilState<false, CF_DepthNearOrEqual>::GetRHI());		

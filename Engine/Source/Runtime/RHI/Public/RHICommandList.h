@@ -599,6 +599,35 @@ struct FRHICommandSetModifiedWModeStereo : public FRHICommand<FRHICommandSetModi
 	RHI_API void Execute(FRHICommandListBase& CmdList);
 };
 
+struct FRHICommandSetGPUMask : public FRHICommand<FRHICommandSetGPUMask>
+{
+	uint32 Mask;
+	FORCEINLINE_DEBUGGABLE FRHICommandSetGPUMask(uint32 InMask)
+		: Mask(InMask)
+	{
+	}
+	RHI_API void Execute(FRHICommandListBase& CmdList);
+};
+
+struct FRHICommandCopyResourceToGPU : public FRHICommand<FRHICommandCopyResourceToGPU>
+{
+	FResolveParams ResolveParams;
+	FTextureRHIParamRef SourceTexture;
+	FTextureRHIParamRef DestTexture;
+	uint32 DestGPUIndex;
+	uint32 SrcGPUIndex;
+
+	FORCEINLINE_DEBUGGABLE FRHICommandCopyResourceToGPU(FTextureRHIParamRef InSourceTexture, FTextureRHIParamRef InDestTexture, uint32 InDestGPUIndex, uint32 InSrcGPUIndex, const FResolveParams& InResolveParams)
+		: ResolveParams(InResolveParams)
+		, SourceTexture(InSourceTexture)
+		, DestTexture(InDestTexture)
+		, DestGPUIndex(InDestGPUIndex)
+		, SrcGPUIndex(InSrcGPUIndex)
+	{
+	}
+	RHI_API void Execute(FRHICommandListBase& CmdList);
+};
+
 struct FRHICommandSetRenderTargets : public FRHICommand<FRHICommandSetRenderTargets>
 {
 	uint32 NewNumSimultaneousRenderTargets;
@@ -1746,6 +1775,26 @@ public:
 			return;
 		}
 		new (AllocCommand<FRHICommandSetModifiedWModeStereo>()) FRHICommandSetModifiedWModeStereo(Conf, bWarpForward, bEnable);
+	}
+
+	FORCEINLINE_DEBUGGABLE void SetGPUMask(uint32 Mask)
+	{
+		if (Bypass())
+		{
+			CMD_CONTEXT(SetGPUMask)(Mask);
+			return;
+		}
+		new (AllocCommand<FRHICommandSetGPUMask>()) FRHICommandSetGPUMask(Mask);
+	}
+
+	FORCEINLINE_DEBUGGABLE void CopyResourceToGPU(FTextureRHIParamRef SourceTextureRHI, FTextureRHIParamRef DestTextureRHI, uint32 DestGPUIndex, uint32 SrcGPUIndex, const FResolveParams& ResolveParams)
+	{
+		if (Bypass())
+		{
+			CMD_CONTEXT(CopyResourceToGPU)(SourceTextureRHI, DestTextureRHI, DestGPUIndex, SrcGPUIndex, ResolveParams);
+			return;
+		}
+		new (AllocCommand<FRHICommandCopyResourceToGPU>()) FRHICommandCopyResourceToGPU(SourceTextureRHI, DestTextureRHI, DestGPUIndex, SrcGPUIndex, ResolveParams);
 	}
 
 	FORCEINLINE_DEBUGGABLE void SetRenderTargets(

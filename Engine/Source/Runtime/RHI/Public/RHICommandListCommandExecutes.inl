@@ -206,6 +206,18 @@ void FRHICommandSetModifiedWModeStereo::Execute(FRHICommandListBase& CmdList)
 	INTERNAL_DECORATOR(SetModifiedWModeStereo)(Conf, bWarpForward, bEnable);
 }
 
+void FRHICommandSetGPUMask::Execute(FRHICommandListBase& CmdList)
+{
+	RHISTAT(SetGPUMask);
+	INTERNAL_DECORATOR(SetGPUMask)(Mask);
+}
+
+void FRHICommandCopyResourceToGPU::Execute(FRHICommandListBase& CmdList)
+{
+	RHISTAT(CopyResourceToGPU);
+	INTERNAL_DECORATOR(CopyResourceToGPU)(SourceTexture, DestTexture, DestGPUIndex, SrcGPUIndex, ResolveParams);
+}
+
 void FRHICommandSetRenderTargets::Execute(FRHICommandListBase& CmdList)
 {
 	RHISTAT(SetRenderTargets);

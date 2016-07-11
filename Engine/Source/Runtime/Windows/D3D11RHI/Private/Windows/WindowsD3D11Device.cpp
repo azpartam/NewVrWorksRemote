@@ -223,6 +223,15 @@ static uint32 CountAdapterOutputs(TRefCountPtr<IDXGIAdapter>& Adapter)
 	return OutputCount;
 }
 
+static void SetMultipleGPUVRHandler()
+{
+	static const auto EnableMultiGPUVRCVar = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("vr.MGPU"));
+
+	GRHISupportsMultipleGPUStereo = EnableMultiGPUVRCVar->GetValueOnGameThread() != 0 && (GNumExplicitGPUsForRendering > 1);
+}
+
+FAutoConsoleVariableSink CVarSetClockRateSink(FConsoleCommandDelegate::CreateStatic(&SetMultipleGPUVRHandler));
+
 void FD3D11DynamicRHIModule::FindAdapter()
 {
 	// Once we chosen one we don't need to do it again.
@@ -553,6 +562,11 @@ void FD3D11DynamicRHI::InitD3DDevice()
 			check(!"Internal error, EnumAdapters() failed but before it worked")
 		}
 
+		VERIFYD3D11RESULT(NvAPI_D3D11_MultiGPU_GetCaps(&MultiGPUCaps));
+		// Enable VR-SLI driver layer, before device is created
+		// Note this should eventually be a render property, since it is selecting an explicit MGPU model.
+		VERIFYD3D11RESULT(NvAPI_D3D11_MultiGPU_Init(true));
+
 		D3D_FEATURE_LEVEL ActualFeatureLevel = (D3D_FEATURE_LEVEL)0;
 
 		if(IsRHIDeviceAMD())
@@ -574,10 +588,29 @@ void FD3D11DynamicRHI::InitD3DDevice()
 			Direct3DDeviceIMContext.GetInitReference()
 			));
 
+		if (MultiGPUCaps.nSLIGPUs > 1)
+		{
+			ULONG CurrentVersion;
+			VERIFYD3D11RESULT(NvAPI_D3D11_CreateMultiGPUDevice(
+				Direct3DDevice.GetReference(),
+				ID3D11MultiGPUDevice_VER1,
+				&CurrentVersion,
+				&MultiGPUDevice,
+				MultiGPUCaps.nSLIGPUs));
+
+			GNumExplicitGPUsForRendering = MultiGPUCaps.nSLIGPUs;
+
+			SetMultipleGPUVRHandler();
+		}
+		else
+		{
+			MultiGPUDevice = NULL;
+		}
+
 		// We should get the feature level we asked for as earlier we checked to ensure it is supported.
 		check(ActualFeatureLevel == FeatureLevel);
 
-		StateCache.Init(Direct3DDeviceIMContext);
+		StateCache.Init(Direct3DDeviceIMContext, MultiGPUDevice);
 
 #if (UE_BUILD_SHIPPING && WITH_EDITOR) && PLATFORM_WINDOWS && !PLATFORM_64BITS
 		// Disable PIX for windows in the shipping editor builds

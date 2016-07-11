@@ -404,6 +404,8 @@ void FDeferredShadingSceneRenderer::RenderAtmosphere(FRHICommandListImmediate& R
 		{
 			const FViewInfo& View = Views[ViewIndex];
 
+			RHICmdList.SetGPUMask(View.StereoPass);
+
 			SCOPED_DRAW_EVENTF(RHICmdList, Atmosphere, TEXT("Atmosphere %dx%d"), View.ViewRect.Width(), View.ViewRect.Height());
 
 			// Set the device viewport for the view.
@@ -431,6 +433,8 @@ void FDeferredShadingSceneRenderer::RenderAtmosphere(FRHICommandListImmediate& R
 				sizeof(Vertices[0])
 				);
 		}
+
+		RHICmdList.SetGPUMask(0);
 
 		//no need to resolve since we used alpha blending
 		SceneContext.FinishRenderingSceneColor(RHICmdList, false);

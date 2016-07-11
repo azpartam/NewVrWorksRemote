@@ -804,6 +804,8 @@ public:
 	virtual void RHIGraphicsWaitOnAsyncComputeJob(uint32 FenceIndex) override;
 
 	virtual void RHIClearMRTImpl(bool bClearColor, int32 NumClearColors, const FLinearColor* ColorArray, bool bClearDepth, float Depth, bool bClearStencil, uint32 Stencil, FIntRect ExcludeRect, bool bForceShaderClear);
+	virtual void RHISetGPUMask(uint32 Mask) final override;
+	virtual void RHICopyResourceToGPU(FTextureRHIParamRef SourceTextureRHI, FTextureRHIParamRef DestTextureRHI, uint32 DestGPUIndex, uint32 SrcGPUIndex, const FResolveParams& ResolveParams) final override;
 };
 
 struct FD3D12Adapter

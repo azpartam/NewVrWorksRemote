@@ -773,7 +773,7 @@ void ReflectionEnvironmentTiledDeferredMain(
 
 	// Only write to the buffer for threads inside the view
 	BRANCH
-	if (all(DispatchThreadId.xy < ViewDimensions.zw)) 
+	if (all(DispatchThreadId.xy < (ViewDimensions.zw - ViewDimensions.xy)))
 	{
 		float4 OutColor = 0;
 

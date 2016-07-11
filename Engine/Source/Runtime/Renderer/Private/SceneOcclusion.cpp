@@ -50,8 +50,8 @@ int32 FOcclusionQueryHelpers::GetNumBufferedFrames()
 {
 #if WITH_SLI
 	// If we're running with SLI, assume throughput is more important than latency, and buffer an extra frame
-	check(GNumActiveGPUsForRendering <= (int32)FOcclusionQueryHelpers::MaxBufferedOcclusionFrames);
-	return FMath::Min<int32>(GNumActiveGPUsForRendering, (int32)FOcclusionQueryHelpers::MaxBufferedOcclusionFrames);
+	check(GNumAlternateFrameRenderingGroups <= (int32)FOcclusionQueryHelpers::MaxBufferedOcclusionFrames);
+	return FMath::Min<int32>(GNumAlternateFrameRenderingGroups, (int32)FOcclusionQueryHelpers::MaxBufferedOcclusionFrames);
 #else
 	static const auto NumBufferedQueriesVar = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.NumBufferedOcclusionQueries"));
 	return FMath::Clamp<int32>(NumBufferedQueriesVar->GetValueOnAnyThread(), 1, (int32)FOcclusionQueryHelpers::MaxBufferedOcclusionFrames);
@@ -255,7 +255,7 @@ bool FSceneViewState::IsShadowOccluded(FRHICommandListImmediate& RHICmdList, FPr
 	// Read the occlusion query results.
 	uint64 NumSamples = 0;
 	// Only block on the query if not running SLI
-	const bool bWaitOnQuery = GNumActiveGPUsForRendering == 1;
+	const bool bWaitOnQuery = GNumAlternateFrameRenderingGroups == 1;
 
 	if (Query && RHICmdList.GetRenderQueryResult(*Query, NumSamples, bWaitOnQuery))
 	{
@@ -1107,6 +1107,8 @@ void FDeferredShadingSceneRenderer::BeginOcclusionTests(FRHICommandListImmediate
 			SCOPED_DRAW_EVENT(RHICmdList, BeginOcclusionTests);
 			FViewInfo& View = Views[ViewIndex];
 
+			RHICmdList.SetGPUMask(View.StereoPass);
+
 			if (bUseDownsampledDepth)
 			{
 				// EHartNVV : ToDo
@@ -1262,6 +1264,7 @@ void FDeferredShadingSceneRenderer::BeginOcclusionTests(FRHICommandListImmediate
 			}
 		}
 
+		RHICmdList.SetGPUMask(0);
 		RHICmdList.EndOcclusionQueryBatch();
 	}
 
@@ -1272,6 +1275,8 @@ void FDeferredShadingSceneRenderer::BeginOcclusionTests(FRHICommandListImmediate
 			FViewInfo& View = Views[ViewIndex];
 			FSceneViewState* ViewState = (FSceneViewState*)View.State;
 
+			RHICmdList.SetGPUMask(View.StereoPass);
+
 			if (ViewState && ViewState->HZBOcclusionTests.GetNum() != 0)
 			{
 				check(ViewState->HZBOcclusionTests.IsValidFrame(ViewState->OcclusionFrameCounter));
@@ -1280,6 +1285,7 @@ void FDeferredShadingSceneRenderer::BeginOcclusionTests(FRHICommandListImmediate
 				ViewState->HZBOcclusionTests.Submit(RHICmdList, View);
 			}
 		}
+		RHICmdList.SetGPUMask(0);
 	}
 
 	if (bUseDownsampledDepth)
