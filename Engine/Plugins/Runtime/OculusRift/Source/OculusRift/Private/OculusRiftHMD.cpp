@@ -1155,6 +1155,11 @@ FString FOculusRiftHMD::GetVersionString() const
 	return s;
 }
 
+int32 FOculusRiftHMD::GetViewportGap() const
+{
+	return GetSettings()->GetTexturePaddingPerEye();
+}
+
 void FOculusRiftHMD::RecordAnalytics()
 {
 	if (FEngineAnalytics::IsAvailable())

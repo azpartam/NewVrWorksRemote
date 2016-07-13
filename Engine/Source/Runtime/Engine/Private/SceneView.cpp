@@ -2114,7 +2114,7 @@ void FSceneView::SetupVRProjection(int32 ViewportGap)
 		{
 			const FSceneView* LeftView = Family->Views[0];
 
-			ViewRect.Min.X = LeftView->NonVRProjectViewRect.Max.X + GEngine->StereoRenderingDevice->GetViewportGap();
+			ViewRect.Min.X = LeftView->NonVRProjectViewRect.Max.X;
 			ViewRect.Max.X = ViewRect.Min.X + LeftView->NonVRProjectViewRect.Width();
 		}
 	}
