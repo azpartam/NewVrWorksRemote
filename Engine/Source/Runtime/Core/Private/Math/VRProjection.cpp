@@ -145,40 +145,40 @@ void FVRProjection::CalculateFastGSCBData(
 // Conservative Conf has splits at 25% in from each edge,
 // and scales the outer Viewports to 70% of their original pixel density.
 // Overall, reduces pixel Count by 28%.
-CORE_API const FMultiRes::Configuration FMultiRes::Configuration_Conservative =
+CORE_API const FMultiRes::Configuration FMultiRes::Configuration_Vive_Quality =
 {
-	0.63f, 0.62f,
-	0.53f, 0.45f,
+	0.55f, 0.52f,
+	0.526f, 0.498f,
 	{ 0.0f, 0.0f }, // SplitX are calculated by calling CalculateSplits()
 	{ 0.0f, 0.0f },	// SplitY are calculated by calling CalculateSplits()
-	{ 0.71f, 1.02f, 0.83f },
-	{ 0.77f, 1.05f, 0.59f }
+	{ 0.61f, 1.142f, 0.61f },
+	{ 0.61f, 1.142f, 0.61f }
 };
 
 // Aggressive Conf has splits at 30% in from each edge,
 // and scales the outer Viewports to 60% of their original pixel density.
 // Overall, reduces pixel Count by 42%.
-CORE_API const FMultiRes::Configuration FMultiRes::Configuration_Aggressive =
+CORE_API const FMultiRes::Configuration FMultiRes::Configuration_Vive_Conservative =
 {
-	0.4f, 0.4f,
-	0.5f, 0.5f,
+	0.49f, 0.45f,
+	0.526f, 0.498f,
 	{ 0.0f, 0.0f }, // SplitX are calculated by calling CalculateSplits()
 	{ 0.0f, 0.0f }, // SplitY are calculated by calling CalculateSplits()
 	{ 0.6f, 1.0f, 0.6f },
-	{ 0.6f, 1.0f, 0.6f },
+	{ 0.6f, 1.0f, 0.6f }
 };
 
 // SuperAggressive Conf has splits at 30% in from each edge,
 // and scales the outer Viewports to 40% of their original pixel density.
 // Overall, reduces pixel Count by 60%.
-CORE_API const FMultiRes::Configuration FMultiRes::Configuration_SuperAggressive =
+CORE_API const FMultiRes::Configuration FMultiRes::Configuration_Vive_Aggressive =
 {
-	0.4f, 0.4f,
-	0.5f, 0.5f,
+	0.47f, 0.42f,
+	0.526f, 0.498f,
 	{ 0.0f, 0.0f }, // SplitX are calculated by calling CalculateSplits()
 	{ 0.0f, 0.0f }, // SplitY are calculated by calling CalculateSplits()
-	{ 0.4f, 1.0f, 0.4f },
-	{ 0.4f, 1.0f, 0.4f },
+	{ 0.54f, 1.0f, 0.54f },
+	{ 0.54f, 1.0f, 0.54f }
 };
 
 // Merge two multires viewports into stereo multires viewports
@@ -570,13 +570,31 @@ CORE_API const FLensMatchedShading::Configuration FLensMatchedShading::Configura
 	0.557f, 0.384f
 };
 
-CORE_API const FLensMatchedShading::Configuration FLensMatchedShading::Configuration_Vive =
+CORE_API const FLensMatchedShading::Configuration FLensMatchedShading::Configuration_Vive_Quality =
 {
 	0.61f, 0.41f,
 	0.59f, 0.62f,
 
-	0.429f, 0.496f, // Relative to HTC recommended render target size for one eye, 1512 x 1680
-	0.434f, 0.428f
+	0.444f, 0.504f, // Relative to HTC recommended render target size for one eye, 1512 x 1680
+	0.442f, 0.438f
+};
+
+CORE_API const FLensMatchedShading::Configuration FLensMatchedShading::Configuration_Vive_Conservative =
+{
+	0.9f, 0.67f,
+	0.88f, 0.91f,
+
+	0.40f, 0.451f, // Relative to HTC recommended render target size for one eye, 1512 x 1680
+	0.395f, 0.391f
+};
+
+CORE_API const FLensMatchedShading::Configuration FLensMatchedShading::Configuration_Vive_Aggressive =
+{
+	1.0f, 0.76f,
+	0.98f, 1.01f,
+
+	0.347f, 0.394f, // Relative to HTC recommended render target size for one eye, 1512 x 1680
+	0.345f, 0.341f
 };
 
 // Merge two lens matched shading viewports into stereo lens matched shading viewports

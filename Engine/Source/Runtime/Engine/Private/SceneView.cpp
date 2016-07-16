@@ -478,7 +478,8 @@ FSceneView::FSceneView(const FSceneViewInitOptions& InitOptions)
 	, VRProjMode(EVRProjectMode::Planar)
 	, bVRProjectEnabled(false)
 	, NonVRProjectViewRect(ViewRect)
-	, MultiResConf(FMultiRes::Configuration_Aggressive)
+	, MultiResConf(FMultiRes::Configuration_Vive_Aggressive)
+	, LensMatchedShadingConf(FLensMatchedShading::Configuration_Vive_Aggressive)
 	, bAllowSinglePassStereo(false)
 {
 	check(UnscaledViewRect.Min.X >= 0);
@@ -2185,14 +2186,17 @@ void FSceneView::SetupVRProjection(int32 ViewportGap)
 
 	// Decide whether Lens MatchedShading is enabled
 	static const auto CVarLensMatchedShading = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("vr.LensMatchedShading"));
-	bool bLensMatchedShadeEnabled = GSupportsFastGeometryShader && GSupportsModifiedW &&
-		CVarLensMatchedShading && CVarLensMatchedShading->GetValueOnGameThread() && CVarLensMatchedShadingRendering.GetValueOnGameThread() > 0;
+	int LensMatchedShadingLevel = GSupportsFastGeometryShader &&
+		GSupportsModifiedW &&
+		CVarLensMatchedShading &&
+		CVarLensMatchedShading->GetValueOnGameThread() ?
+		CVarLensMatchedShadingRendering.GetValueOnGameThread() : 0;
 
-	bVRProjectEnabled = MultiResLevel > 0 || bLensMatchedShadeEnabled;
+	bVRProjectEnabled = MultiResLevel > 0 || LensMatchedShadingLevel > 0;
 
 	if (bVRProjectEnabled)
 	{
-		if (bLensMatchedShadeEnabled) // Select ModifiedW over MultiRes if they are enabled at the same time.
+		if (LensMatchedShadingLevel > 0) // Select ModifiedW over MultiRes if they are enabled at the same time.
 			VRProjMode = EVRProjectMode::LensMatched;
 		else if (MultiResLevel > 0)
 			VRProjMode = EVRProjectMode::MultiRes;
@@ -2221,18 +2225,15 @@ void FSceneView::SetupVRProjection(int32 ViewportGap)
 		// Hard-coded for now!
 		if (MultiResLevel == 1)
 		{
-			// Conservative settings: saves 28% pixels
-			MultiResConf = FMultiRes::Configuration_Conservative;
+			MultiResConf = FMultiRes::Configuration_Vive_Quality;
 		}
 		else if (MultiResLevel == 2)
 		{
-			// Aggressive settings: saves 42% pixels
-			MultiResConf = FMultiRes::Configuration_Aggressive;
+			MultiResConf = FMultiRes::Configuration_Vive_Conservative;
 		}
 		else
 		{
-			// Aggressive settings: saves 60% pixels
-			MultiResConf = FMultiRes::Configuration_SuperAggressive;
+			MultiResConf = FMultiRes::Configuration_Vive_Aggressive;
 		}
 
 		// Calculate splits
@@ -2298,7 +2299,19 @@ void FSceneView::SetupVRProjection(int32 ViewportGap)
 	{
 		// Set up the lens matched shading configuration: viewport split positions and relative pixel densities
 		// Hard-coded for now!
-		LensMatchedShadingConf = FLensMatchedShading::Configuration_Vive;
+		if (LensMatchedShadingLevel == 1)
+		{
+			LensMatchedShadingConf = FLensMatchedShading::Configuration_Vive_Quality;
+		}
+		else if (LensMatchedShadingLevel == 2)
+		{
+			LensMatchedShadingConf = FLensMatchedShading::Configuration_Vive_Conservative;
+		}
+		else
+		{
+			LensMatchedShadingConf = FLensMatchedShading::Configuration_Vive_Aggressive;
+		}
+
 		const float ResolutionScale = CVarLensMatchedShadingResScaling.GetValueOnGameThread();
 		if (ResolutionScale != 1.f)
 		{

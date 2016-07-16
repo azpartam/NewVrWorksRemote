@@ -291,6 +291,11 @@ void FRCPassPostProcessUpscale::Process(FRenderingCompositePassContext& Context)
 	if (View.bVRProjectEnabled && GEngine->HMDDevice.IsValid() && View.Family->EngineShowFlags.StereoRendering)
 	{
 		DestRect = View.NonVRProjectViewRect;
+
+		if (View.VRProjMode == FSceneView::EVRProjectMode::LensMatched)
+		{
+			DestRect = DestRect.Scale(1.5f);
+		}
 	}
 
 	int32 ViewportGap = View.StereoPass != eSSP_FULL ? GEngine->StereoRenderingDevice->GetViewportGap() : 0;

@@ -1016,6 +1016,7 @@ void FSteamVRHMD::CalculateRenderTargetSize(const class FViewport& Viewport, uin
 			float LensMatchedShadeResScale = CVarLensMatchedShadingResScale->GetValueOnGameThread();
 
 			value *= LensMatchedShadeResScale;
+			value *= 1.5f; // Enlarge the buffer by 150% to keep the upsampled view center sharp
 		}
 
 		if (value > 0.0f)
