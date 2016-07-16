@@ -476,10 +476,10 @@ BEGIN_UNIFORM_BUFFER_STRUCT_WITH_CONSTRUCTOR(FInstancedViewUniformShaderParamete
 	DECLARE_UNIFORM_BUFFER_STRUCT_MEMBER(FVector4, RenderTargetToViewRectUVScaleBias)	// Scale-bias for converting from render-target-relative UVs to view-rect-relative UVs
 	DECLARE_UNIFORM_BUFFER_STRUCT_MEMBER(FVector4, ViewRectToRenderTargetUVScaleBias)	// ...and vice versa
 
-	DECLARE_UNIFORM_BUFFER_STRUCT_MEMBER(FVector4, NDCSplitsX) // MultiRes splits for geometry shader
-	DECLARE_UNIFORM_BUFFER_STRUCT_MEMBER(FVector4, NDCSplitsY) // MultiRes splits for geometry shader
-	DECLARE_UNIFORM_BUFFER_STRUCT_MEMBER(FVector4, StereoNDCSplitsX) // MultiRes splits for geometry shader
-	DECLARE_UNIFORM_BUFFER_STRUCT_MEMBER(FVector4, StereoNDCSplitsY) // MultiRes splits for geometry shader
+	DECLARE_UNIFORM_BUFFER_STRUCT_MEMBER(FVector4, NDCSplitsX) // VR project splits for geometry shader
+	DECLARE_UNIFORM_BUFFER_STRUCT_MEMBER(FVector4, NDCSplitsY) // VR project splits for geometry shader
+	DECLARE_UNIFORM_BUFFER_STRUCT_MEMBER(FVector4, StereoNDCSplitsX) // VR project splits for geometry shader
+	DECLARE_UNIFORM_BUFFER_STRUCT_MEMBER(FVector4, StereoNDCSplitsY) // VR project splits for geometry shader
 
 	// MultiRes Parameters, should pack them better for efficiency
 	DECLARE_UNIFORM_BUFFER_STRUCT_MEMBER(FVector2D, LinearToVRProjectSplitsX)
@@ -592,7 +592,7 @@ BEGIN_UNIFORM_BUFFER_STRUCT_WITH_CONSTRUCTOR(FFrameUniformShaderParameters, ENGI
 	// SinglePassStereo
 	DECLARE_UNIFORM_BUFFER_STRUCT_MEMBER(uint32, bIsSinglePassStereo)
 
-	// Multires 
+	// VR Projection 
 	DECLARE_UNIFORM_BUFFER_STRUCT_MEMBER(uint32, VRProjectionMode)
 
 	DECLARE_UNIFORM_BUFFER_STRUCT_MEMBER_TEXTURE(Texture3D, GlobalDistanceFieldTexture0_UB)
@@ -867,17 +867,15 @@ public:
 
 	EVRProjectMode VRProjMode;
 	bool bVRProjectEnabled;
-	FIntRect NonVRProjectViewRect;	// View rect without multi-res scaling (but with any adjustments for ScreenPercentage, HMD rendering, etc.)
+	FIntRect NonVRProjectViewRect;	// View rect without vr projection scaling (but with any adjustments for ScreenPercentage, HMD rendering, etc.)
 
 	FMultiRes::Configuration MultiResConf;
 	mutable FMultiRes::StereoConfiguration MultiResStereoConf;
 	FMultiRes::Viewports MultiResViewports;
-	mutable FMultiRes::StereoViewports MultiResStereoViewports;
 
 	FLensMatchedShading::Configuration LensMatchedShadingConf;
 	mutable FLensMatchedShading::StereoConfiguration LensMatchedShadingStereoConf;
 	FLensMatchedShading::Viewports LensMatchedViewports;
-	mutable FLensMatchedShading::StereoViewports LensMatchedStereoViewports;
 
 	// These are the viewport and scissor tied to this view
 	mutable TArray<FViewportBounds> VRProjViewportArray;
@@ -885,6 +883,9 @@ public:
 
 	// These arrays contain the versions that may change for instanced stereo rendering
 	// In this case, the viewport is shared by two views
+	mutable FMultiRes::StereoViewports MultiResStereoViewports;
+	mutable FLensMatchedShading::StereoViewports LensMatchedStereoViewports;
+
 	mutable TArray<FViewportBounds> StereoVRProjectViewportArray;
 	mutable TArray<FIntRect> StereoVRProjectScissorArray;
 
@@ -1024,7 +1025,7 @@ public:
 	bool IsInstancedStereoPass() const { return bIsInstancedStereoEnabled && StereoPass == eSSP_LEFT_EYE && !bAllowSinglePassStereo; }
 
 	/** Apply vr projection to current ViewRect; sets up NonVRProjectViewRect and MultiResViewports or LensMatchedViewports */
-	void SetupVRProjection( int32 ViewportGap = 0);
+	void SetupVRProjection(int32 ViewportGap = 0);
 
 	/** Setup the viewports, scissors and modified w state required by vr projection */
 	void BeginVRProjectionStates(FRHICommandList& RHICmdList) const;
@@ -1142,10 +1143,10 @@ public:
 	/** The height in screen pixels of the view family being rendered (maximum y of all viewports). */
 	uint32 FamilySizeY;
 
-	/** The width in screen pixels of the view family without MultiRes. */
+	/** The width in screen pixels of the view family without vr projection. */
 	uint32 FamilyLinearSizeX;
 
-	/** The height in screen pixels of the view family without MultiRes. */
+	/** The height in screen pixels of the view family without vr projection. */
 	uint32 FamilyLinearSizeY;
 
 	/** The render target which the views are being rendered to. */
@@ -1236,6 +1237,9 @@ public:
 
 	/** Returns the appropriate view for a given eye in a stereo pair. */
 	const FSceneView& GetStereoEyeView(const EStereoscopicPass Eye) const;
+
+	/** Setup StereoVRProjectViewportArray and StereoVRProjectScissorArray. */
+	void SetupVRProjectionInstancedStereo();
 };
 
 /**

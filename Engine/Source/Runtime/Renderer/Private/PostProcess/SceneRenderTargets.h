@@ -497,7 +497,7 @@ public:
 	}
 	/** Returns the size of most screen space render targets e.g. SceneColor, SceneDepth, GBuffer, ... might be different from final RT or output Size because of ScreenPercentage use. */
 	FIntPoint GetBufferSizeXY() const { return BufferSize; }
-    /** Returns the size of a linear version of the screen space render targets, Differs from GetBufferSize as this is without the vr projection sacling. */
+	/** Returns the size of a linear version of the screen space render targets, Differs from GetBufferSize as this is without the vr projection sacling. */
 	FIntPoint GetLinearBufferSizeXY() const { return LinearBufferSize; }
 	/** */
 	uint32 GetSmallColorDepthDownsampleFactor() const { return SmallColorDepthDownsampleFactor; }

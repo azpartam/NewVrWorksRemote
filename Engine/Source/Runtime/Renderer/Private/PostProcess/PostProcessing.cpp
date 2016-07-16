@@ -217,11 +217,11 @@ public:
 
 		const FViewInfo &View = InContext.View;
 
-		// if we're downsampling with MultiRes, resample the buffer to linear first to avoid artifacts with really small levels
+		// if we're downsampling with vr projection, resample the buffer to linear first to avoid artifacts with really small levels
 		if (View.bVRProjectEnabled)
 		{
 			FSceneRenderTargets& SceneContext = FSceneRenderTargets::Get(Context.RHICmdList);
-			FRenderingCompositePass* Pass = Context.Graph.RegisterPass(new(FMemStack::Get()) FRCPassPostProcessMultiResWarp(SceneContext.GetBufferSizeXY(), SceneContext.GetLinearBufferSizeXY(), TEXT("LinearizeMultiRes")));
+			FRenderingCompositePass* Pass = Context.Graph.RegisterPass(new(FMemStack::Get()) FRCPassPostProcessVRProjectWarp(SceneContext.GetBufferSizeXY(), SceneContext.GetLinearBufferSizeXY(), TEXT("LinearizeMultiRes")));
 			Pass->SetInput(ePId_Input0, PostProcessDownsamples[0]);
 			PostProcessDownsamples[0] = FRenderingCompositeOutputRef(Pass);
 		}

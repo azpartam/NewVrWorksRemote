@@ -179,7 +179,7 @@ protected:
 	FShaderParameter SampleOffsets;
 	FShaderParameter SampleCount;
 
-	// parameter for forcing linear sampling with MultiRes
+	// parameter for forcing linear sampling with vr projection
 	FShaderParameter ForceLinear;
 };
 
@@ -890,7 +890,8 @@ void FRCPassPostProcessWeightedSampleSum::DrawQuad(FRHICommandListImmediate& RHI
 		DestSize,
 		SrcSize,
 		VertexShader,
-		EDRF_UseTriangleOptimization);
+		EDRF_UseTriangleOptimization,
+		true);
 }
 
 uint32 FRCPassPostProcessWeightedSampleSum::GetMaxNumSamples(ERHIFeatureLevel::Type InFeatureLevel)

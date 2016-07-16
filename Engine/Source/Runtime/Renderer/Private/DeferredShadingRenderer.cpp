@@ -2125,7 +2125,7 @@ bool FDeferredShadingSceneRenderer::RenderPrePassHMD(FRHICommandListImmediate& R
 
 	// EHartNV - ToDo
 	//  The HMD PrePass has specialized its setup to where it seems to no longer be compatible with the general
-	//  Need to understand differences and determine safe solution for multires setup
+	//  Need to understand differences and determine safe solution for vr projection setup
 
 	bool IsLMSEnabled = false;
 	for (int32 ViewIndex = 0; ViewIndex < Views.Num(); ++ViewIndex)
@@ -2141,12 +2141,15 @@ bool FDeferredShadingSceneRenderer::RenderPrePassHMD(FRHICommandListImmediate& R
 	}
 
 	FSceneRenderTargets& SceneContext = FSceneRenderTargets::Get(RHICmdList);
+	// set these before BeginRenderingPrepass to guarantee we get full hardware clear
+	RHICmdList.SetViewport(0.0f, 0.0f, 0.0f, SceneContext.GetBufferSizeXY().X, SceneContext.GetBufferSizeXY().Y, 1.0f);
+	RHICmdList.SetScissorRect(false, 0, 0, 0, 0);
+
 	SceneContext.BeginRenderingPrePass(RHICmdList, true);
 
 	RHICmdList.SetBlendState(TStaticBlendState<CW_NONE>::GetRHI());
 	RHICmdList.SetDepthStencilState(TStaticDepthStencilState<true, CF_DepthNearOrEqual>::GetRHI());
 	RHICmdList.SetRasterizerState(TStaticRasterizerState<FM_Solid, CM_None>::GetRHI());
-	RHICmdList.SetScissorRect(false, 0, 0, 0, 0);
 
 	for (int32 ViewIndex = 0; ViewIndex < Views.Num(); ++ViewIndex)
 	{
@@ -2154,40 +2157,26 @@ bool FDeferredShadingSceneRenderer::RenderPrePassHMD(FRHICommandListImmediate& R
 
 		if (View.bVRProjectEnabled)
 		{
-			// Set the true viewports, but leave Context.ViewPortRect alone
-			RHICmdList.SetMultipleViewports(View.StereoVRProjectViewportArray.Num(), View.StereoVRProjectViewportArray.GetData());
-			RHICmdList.SetMultipleScissorRects(true, View.StereoVRProjectScissorArray.Num(), View.StereoVRProjectScissorArray.GetData());
-
-			if (View.VRProjMode == FSceneView::EVRProjectMode::LensMatched)
-			{
-				if (View.IsInstancedStereoPass())
-				{
-					RHICmdList.SetModifiedWModeStereo(View.LensMatchedShadingStereoConf, true, true);
-				}
-				else
-				{
-					RHICmdList.SetModifiedWMode(View.LensMatchedShadingConf, true, true);
-				}
-
-				// always render boundary mask if ModifiedW is on
-				RenderModifiedWBoundaryMask(RHICmdList);
-			}
+			View.BeginVRProjectionStates(RHICmdList);
 		}
 		else
 		{
 			RHICmdList.SetViewport(View.ViewRect.Min.X, View.ViewRect.Min.Y, 0.0f, View.ViewRect.Max.X, View.ViewRect.Max.Y, 1.0f);
 		}
 
-		// Hidden area mask needs to be forced on for now in multires mode
-		if (View.StereoPass != eSSP_FULL && !(View.bVRProjectEnabled && HiddenAreaMaskVal != 2))
+		if (View.VRProjMode == FSceneView::EVRProjectMode::LensMatched)
+		{
+			// always render boundary mask if LMS is on
+			RenderModifiedWBoundaryMask(RHICmdList);
+		}
+		if (View.StereoPass != eSSP_FULL && HasHiddenAreaMask())
 		{
 			RenderHiddenAreaMaskView(RHICmdList, View);
 		}
 
-		// turn off ModifiedW if necessary
-		if (View.VRProjMode == FSceneView::EVRProjectMode::LensMatched)
+		if (View.bVRProjectEnabled)
 		{
-			RHICmdList.SetModifiedWMode(FLensMatchedShading::Configuration(), true, false);
+			View.EndVRProjectionStates(RHICmdList);
 		}
 	}
 

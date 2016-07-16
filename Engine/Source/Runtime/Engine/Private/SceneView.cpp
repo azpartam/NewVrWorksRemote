@@ -280,7 +280,8 @@ static TAutoConsoleVariable<int32> CVarMultiResRendering(
 	TEXT("Multi-resolution rendering level:\n")
 	TEXT("0: off (default)\n")
 	TEXT("1: conservative (saves 28% pixels)\n")
-	TEXT("2: aggressive (saves 42% pixels)\n")
+	TEXT("2: balanced (saves 42% pixels)\n")
+	TEXT("3: aggressive (saves 60% pexels)\n")
 	TEXT("Press Numpad0 to cycle between settings."),
 	ECVF_Scalability | ECVF_RenderThreadSafe);
 
@@ -296,6 +297,13 @@ static TAutoConsoleVariable<float> CVarLensMatchedShadingResScaling(
 	TEXT("vr.LensMatchedShadingResolutionScaling"),
 	1.0f,
 	TEXT("Lens Matched Shading resolution scale:\n")
+	TEXT("1.0f (default)\n"),
+	ECVF_Scalability | ECVF_RenderThreadSafe);
+
+static TAutoConsoleVariable<int32> CVarLensMatchedShadingDrawRectangleOptimization(
+	TEXT("vr.LensMatchedShadingRectangleOptimization"),
+	1,
+	TEXT("Lens Matched Shading rectangle optimization replaces the full screen rectangle to an octagon:\n")
 	TEXT("1.0f (default)\n"),
 	ECVF_Scalability | ECVF_RenderThreadSafe);
 
@@ -1589,6 +1597,17 @@ void FSceneView::EndFinalPostprocessSettings(const FSceneViewInitOptions& ViewIn
 		if(Value >= 0.0)
 		{
 			FinalPostProcessSettings.ScreenPercentage *= Value / 100.0f;
+
+			static const auto CVarLensMatchedShading = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("vr.LensMatchedShading"));
+			bool bLensMatchedShadeEnabled = GSupportsFastGeometryShader && GSupportsModifiedW &&
+				CVarLensMatchedShading && CVarLensMatchedShading->GetValueOnGameThread() && CVarLensMatchedShadingRendering.GetValueOnGameThread() > 0;
+
+			if (bLensMatchedShadeEnabled)
+			{
+				float LensMatchedShadeResScale = CVarLensMatchedShadingResScaling.GetValueOnGameThread();
+
+				FinalPostProcessSettings.ScreenPercentage *= LensMatchedShadeResScale;
+			}
 		}
 	}
 
@@ -1814,7 +1833,6 @@ void FSceneView::EndFinalPostprocessSettings(const FSceneViewInitOptions& ViewIn
 		}
 #endif
 
-
 		// Upscale if needed
 		if (Fraction != 1.0f)
 		{
@@ -2035,6 +2053,85 @@ void FSceneViewFamily::ComputeFamilySize()
 	check(bInitializedExtents);
 }
 
+void FSceneViewFamily::SetupVRProjectionInstancedStereo()
+{
+	bool bHasInstancedStereo = false;
+	for (int32 ViewIndex = 0; ViewIndex < Views.Num(); ViewIndex++)
+	{
+		const FSceneView* View = Views[ViewIndex];
+
+		if (View->IsInstancedStereoPass())
+		{
+			bHasInstancedStereo = true;
+			break;
+		}
+	}
+
+	if (bHasInstancedStereo)
+	{
+		check(Views.Num() == 2);
+		FSceneView* LeftView = nullptr;
+		FSceneView* RightView = nullptr;
+		for (int32 ViewIndex = 0; ViewIndex < Views.Num(); ViewIndex++)
+		{
+			FSceneView* View = const_cast<FSceneView*>(Views[ViewIndex]);
+
+			if (View->StereoPass == eSSP_LEFT_EYE)
+			{
+				LeftView = View;
+			}
+			else if (View->StereoPass == eSSP_RIGHT_EYE)
+			{
+				RightView = View;
+			}
+		}
+
+		check(LeftView);
+		check(RightView);
+		check(LeftView->IsInstancedStereoPass());
+		if (LeftView->VRProjMode == FSceneView::EVRProjectMode::MultiRes)
+		{
+			const FMultiRes::Viewports& MultiResViewportsLeft = LeftView->MultiResViewports;
+			const FMultiRes::Viewports& MultiResViewportsRight = RightView->MultiResViewports;
+
+			LeftView->MultiResStereoViewports = FMultiRes::Viewports::Merge(MultiResViewportsLeft, MultiResViewportsRight);
+
+			LeftView->StereoVRProjectViewportArray.SetNum(FMultiRes::StereoViewports::Count, true);
+			LeftView->StereoVRProjectScissorArray.SetNum(FMultiRes::StereoViewports::Count, true);
+
+			for (int i = 0; i < FMultiRes::StereoViewports::Count; ++i)
+			{
+				LeftView->StereoVRProjectViewportArray[i] = FViewportBounds(
+					LeftView->MultiResStereoViewports.Views[i].TopLeftX,
+					LeftView->MultiResStereoViewports.Views[i].TopLeftY,
+					LeftView->MultiResStereoViewports.Views[i].Width,
+					LeftView->MultiResStereoViewports.Views[i].Height);
+				LeftView->StereoVRProjectScissorArray[i] = LeftView->MultiResStereoViewports.Scissors[i];;
+			}
+		}
+		else if (LeftView->VRProjMode == FSceneView::EVRProjectMode::LensMatched) // Set up stereo viewports and scissors for lens matched shading
+		{
+			const FLensMatchedShading::Viewports& LensMatchedViewportsLeft = LeftView->LensMatchedViewports;
+			const FLensMatchedShading::Viewports& LensMatchedViewportsRight = RightView->LensMatchedViewports;
+
+			LeftView->LensMatchedStereoViewports = FLensMatchedShading::Viewports::Merge(LensMatchedViewportsLeft, LensMatchedViewportsRight);
+
+			LeftView->StereoVRProjectViewportArray.SetNum(FLensMatchedShading::StereoViewports::Count, true);
+			LeftView->StereoVRProjectScissorArray.SetNum(FLensMatchedShading::StereoViewports::Count, true);
+
+			for (int i = 0; i < FLensMatchedShading::StereoViewports::Count; ++i)
+			{
+				LeftView->StereoVRProjectViewportArray[i] = FViewportBounds(
+					LeftView->LensMatchedStereoViewports.Views[i].TopLeftX,
+					LeftView->LensMatchedStereoViewports.Views[i].TopLeftY,
+					LeftView->LensMatchedStereoViewports.Views[i].Width,
+					LeftView->LensMatchedStereoViewports.Views[i].Height);
+				LeftView->StereoVRProjectScissorArray[i] = LeftView->LensMatchedStereoViewports.Scissors[i];;
+			}
+		}
+	}
+}
+
 ERHIFeatureLevel::Type FSceneViewFamily::GetFeatureLevel() const
 { 
 	if (Scene)
@@ -2088,9 +2185,22 @@ void FSceneView::SetupVRProjection(int32 ViewportGap)
 			VRProjMode = EVRProjectMode::MultiRes;
 		else
 			check(0);
+
+		// Correcting the right viewport to have the same size as the left viewport.
+		if (StereoPass == eSSP_RIGHT_EYE)
+		{
+			const FSceneView* LeftView = Family->Views[0];
+
+			ViewRect.Min.X = LeftView->NonVRProjectViewRect.Max.X + GEngine->StereoRenderingDevice->GetViewportGap();
+			ViewRect.Max.X = ViewRect.Min.X + LeftView->NonVRProjectViewRect.Width();
+		}
 	}
 	else
+	{
+		VRProjMode = EVRProjectMode::Planar;
+		NonVRProjectViewRect = ViewRect;
 		return;
+	}
 
 	if (VRProjMode == EVRProjectMode::MultiRes) // Set up VR projection for multi-res
 	{
@@ -2101,16 +2211,23 @@ void FSceneView::SetupVRProjection(int32 ViewportGap)
 			// Conservative settings: saves 28% pixels
 			MultiResConf = FMultiRes::Configuration_Conservative;
 		}
-		else
+		else if (MultiResLevel == 2)
 		{
 			// Aggressive settings: saves 42% pixels
 			MultiResConf = FMultiRes::Configuration_Aggressive;
 		}
+		else
+		{
+			// Aggressive settings: saves 60% pixels
+			MultiResConf = FMultiRes::Configuration_SuperAggressive;
+		}
 
 		// Calculate splits
 		FIntRect OriginalViewport = ViewRect;
+		// AHR: disable this for now
 		FMultiRes::CalculateSplits(&OriginalViewport, &MultiResConf);
 
+		// AHR: disable this for now
 		// round locations before mirroring
 		FMultiRes::RoundSplitsToNearestPixel(&OriginalViewport, &MultiResConf);
 
@@ -2127,8 +2244,8 @@ void FSceneView::SetupVRProjection(int32 ViewportGap)
 		// Calculate pixel dimensions of each viewport, based on split positions and scale factors
 		FMultiRes::CalculateViewports(&OriginalViewport, &MultiResConf, &MultiResViewports);
 
-		// subtract out the left eye shrinkage in instanced stereo, then recompute
-		if (bIsInstancedStereoEnabled && StereoPass == eSSP_RIGHT_EYE)
+		// subtract out the left eye shrinkage in stereo, then recompute
+		if (StereoPass == eSSP_RIGHT_EYE)
 		{
 			int32 Offset = OriginalViewport.Width() - MultiResViewports.BoundingRect.Width();
 			OriginalViewport.Min.X -= Offset;
@@ -2149,30 +2266,8 @@ void FSceneView::SetupVRProjection(int32 ViewportGap)
 		}
 
 		// compute view rect configuration for base pass
-		if (IsInstancedStereoPass())
+		if (!IsInstancedStereoPass())
 		{
-
-
-			FIntRect FamilyRect(0, 0, ViewRect.Max.X * 2 + ViewportGap / MultiResConf.DensityScaleX[2], ViewRect.Max.Y);
-
-			FMultiRes::CalculateStereoViewports(&FamilyRect, &MultiResStereoConf, &MultiResStereoViewports);
-
-			StereoVRProjectViewportArray.SetNum(FMultiRes::StereoViewports::Count, true);
-			StereoVRProjectScissorArray.SetNum(FMultiRes::StereoViewports::Count, true);
-
-			for (int i = 0; i < FMultiRes::StereoViewports::Count; ++i)
-			{
-				StereoVRProjectViewportArray[i] = FViewportBounds(
-					MultiResStereoViewports.Views[i].TopLeftX,
-					MultiResStereoViewports.Views[i].TopLeftY,
-					MultiResStereoViewports.Views[i].Width,
-					MultiResStereoViewports.Views[i].Height);
-				StereoVRProjectScissorArray[i] = MultiResStereoViewports.Scissors[i];;
-			}
-		}
-		else
-		{
-
 			StereoVRProjectViewportArray.SetNum(FMultiRes::Viewports::Count, true);
 			StereoVRProjectScissorArray.SetNum(FMultiRes::Viewports::Count, true);
 
@@ -2186,25 +2281,20 @@ void FSceneView::SetupVRProjection(int32 ViewportGap)
 		NonVRProjectViewRect = ViewRect;
 		ViewRect = MultiResViewports.BoundingRect;
 	}
-	else if (VRProjMode == EVRProjectMode::LensMatched) // Set up VR projection for ModifiedW
+	else if (VRProjMode == EVRProjectMode::LensMatched) // Set up VR projection for Lens matched shading
 	{
 		// Set up the lens matched shading configuration: viewport split positions and relative pixel densities
 		// Hard-coded for now!
-		LensMatchedShadingConf = FLensMatchedShading::Configuration_CrescentBay;
+		LensMatchedShadingConf = FLensMatchedShading::Configuration_Vive;
+		const float ResolutionScale = CVarLensMatchedShadingResScaling.GetValueOnGameThread();
+		if (ResolutionScale != 1.f)
+		{
+			LensMatchedShadingConf.WarpLeft = (1.f + LensMatchedShadingConf.WarpLeft) / ResolutionScale - 1.f;
+			LensMatchedShadingConf.WarpRight = (1.f + LensMatchedShadingConf.WarpRight) / ResolutionScale - 1.f;
+			LensMatchedShadingConf.WarpUp = (1.f + LensMatchedShadingConf.WarpUp) / ResolutionScale - 1.f;
+			LensMatchedShadingConf.WarpDown = (1.f + LensMatchedShadingConf.WarpDown) / ResolutionScale - 1.f;
+		}
 
-		// Scale the conf to get proper display on PC too
-		int SizeX = LensMatchedShadingConf.SizeLeft + LensMatchedShadingConf.SizeRight;
-		int SizeY = LensMatchedShadingConf.SizeUp + LensMatchedShadingConf.SizeDown;
-		float ScaleX = ViewRect.Width() / float(SizeX);
-		float ScaleY = ViewRect.Height() / float(SizeY);
-
-		static const auto CVarLensMatchedShadingResScale = IConsoleManager::Get().FindTConsoleVariableDataFloat(TEXT("vr.LensMatchedShadingResolutionScaling"));
-		float LensMatchedShadeResScale = CVarLensMatchedShadingResScale->GetValueOnGameThread();
-
-		LensMatchedShadingConf.SizeLeft *= ScaleX * LensMatchedShadeResScale;
-		LensMatchedShadingConf.SizeRight *= ScaleX * LensMatchedShadeResScale;
-		LensMatchedShadingConf.SizeUp *= ScaleY * LensMatchedShadeResScale;
-		LensMatchedShadingConf.SizeDown *= ScaleY * LensMatchedShadeResScale;
 
 		// round locations before mirroring
 		FIntRect OriginalViewport = ViewRect;
@@ -2236,28 +2326,8 @@ void FSceneView::SetupVRProjection(int32 ViewportGap)
 		}
 
 		// compute view rect configuration for base pass
-		if (IsInstancedStereoPass())
+		if (!IsInstancedStereoPass())
 		{
-			FIntRect FamilyRect(0, 0, ViewRect.Max.X * 2 + ViewportGap / 1.0f/*LensMatchedShadingConf.DensityScaleX[2]*/, ViewRect.Max.Y);
-
-			FLensMatchedShading::CalculateStereoViewports(&FamilyRect, &LensMatchedShadingStereoConf, ViewportGap, &LensMatchedStereoViewports);
-
-			StereoVRProjectViewportArray.SetNum(FLensMatchedShading::StereoViewports::Count, true);
-			StereoVRProjectScissorArray.SetNum(FLensMatchedShading::StereoViewports::Count, true);
-
-			for (int i = 0; i < FLensMatchedShading::StereoViewports::Count; ++i)
-			{
-				StereoVRProjectViewportArray[i] = FViewportBounds(
-					LensMatchedStereoViewports.Views[i].TopLeftX,
-					LensMatchedStereoViewports.Views[i].TopLeftY,
-					LensMatchedStereoViewports.Views[i].Width,
-					LensMatchedStereoViewports.Views[i].Height);
-				StereoVRProjectScissorArray[i] = LensMatchedStereoViewports.Scissors[i];;
-			}
-		}
-		else
-		{
-
 			StereoVRProjectViewportArray.SetNum(FLensMatchedShading::Viewports::Count, true);
 			StereoVRProjectScissorArray.SetNum(FLensMatchedShading::Viewports::Count, true);
 

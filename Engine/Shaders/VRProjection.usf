@@ -925,3 +925,35 @@ float2 VRProjMapResolvedRenderTargetVRProjToLinear(float2 UV)
 
 	return Result;
 }
+
+float LensMatchedCorrectDeviceZ(float InDepth, float2 UV)
+{
+	if (LensMatchedShadingIsActive())
+	{
+		float3 WindowPos;
+		WindowPos.z = InDepth;
+		WindowPos.xy = Frame.BufferSizeAndInvSize.xy * UV;
+		float4 Corrected = ModifiedWMapWindowToClip(GetModifiedWConfigurationView(), WindowPos);
+		return Corrected.z;
+	}
+	else
+	{
+		return InDepth;
+	}
+}
+
+float LensMatchedCorrectDeviceZUint(float InDepth, uint2 InPixelPos)
+{
+	if (LensMatchedShadingIsActive())
+	{
+		float3 WindowPos;
+		WindowPos.z = InDepth;
+		WindowPos.xy = InPixelPos;
+		float4 Corrected = ModifiedWMapWindowToClip(GetModifiedWConfigurationView(), WindowPos);
+		return Corrected.z;
+	}
+	else
+	{
+		return InDepth;
+	}
+}

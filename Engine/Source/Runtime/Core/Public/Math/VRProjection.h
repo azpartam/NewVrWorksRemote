@@ -131,19 +131,6 @@ struct FMultiRes : public FVRProjection
 	};
 
 	// Viewport and scissor rectangles for a multi-res Config, to be sent to the graphics API
-	struct Viewports
-	{
-		// Currently hardcoded for 3x3 viewports; later to be generalized
-		enum { Count = Configuration::Width* Configuration::Height };
-
-		FloatRect	Views[Count];
-		FIntRect	Scissors[Count];
-
-		// Rectangle enclosing all the viewports and scissors (for sizing render targets, etc.)
-		FIntRect	BoundingRect;
-	};
-
-	// Viewport and scissor rectangles for a multi-res Config, to be sent to the graphics API
 	struct StereoViewports
 	{
 		// Currently hardcoded for 3x3 viewports; later to be generalized
@@ -159,9 +146,25 @@ struct FMultiRes : public FVRProjection
 		FIntRect	BoundingRect;
 	};
 
+	// Viewport and scissor rectangles for a multi-res Config, to be sent to the graphics API
+	struct Viewports
+	{
+		// Currently hardcoded for 3x3 viewports; later to be generalized
+		enum { Count = Configuration::Width* Configuration::Height };
+
+		FloatRect	Views[Count];
+		FIntRect	Scissors[Count];
+
+		// Rectangle enclosing all the viewports and scissors (for sizing render targets, etc.)
+		FIntRect	BoundingRect;
+
+		static CORE_API StereoViewports Merge(const Viewports& InLeft, const Viewports& InRight);
+	};
+
 	// A couple of preset configurations, for convenience
 	static CORE_API const Configuration Configuration_Conservative;
 	static CORE_API const Configuration Configuration_Aggressive;
+	static CORE_API const Configuration Configuration_SuperAggressive;
 
 	// Calculate the fraction of pixels a multi-res configuration will render,
 	// relative to ordinary non-multi-res rendering
@@ -212,10 +215,10 @@ struct FLensMatchedShading : public FVRProjection
 		float WarpUp;
 		float WarpDown;
 
-		float SizeLeft;
-		float SizeRight;
-		float SizeUp;
-		float SizeDown;
+		float RelativeSizeLeft;
+		float RelativeSizeRight;
+		float RelativeSizeUp;
+		float RelativeSizeDown;
 	};
 
 	struct StereoConfiguration
@@ -246,27 +249,12 @@ struct FLensMatchedShading : public FVRProjection
 		FIntRect	Scissors[Count];
 		FIntRect	BoundingRect;
 
-		static StereoViewports Merge(const Viewports& InLeft, const Viewports& InRight)
-		{
-			StereoViewports Out;
-
-			FMemory::Memcpy(Out.Views, InLeft.Views, sizeof(InLeft.Views));
-			FMemory::Memcpy(Out.Views + Count, InRight.Views, sizeof(InRight.Views));
-			FMemory::Memcpy(Out.Scissors, InLeft.Scissors, sizeof(InLeft.Scissors));
-			FMemory::Memcpy(Out.Scissors + Count, InRight.Scissors, sizeof(InRight.Scissors));
-
-			Out.BoundingRect.Min.X = InLeft.BoundingRect.Min.X;
-			Out.BoundingRect.Min.Y = InLeft.BoundingRect.Min.Y;
-			Out.BoundingRect.Max.X = InRight.BoundingRect.Width() + InRight.BoundingRect.Min.X - InLeft.BoundingRect.Min.X;
-			Out.BoundingRect.Max.Y = InRight.BoundingRect.Height() + InRight.BoundingRect.Min.Y - InLeft.BoundingRect.Min.Y;
-
-			return Out;
-		}
-
+		static CORE_API StereoViewports Merge(const Viewports& InLeft, const Viewports& InRight);
 	};
 
 
 	static CORE_API const Configuration Configuration_CrescentBay;
+	static CORE_API const Configuration Configuration_Vive;
 
 	static CORE_API void CalculateMirroredConfig(const Configuration* Conf, Configuration* RefConfMirrored);
 

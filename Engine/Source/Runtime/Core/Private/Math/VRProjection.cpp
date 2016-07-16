@@ -1,7 +1,7 @@
 // CopyRight 1998-2016 Epic Games, Inc. All Rights Reserved.
 
 /*=============================================================================
-	Multires.cpp: Implements the Multires math functions.
+	VRProjection.cpp: Implements the VR Projection related math functions.
 =============================================================================*/
 
 /* FBox2D structors
@@ -167,6 +167,71 @@ CORE_API const FMultiRes::Configuration FMultiRes::Configuration_Aggressive =
 	{ 0.6f, 1.0f, 0.6f },
 	{ 0.6f, 1.0f, 0.6f },
 };
+
+// SuperAggressive Conf has splits at 30% in from each edge,
+// and scales the outer Viewports to 40% of their original pixel density.
+// Overall, reduces pixel Count by 60%.
+CORE_API const FMultiRes::Configuration FMultiRes::Configuration_SuperAggressive =
+{
+	0.4f, 0.4f,
+	0.5f, 0.5f,
+	{ 0.0f, 0.0f }, // SplitX are calculated by calling CalculateSplits()
+	{ 0.0f, 0.0f }, // SplitY are calculated by calling CalculateSplits()
+	{ 0.4f, 1.0f, 0.4f },
+	{ 0.4f, 1.0f, 0.4f },
+};
+
+// Merge two multires viewports into stereo multires viewports
+FMultiRes::StereoViewports FMultiRes::Viewports::Merge(const FMultiRes::Viewports& InLeft, const FMultiRes::Viewports& InRight)
+{
+	FMultiRes::StereoViewports Out;
+
+	Out.BoundingRect.Min.X = InLeft.BoundingRect.Min.X;
+	Out.BoundingRect.Min.Y = InLeft.BoundingRect.Min.Y;
+	Out.BoundingRect.Max.X = InRight.BoundingRect.Width() + InRight.BoundingRect.Min.X - InLeft.BoundingRect.Min.X;
+	Out.BoundingRect.Max.Y = InRight.BoundingRect.Height() + InRight.BoundingRect.Min.Y - InLeft.BoundingRect.Min.Y;
+
+	Out.Views[0] = InLeft.Views[0];		Out.Views[1] = InLeft.Views[1];		Out.Views[3] = InRight.Views[1];	Out.Views[4] = InRight.Views[2];
+	Out.Views[5] = InLeft.Views[3];		Out.Views[6] = InLeft.Views[4];		Out.Views[8] = InRight.Views[4];	Out.Views[9] = InRight.Views[5];
+	Out.Views[10] = InLeft.Views[6];	Out.Views[11] = InLeft.Views[7];	Out.Views[13] = InRight.Views[7];	Out.Views[14] = InRight.Views[8];
+
+	Out.Views[3].TopLeftX -= Out.Views[3].Width; 	Out.Views[4].TopLeftX -= Out.Views[4].Width;
+	Out.Views[8].TopLeftX -= Out.Views[8].Width; 	Out.Views[9].TopLeftX -= Out.Views[9].Width;
+	Out.Views[13].TopLeftX -= Out.Views[13].Width;	Out.Views[14].TopLeftX -= Out.Views[14].Width;
+
+	int32 MergedViewportSize = Out.BoundingRect.Max.X;
+	Out.Views[0].Width *= MergedViewportSize / (float)InLeft.BoundingRect.Width();		Out.Views[1].Width *= MergedViewportSize / (float)InLeft.BoundingRect.Width();	
+	Out.Views[5].Width *= MergedViewportSize / (float)InLeft.BoundingRect.Width();		Out.Views[6].Width *= MergedViewportSize / (float)InLeft.BoundingRect.Width();	
+	Out.Views[10].Width *= MergedViewportSize / (float)InLeft.BoundingRect.Width();		Out.Views[11].Width *= MergedViewportSize / (float)InLeft.BoundingRect.Width();
+	Out.Views[3].Width *= MergedViewportSize / (float)InRight.BoundingRect.Width();		Out.Views[4].Width *= MergedViewportSize / (float)InRight.BoundingRect.Width();
+	Out.Views[8].Width *= MergedViewportSize / (float)InRight.BoundingRect.Width();		Out.Views[9].Width *= MergedViewportSize / (float)InRight.BoundingRect.Width();
+	Out.Views[13].Width *= MergedViewportSize / (float)InRight.BoundingRect.Width();	Out.Views[14].Width *= MergedViewportSize / (float)InRight.BoundingRect.Width();
+
+	Out.Scissors[0] = InLeft.Scissors[0];	Out.Scissors[1] = InLeft.Scissors[1];	Out.Scissors[3] = InRight.Scissors[1];	Out.Scissors[4] = InRight.Scissors[2];
+	Out.Scissors[5] = InLeft.Scissors[3];	Out.Scissors[6] = InLeft.Scissors[4];	Out.Scissors[8] = InRight.Scissors[4];	Out.Scissors[9] = InRight.Scissors[5];
+	Out.Scissors[10] = InLeft.Scissors[6];	Out.Scissors[11] = InLeft.Scissors[7];	Out.Scissors[13] = InRight.Scissors[7];	Out.Scissors[14] = InRight.Scissors[8];
+
+	auto MergeViewport = [](const FloatRect& LeftView, const FIntRect& LeftScissor,
+		const FloatRect& RightView, const FIntRect& RightScissor,
+		FloatRect& MergedView, FIntRect& MergedScissor)
+	{
+		MergedView.TopLeftX = FMath::Min(LeftView.TopLeftX, RightView.TopLeftX);
+		MergedView.TopLeftY = FMath::Min(LeftView.TopLeftY, RightView.TopLeftY);
+		MergedView.Width = FMath::Max(LeftView.TopLeftX + LeftView.Width, RightView.TopLeftX + RightView.Width) - MergedView.TopLeftX;
+		MergedView.Height = FMath::Max(LeftView.TopLeftY + LeftView.Height, RightView.TopLeftY + RightView.Height) - MergedView.TopLeftY;
+
+		MergedScissor.Min.X = FMath::Min(LeftScissor.Min.X, RightScissor.Min.X);
+		MergedScissor.Min.Y = FMath::Min(LeftScissor.Min.Y, RightScissor.Min.Y);
+		MergedScissor.Max.X = FMath::Max(LeftScissor.Max.X, RightScissor.Max.X);
+		MergedScissor.Max.Y = FMath::Max(LeftScissor.Max.Y, RightScissor.Max.Y);
+	};
+
+	MergeViewport(InLeft.Views[2], InLeft.Scissors[2], InRight.Views[0], InRight.Scissors[0], Out.Views[2], Out.Scissors[2]);
+	MergeViewport(InLeft.Views[5], InLeft.Scissors[5], InRight.Views[3], InRight.Scissors[3], Out.Views[7], Out.Scissors[7]);
+	MergeViewport(InLeft.Views[8], InLeft.Scissors[8], InRight.Views[6], InRight.Scissors[6], Out.Views[12], Out.Scissors[12]);
+
+	return Out;
+}
 
 // Calculate the fraction of pixels a multi-res Conf will render,
 // relative to ordinary non-multi-res rendering
@@ -498,12 +563,39 @@ FVector2D FMultiRes::MapMultiResToLinear(const RemapCBData* CBData, const FVecto
 
 CORE_API const FLensMatchedShading::Configuration FLensMatchedShading::Configuration_CrescentBay =
 {
-	0.471f, 0.471f,
-	0.471f, 0.471f,
+	0.425f, 0.425f,
+	0.425f, 0.425f,
 
-	552.1f, 735.9f,
-	847.0f, 584.4f
+	0.391f, 0.521f, // Relative to Oculus recommended render target size for one eye, 1332 x 1586
+	0.557f, 0.384f
 };
+
+CORE_API const FLensMatchedShading::Configuration FLensMatchedShading::Configuration_Vive =
+{
+	0.61f, 0.41f,
+	0.59f, 0.62f,
+
+	0.429f, 0.496f, // Relative to HTC recommended render target size for one eye, 1512 x 1680
+	0.434f, 0.428f
+};
+
+// Merge two lens matched shading viewports into stereo lens matched shading viewports
+FLensMatchedShading::StereoViewports FLensMatchedShading::Viewports::Merge(const FLensMatchedShading::Viewports& InLeft, const FLensMatchedShading::Viewports& InRight)
+{
+	FLensMatchedShading::StereoViewports Out;
+
+	FMemory::Memcpy(Out.Views, InLeft.Views, sizeof(InLeft.Views));
+	FMemory::Memcpy(Out.Views + FLensMatchedShading::Viewports::Count, InRight.Views, sizeof(InRight.Views));
+	FMemory::Memcpy(Out.Scissors, InLeft.Scissors, sizeof(InLeft.Scissors));
+	FMemory::Memcpy(Out.Scissors + FLensMatchedShading::Viewports::Count, InRight.Scissors, sizeof(InRight.Scissors));
+
+	Out.BoundingRect.Min.X = InLeft.BoundingRect.Min.X;
+	Out.BoundingRect.Min.Y = InLeft.BoundingRect.Min.Y;
+	Out.BoundingRect.Max.X = InRight.BoundingRect.Width() + InRight.BoundingRect.Min.X - InLeft.BoundingRect.Min.X;
+	Out.BoundingRect.Max.Y = InRight.BoundingRect.Height() + InRight.BoundingRect.Min.Y - InLeft.BoundingRect.Min.Y;
+
+	return Out;
+}
 
 void FLensMatchedShading::CalculateMirroredConfig(
 	const FLensMatchedShading::Configuration* Conf,
@@ -512,8 +604,8 @@ void FLensMatchedShading::CalculateMirroredConfig(
 	*RefConfMirrored = *Conf;
 	RefConfMirrored->WarpLeft = Conf->WarpRight;
 	RefConfMirrored->WarpRight = Conf->WarpLeft;
-	RefConfMirrored->SizeLeft = Conf->SizeRight;
-	RefConfMirrored->SizeRight = Conf->SizeLeft;
+	RefConfMirrored->RelativeSizeLeft = Conf->RelativeSizeRight;
+	RefConfMirrored->RelativeSizeRight = Conf->RelativeSizeLeft;
 }
 
 void FLensMatchedShading::CalculateStereoConfig(const Configuration* Conf, const FIntRect* OriginalViewport, const int32 ViewportGap, StereoConfiguration* OutStereoConf)
@@ -534,39 +626,53 @@ void FLensMatchedShading::CalculateViewports(
 	const FLensMatchedShading::Configuration* Conf,
 	FLensMatchedShading::Viewports* RefViewports)
 {
-	FVector2D Center;
-	Center.X = FMath::RoundHalfToEven(OriginalViewport->Min.X + OriginalViewport->Width() * Conf->SizeLeft / (Conf->SizeLeft + Conf->SizeRight));
-	Center.Y = FMath::RoundHalfToEven(OriginalViewport->Min.Y + OriginalViewport->Height() * Conf->SizeUp / (Conf->SizeUp + Conf->SizeDown));
+	float SizeLeft = Conf->RelativeSizeLeft * OriginalViewport->Width();
+	float SizeRight = Conf->RelativeSizeRight * OriginalViewport->Width();
+	float SizeUp = Conf->RelativeSizeUp * OriginalViewport->Height();
+	float SizeDown = Conf->RelativeSizeDown * OriginalViewport->Height();
 
-	float ViewportLeft = Conf->SizeLeft * (1.0f + Conf->WarpLeft);
-	float ViewportRight = Conf->SizeRight * (1.0f + Conf->WarpRight);
-	float ViewportUp = Conf->SizeUp * (1.0f + Conf->WarpUp);
-	float ViewportDown = Conf->SizeDown * (1.0f + Conf->WarpDown);
+	float WidthScale = (SizeLeft + SizeRight) / (float)OriginalViewport->Width();
+	float HeightScale = (SizeUp + SizeDown) / (float)OriginalViewport->Height();
+
+	FIntRect RealRTSize = *OriginalViewport;
+	RealRTSize.Min.X = FMath::FloorToInt(float(RealRTSize.Min.X) * WidthScale);
+	RealRTSize.Max.X = FMath::CeilToInt(float(RealRTSize.Max.X) * WidthScale);
+	RealRTSize.Min.Y = FMath::FloorToInt(float(RealRTSize.Min.Y) * HeightScale);
+	RealRTSize.Max.Y = FMath::CeilToInt(float(RealRTSize.Max.Y) * HeightScale);
+
+	FVector2D Center;
+	Center.X = FMath::RoundHalfToEven(RealRTSize.Min.X + RealRTSize.Width() * SizeLeft / (SizeLeft + SizeRight));
+	Center.Y = FMath::RoundHalfToEven(RealRTSize.Min.Y + RealRTSize.Height() * SizeUp / (SizeUp + SizeDown));
+
+	float ViewportLeft = SizeLeft * (1.0f + Conf->WarpLeft);
+	float ViewportRight = SizeRight * (1.0f + Conf->WarpRight);
+	float ViewportUp = SizeUp * (1.0f + Conf->WarpUp);
+	float ViewportDown = SizeDown * (1.0f + Conf->WarpDown);
 
 	RefViewports->Views[0] = FloatRect{ Center.X - ViewportLeft, Center.Y - ViewportUp, ViewportLeft * 2, ViewportUp * 2 };
 	RefViewports->Views[1] = FloatRect{ Center.X - ViewportRight, Center.Y - ViewportUp, ViewportRight * 2, ViewportUp * 2 };
 	RefViewports->Views[2] = FloatRect{ Center.X - ViewportLeft, Center.Y - ViewportDown, ViewportLeft * 2, ViewportDown * 2 };
 	RefViewports->Views[3] = FloatRect{ Center.X - ViewportRight, Center.Y - ViewportDown, ViewportRight * 2, ViewportDown * 2 };
 
-	auto GetIntRect = [OriginalViewport](float left, float top, float right, float bottom)
+	auto GetIntRect = [RealRTSize](float left, float top, float right, float bottom)
 	{
-		int iLeft = FMath::Max(OriginalViewport->Min.X, int(FMath::RoundHalfToEven(left)));
-		int iTop = FMath::Max(OriginalViewport->Min.Y, int(FMath::RoundHalfToEven(top)));
-		int iRight = FMath::Min(OriginalViewport->Max.X, int(FMath::RoundHalfToEven(right)));
-		int iBottom = FMath::Min(OriginalViewport->Max.Y, int(FMath::RoundHalfToEven(bottom)));
+		int iLeft = FMath::Max(RealRTSize.Min.X, int(FMath::FloorToInt(left)));
+		int iTop = FMath::Max(RealRTSize.Min.Y, int(FMath::FloorToInt(top)));
+		int iRight = FMath::Min(RealRTSize.Max.X, int(FMath::CeilToInt(right)));
+		int iBottom = FMath::Min(RealRTSize.Max.Y, int(FMath::CeilToInt(bottom)));
 		return FIntRect(iLeft, iTop, iRight, iBottom);
 	};
 
-	RefViewports->Scissors[0] = GetIntRect(Center.X - Conf->SizeLeft, Center.Y - Conf->SizeUp, Center.X, Center.Y);
-	RefViewports->Scissors[1] = GetIntRect(Center.X, Center.Y - Conf->SizeUp, Center.X + Conf->SizeRight, Center.Y);
-	RefViewports->Scissors[2] = GetIntRect(Center.X - Conf->SizeLeft, Center.Y, Center.X, Center.Y + Conf->SizeDown);
-	RefViewports->Scissors[3] = GetIntRect(Center.X, Center.Y, Center.X + Conf->SizeRight, Center.Y + Conf->SizeDown);
+	RefViewports->Scissors[0] = GetIntRect(Center.X - SizeLeft, Center.Y - SizeUp, Center.X, Center.Y);
+	RefViewports->Scissors[1] = GetIntRect(Center.X, Center.Y - SizeUp, Center.X + SizeRight, Center.Y);
+	RefViewports->Scissors[2] = GetIntRect(Center.X - SizeLeft, Center.Y, Center.X, Center.Y + SizeDown);
+	RefViewports->Scissors[3] = GetIntRect(Center.X, Center.Y, Center.X + SizeRight, Center.Y + SizeDown);
 
 	RefViewports->BoundingRect = GetIntRect(
-		Center.X - Conf->SizeLeft,
-		Center.Y - Conf->SizeUp,
-		Center.X + Conf->SizeRight,
-		Center.Y + Conf->SizeDown);
+		Center.X - SizeLeft,
+		Center.Y - SizeUp,
+		Center.X + SizeRight,
+		Center.Y + SizeDown);
 }
 
 void FLensMatchedShading::CalculateStereoViewports(

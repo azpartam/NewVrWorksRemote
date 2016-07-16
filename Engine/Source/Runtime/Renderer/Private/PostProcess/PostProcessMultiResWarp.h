@@ -11,11 +11,11 @@
 
 // ePId_Input0: Input image
 // derives from TRenderingCompositePassBase<InputCount, OutputCount> 
-class FRCPassPostProcessMultiResWarp : public TRenderingCompositePassBase<1, 1>
+class FRCPassPostProcessVRProjectWarp : public TRenderingCompositePassBase<1, 1>
 {
 public:
 	// constructor
-	FRCPassPostProcessMultiResWarp( FIntPoint InScaledRectSize, FIntPoint InUnscaledRectSize, const TCHAR *InDebugName = TEXT("MultiResWarp"));
+	FRCPassPostProcessVRProjectWarp( FIntPoint InScaledRectSize, FIntPoint InUnscaledRectSize, const TCHAR *InDebugName = TEXT("MultiResWarp"));
 
 	// interface FRenderingCompositePass ---------
 

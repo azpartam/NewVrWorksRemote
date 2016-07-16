@@ -198,8 +198,7 @@ void FD3D11DynamicRHI::RHISetScissorRect(bool bEnable,uint32 MinX,uint32 MinY,ui
 
 void FD3D11DynamicRHI::RHISetModifiedWMode(const FLensMatchedShading::Configuration& Conf, const bool bWarpForward, const bool bEnable)
 {
-	if (!GSupportsModifiedW)
-		return;
+	check(GSupportsModifiedW);
 
 	NV_MODIFIED_W_PARAMS ModifiedWParams = {};
 	FMemory::Memzero(ModifiedWParams);
@@ -239,8 +238,7 @@ void FD3D11DynamicRHI::RHISetModifiedWMode(const FLensMatchedShading::Configurat
 
 void FD3D11DynamicRHI::RHISetModifiedWModeStereo(const FLensMatchedShading::StereoConfiguration& Conf, const bool bWarpForward, const bool bEnable)
 {
-	if (!GSupportsModifiedW)
-		return;
+	check(GSupportsModifiedW);
 
 	NV_MODIFIED_W_PARAMS ModifiedWParams = {};
 	FMemory::Memzero(ModifiedWParams);

@@ -24,10 +24,11 @@ void Main(
 
 	// make SvPosition appear to be rasterized with the depth from the depth buffer
 	SvPosition.z = LookupDeviceZ(ScreenUV);
+	float4 LinearSvPosition = SvPositionToLinearSvPosition(SvPosition);
 
 	float3 LightVector;
 	{
-		float4 Hom = mul(float4(SvPosition.xyz, 1), SvPositionToLight);
+		float4 Hom = mul(float4(LinearSvPosition.xyz, 1), SvPositionToLight);
 		LightVector = Hom.xyz / Hom.w;
 	}
 	

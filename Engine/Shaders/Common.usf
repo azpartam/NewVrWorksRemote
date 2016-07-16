@@ -1002,17 +1002,15 @@ float CalcSceneDepth(float2 ScreenUV)
 #else
 
 #if FEATURE_LEVEL > FEATURE_LEVEL_ES3_1
+	float DeviceZ = Texture2DSampleLevel(SceneDepthTexture, SceneDepthTextureSampler, ScreenUV, 0).r;
 	if (LensMatchedShadingIsActive())
 	{
-		float3 wPos;
-		wPos.z = (Texture2DSampleLevel(SceneDepthTexture, SceneDepthTextureSampler, ScreenUV, 0).r);
-		wPos.xy = Frame.BufferSizeAndInvSize.xy * ScreenUV;
-		float4 corrected = ModifiedWMapWindowToClip(GetModifiedWConfigurationView(), wPos);
-		return ConvertFromDeviceZ(corrected.z);
+		DeviceZ = LensMatchedCorrectDeviceZ(DeviceZ, ScreenUV);
+		return ConvertFromDeviceZ(DeviceZ);
 	}
 	else
 	{
-		return ConvertFromDeviceZ(Texture2DSampleLevel(SceneDepthTexture, SceneDepthTextureSampler, ScreenUV, 0).r);
+		return ConvertFromDeviceZ(DeviceZ);
 	}
 #else
 	#if COMPILER_GLSL_ES2
@@ -1038,18 +1036,15 @@ float CalcSceneDepth(float2 ScreenUV)
 float LookupDeviceZ(float2 ScreenUV)
 {
 #if FEATURE_LEVEL > FEATURE_LEVEL_ES3_1
+	float DeviceZ = Texture2DSampleLevel(SceneDepthTexture, SceneDepthTextureSampler, ScreenUV, 0).r;
 	if (LensMatchedShadingIsActive())
 	{
-		float3 wPos;
-		wPos.z = (Texture2DSampleLevel(SceneDepthTexture, SceneDepthTextureSampler, ScreenUV, 0).r);
-		wPos.xy = Frame.BufferSizeAndInvSize.xy * ScreenUV;
-		float4 corrected = ModifiedWMapWindowToClip(GetModifiedWConfigurationView(), wPos);
-		return corrected.z;
+		DeviceZ = LensMatchedCorrectDeviceZ(DeviceZ, ScreenUV);
+		return DeviceZ;
 	}
 	else
 	{
-		// native Depth buffer lookup
-		return Texture2DSampleLevel(SceneDepthTexture, SceneDepthTextureSampler, ScreenUV, 0).r;
+		return DeviceZ;
 	}
 #else
 	#if COMPILER_GLSL_ES2
@@ -1080,11 +1075,8 @@ float LookupDeviceZ(float2 ScreenUV)
 
 		if (LensMatchedShadingIsActive())
 		{
-			float3 wPos;
-			wPos.z = DeviceZ;
-			wPos.xy = float2(PixelPos.x, PixelPos.y);
-			float4 corrected = ModifiedWMapWindowToClip(GetModifiedWConfigurationView(), wPos);
-			return ConvertFromDeviceZ(corrected.z);
+			DeviceZ = LensMatchedCorrectDeviceZUint(DeviceZ, PixelPos);
+			return ConvertFromDeviceZ(DeviceZ);
 		}
 		else
 		{
@@ -1273,9 +1265,8 @@ float CalcPixelDepth(float4 ScreenPos)
 	{
 		float2 ScreenUV = ScreenAlignedPosition(ScreenPos);
 		float ScreenZ = ScreenPos.z / ScreenPos.w;
-		float3 wPos = float3(Frame.BufferSizeAndInvSize.xy * ScreenUV, ScreenZ);
-		float4 corrected = ModifiedWMapWindowToClip(GetModifiedWConfigurationView(), wPos);
-		return ConvertFromDeviceZ(corrected.z);
+		ScreenZ = LensMatchedCorrectDeviceZ(ScreenZ, ScreenUV);
+		return ConvertFromDeviceZ(ScreenZ);
 	}
 	else
 	{
@@ -1587,6 +1578,7 @@ float2 AdjustOctagonPosition(float2 InPosition)
 	UV.xy += UVBias;
 	return (UV * 2.0) - 1.0;
 }
+
 /** Used for calculating vertex positions and UVs when drawing with DrawRectangle */
 void DrawRectangle( in float4 InPosition, in float2 InTexCoord, out float4 OutPosition, out float2 OutTexCoord)
 {
@@ -1606,7 +1598,11 @@ void DrawRectangle( in float4 InPosition, out float4 OutPosition)
 {
 	OutPosition = InPosition;
 	OutPosition.xy = -1.0f + 2.0f * (DrawRectangleParameters.PosScaleBias.zw + (InPosition.xy * DrawRectangleParameters.PosScaleBias.xy)) * DrawRectangleParameters.InvTargetSizeAndTextureSize.xy;
-	OutPosition.xy *= float2( 1, -1 );
+	if (LensMatchedShadingIsActive() && DrawRectangleParameters.bDisableRemap == 0)
+	{
+		OutPosition.xy = AdjustOctagonPosition(OutPosition.xy);
+	}
+	OutPosition.xy *= float2(1, -1);
 }
 
 //Since some platforms don't remove Nans in saturate calls, 

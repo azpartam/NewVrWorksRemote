@@ -55,14 +55,14 @@ public:
 
 IMPLEMENT_SHADER_TYPE(, FPostProcessMultiResWarpPS, TEXT("PostProcessMultiResWarp"), TEXT("MainPS"), SF_Pixel);
 
-FRCPassPostProcessMultiResWarp::FRCPassPostProcessMultiResWarp(FIntPoint InScaledRectSize, FIntPoint InUnscaledRectSize, const TCHAR *InDebugName)
+FRCPassPostProcessVRProjectWarp::FRCPassPostProcessVRProjectWarp(FIntPoint InScaledRectSize, FIntPoint InUnscaledRectSize, const TCHAR *InDebugName)
 	: ScaledRectSize(InScaledRectSize)
 	, UnscaledRectSize(InUnscaledRectSize)
 	, DebugName(InDebugName)
 {
 }
 
-void FRCPassPostProcessMultiResWarp::Process(FRenderingCompositePassContext& Context)
+void FRCPassPostProcessVRProjectWarp::Process(FRenderingCompositePassContext& Context)
 {
 	SCOPED_DRAW_EVENT(Context.RHICmdList, PassThrough);
 
@@ -125,12 +125,13 @@ void FRCPassPostProcessMultiResWarp::Process(FRenderingCompositePassContext& Con
 		*VertexShader,
 		View.StereoPass,
 		Context.HasHmdMesh(),
-		EDRF_UseTriangleOptimization);
+		EDRF_UseTriangleOptimization,
+		true);
 
 	Context.RHICmdList.CopyToResolveTarget(DestRenderTarget.TargetableTexture, DestRenderTarget.ShaderResourceTexture, false, FResolveParams());
 }
 
-FPooledRenderTargetDesc FRCPassPostProcessMultiResWarp::ComputeOutputDesc(EPassOutputId InPassOutputId) const
+FPooledRenderTargetDesc FRCPassPostProcessVRProjectWarp::ComputeOutputDesc(EPassOutputId InPassOutputId) const
 {
 	FPooledRenderTargetDesc Ret;
 

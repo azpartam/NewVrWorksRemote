@@ -1134,7 +1134,7 @@ void FViewInfo::CreateUniformBuffer(
 			FrameUniformShaderParameters.VRProjectionMode = 2;
 		}
 
-		//Need to account for scaling factors introduced by multires
+		//Need to account for scaling factors introduced by vr projection
 		if ((Family != nullptr) && (StereoPass == eSSP_LEFT_EYE) && (Family->Views.Num() > 1))
 		{
 			check(Family->Views.Num() == 2);
@@ -1559,6 +1559,7 @@ FSceneRenderer::FSceneRenderer(const FSceneViewFamily* InViewFamily,FHitProxyCon
 	}
 
 	ViewFamily.ComputeFamilySize();
+	ViewFamily.SetupVRProjectionInstancedStereo();
 
 	// copy off the requests
 	// (I apologize for the const_cast, but didn't seem worth refactoring just for the freezerendering command)
@@ -1839,7 +1840,10 @@ void FSceneRenderer::RenderCustomDepthPass(FRHICommandListImmediate& RHICmdList)
 
 			FViewInfo& View = Views[ViewIndex];
 
-			RHICmdList.SetViewport(View.ViewRect.Min.X, View.ViewRect.Min.Y, 0.0f, View.ViewRect.Max.X, View.ViewRect.Max.Y, 1.0f);
+			if (View.bVRProjectEnabled)
+				View.BeginVRProjectionStates(RHICmdList);
+			else
+				RHICmdList.SetViewport(View.ViewRect.Min.X, View.ViewRect.Min.Y, 0.0f, View.ViewRect.Max.X, View.ViewRect.Max.Y, 1.0f);
 			
 			// seems this is set each draw call anyway
 			RHICmdList.SetRasterizerState(TStaticRasterizerState<>::GetRHI());
@@ -1853,6 +1857,11 @@ void FSceneRenderer::RenderCustomDepthPass(FRHICommandListImmediate& RHICmdList)
 			}
 
 			View.CustomDepthSet.DrawPrims(RHICmdList, View, bWriteCustomStencilValues);
+
+			if (View.bVRProjectEnabled)
+			{
+				View.EndVRProjectionStates(RHICmdList);
+			}
 		}
 
 		// resolve using the current ResolveParams 
