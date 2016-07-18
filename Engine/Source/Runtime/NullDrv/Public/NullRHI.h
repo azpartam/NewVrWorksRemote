@@ -875,6 +875,12 @@ public:
 	{ 
 		return nullptr; 
 	}
+	virtual void RHISetGPUMask(uint32 Mask) final override
+	{
+	}
+	virtual void RHICopyResourceToGPU(FTextureRHIParamRef SourceTextureRHI, FTextureRHIParamRef DestTextureRHI, uint32 DestGPUIndex, uint32 SrcGPUIndex, const FResolveParams& ResolveParams) final override
+	{
+	}
 
 private:
 

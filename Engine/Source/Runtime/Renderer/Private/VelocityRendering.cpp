@@ -772,6 +772,8 @@ void FDeferredShadingSceneRenderer::RenderVelocitiesInnerParallel(FRHICommandLis
 	{
 		const FViewInfo& View = Views[ViewIndex];
 
+		RHICmdList.SetGPUMask(View.StereoPass);
+
 		FVelocityPassParallelCommandListSet ParallelCommandListSet(View, 
 			RHICmdList, 
 			CVarRHICmdVelocityPassDeferredContexts.GetValueOnRenderThread() > 0, 
@@ -808,6 +810,7 @@ void FDeferredShadingSceneRenderer::RenderVelocitiesInnerParallel(FRHICommandLis
 			}
 		}
 	}
+	RHICmdList.SetGPUMask(0);
 }
 
 void FDeferredShadingSceneRenderer::RenderVelocitiesInner(FRHICommandListImmediate& RHICmdList, TRefCountPtr<IPooledRenderTarget>& VelocityRT)
@@ -815,6 +818,8 @@ void FDeferredShadingSceneRenderer::RenderVelocitiesInner(FRHICommandListImmedia
 	for(int32 ViewIndex = 0; ViewIndex < Views.Num(); ViewIndex++)
 	{
 		const FViewInfo& View = Views[ViewIndex];
+
+		RHICmdList.SetGPUMask(View.StereoPass);
 
 		SetVelocitiesState(RHICmdList, View, VelocityRT);
 		// Draw velocities for movable static meshes.
@@ -835,6 +840,7 @@ void FDeferredShadingSceneRenderer::RenderVelocitiesInner(FRHICommandListImmedia
 			}
 		}
 	}
+	RHICmdList.SetGPUMask(0);
 }
 
 bool FDeferredShadingSceneRenderer::ShouldRenderVelocities() const

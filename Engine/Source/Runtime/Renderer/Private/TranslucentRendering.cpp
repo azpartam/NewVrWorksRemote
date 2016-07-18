@@ -1329,9 +1329,11 @@ void FDeferredShadingSceneRenderer::RenderTranslucency(FRHICommandListImmediate&
 
 			const FViewInfo& View = Views[ViewIndex];
 
+			RHICmdList.SetGPUMask(View.StereoPass);
+
 			// non separate translucency
 			{
-				bool bFirstTimeThisFrame = (ViewIndex == 0);
+				bool bFirstTimeThisFrame = (ViewIndex == 0) || GRHISupportsMultipleGPUStereo;
 				SetTranslucentRenderTargetAndState(RHICmdList, View, TPT_NonSeparateTransluceny, bFirstTimeThisFrame);
 
 				DrawAllTranslucencyPasses(RHICmdList, View, TPT_NonSeparateTransluceny);
@@ -1368,7 +1370,7 @@ void FDeferredShadingSceneRenderer::RenderTranslucency(FRHICommandListImmediate&
 
 					BeginTimingSeparateTranslucencyPass(RHICmdList, View);
 
-					bool bFirstTimeThisFrame = (ViewIndex == 0);
+					bool bFirstTimeThisFrame = (ViewIndex == 0) || GRHISupportsMultipleGPUStereo;
 					bool bSetupTranslucency = SceneContext.BeginRenderingSeparateTranslucency(RHICmdList, View, bFirstTimeThisFrame);
 
 					const TIndirectArray<FMeshBatch>& WorldList = View.ViewMeshElements;
@@ -1393,5 +1395,6 @@ void FDeferredShadingSceneRenderer::RenderTranslucency(FRHICommandListImmediate&
 				}
 			}
 		}
+		RHICmdList.SetGPUMask(0);
 	}
 }

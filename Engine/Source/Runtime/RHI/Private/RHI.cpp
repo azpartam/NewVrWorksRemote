@@ -290,11 +290,15 @@ bool GRHISupportsMSAADepthSampleAccess = false;
 
 bool GSupportsSinglePassStereo = false;
 
+bool GSupportsExplicitMGPU = false;
+bool GRHISupportsMultipleGPUStereo = false;
+
 /** Whether we are profiling GPU hitches. */
 bool GTriggerGPUHitchProfile = false;
 
 #if WITH_SLI
-int32 GNumActiveGPUsForRendering = 1;
+int32 GNumAlternateFrameRenderingGroups = 1;
+int32 GNumExplicitGPUsForRendering = 1;
 #endif
 
 FVertexElementTypeSupportInfo GVertexElementTypeSupport;

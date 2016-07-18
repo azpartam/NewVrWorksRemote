@@ -283,6 +283,18 @@ void FD3D11DynamicRHI::RHISetModifiedWModeStereo(const FLensMatchedShading::Ster
 	check(Status == NVAPI_OK);
 }
 
+void FD3D11DynamicRHI::RHISetGPUMask(uint32 Mask)
+{
+	if (MultiGPUDevice)
+	{
+		StateCache.SetGPUMask(Mask);
+	}
+	else
+	{
+		StateCache.SetGPUMask(0);
+	}
+}
+
 void FD3D11DynamicRHI::RHISetMultipleScissorRects(bool bEnable, uint32 Num, const FIntRect* Rects)
 {
 	if (bEnable)

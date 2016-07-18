@@ -116,11 +116,11 @@ void FRCPassPostProcessVRProjectWarp::Process(FRenderingCompositePassContext& Co
 
 	DrawPostProcessPass(
 		Context.RHICmdList,
-		DestRect.Min.X, DestRect.Min.Y,
-		DestRect.Width(), DestRect.Height(),
+		SrcRect.Min.X, SrcRect.Min.Y, // Setting the DestRect to be the same as SrcRect to avoid bloom offset
+		SrcRect.Width(), SrcRect.Height(),
 		SrcRect.Min.X, SrcRect.Min.Y,
 		SrcRect.Width(), SrcRect.Height(),
-		DestSize,
+		SrcSize,
 		SrcSize,
 		*VertexShader,
 		View.StereoPass,

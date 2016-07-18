@@ -382,7 +382,7 @@ void FD3DGPUProfiler::BeginFrame(FD3D11DynamicRHI* InRHI)
 	bPreviousLatchedGProfilingGPUHitches = bLatchedGProfilingGPUHitches;
 
 	// Skip timing events when using SLI, they will not be accurate anyway
-	if (GNumActiveGPUsForRendering == 1)
+	if (GNumAlternateFrameRenderingGroups == 1)
 	{
 		FrameTiming.StartTiming();
 	}
@@ -407,14 +407,14 @@ void FD3DGPUProfiler::EndFrame()
 	}
 
 	// Skip timing events when using SLI, they will not be accurate anyway
-	if (GNumActiveGPUsForRendering == 1)
+	if (GNumAlternateFrameRenderingGroups == 1)
 	{
 		FrameTiming.EndTiming();
 	}
 
 	// Skip timing events when using SLI, as they will block the GPU and we want maximum throughput
 	// Stat unit GPU time is not accurate anyway with SLI
-	if (FrameTiming.IsSupported() && GNumActiveGPUsForRendering == 1)
+	if (FrameTiming.IsSupported() && GNumAlternateFrameRenderingGroups == 1)
 	{
 		uint64 GPUTiming = FrameTiming.GetTiming();
 		uint64 GPUFreq = FrameTiming.GetTimingFrequency();

@@ -126,7 +126,7 @@ which can be configured via defines for various temporal AA passes.
 	#define AA_DYNAMIC_ANTIGHOST 0
 #endif
 
-	float2 ScreenPos = ( UV * PostprocessInput0Size.xy - 0.5 - ScreenPosToPixel.zw ) / ScreenPosToPixel.xy;
+	float2 ScreenPos = VRProjMapNDCVRProjToLinear((UV * PostprocessInput0Size.xy - 0.5 - ScreenPosToPixel.zw ) / ScreenPosToPixel.xy);
 
 	// FIND MOTION OF PIXEL AND NEAREST IN NEIGHBORHOOD
     // ------------------------------------------------
@@ -180,25 +180,11 @@ which can be configured via defines for various temporal AA passes.
 #endif // HAS_INVERTED_Z_BUFFER
 	#endif	// AA_CROSS
 
-#if AA_DOF
-	// temp solution, BrianK knows
-	// Remap for warped viewports, no-op for regular viewports
-	float2 MultiResUV = VRProjMapRenderTargetLinearToVRProj(UV);
-	float4 ThisClip = float4((MultiResUV - View.ScreenPositionScaleBias.wz) / View.ScreenPositionScaleBias.xy, PosN.z, 1);
-	float4 ThisTranslatedWorld = mul(ThisClip, View.ClipToTranslatedWorld);
-	ThisTranslatedWorld /= ThisTranslatedWorld.w;
-	float3 PrevTranslatedWorld = ThisTranslatedWorld.xyz + (View.PrevPreViewTranslation - View.PreViewTranslation);
-	float4 PrevClip = mul(float4(PrevTranslatedWorld, 1), View.PrevTranslatedWorldToClip);
-	float2 PrevScreen = PrevClip.xy / PrevClip.w;
-	//float2 PrevUV = PrevScreen.xy * Frame.ScreenPositionScaleBias.xy + Frame.ScreenPositionScaleBias.wz;
-	float2 BackN = ScreenPos.xy - PrevScreen - (View.ViewToClip[2].xy - View.PrevProjection[2].xy);
-#else // AA_DOF	
 	// Camera motion for pixel or nearest pixel (in ScreenPos space).
 	float4 ThisClip = float4( PosN.xy, PosN.z, 1 );
 	float4 PrevClip = mul( ThisClip, View.ClipToPrevClip );
 	float2 PrevScreen = PrevClip.xy / PrevClip.w;
 	float2 BackN = PosN.xy - PrevScreen;
-#endif // AA_DOF
 
 	float2 BackTemp = BackN * ViewportSize.xy;
 	#if AA_DYNAMIC
@@ -225,7 +211,7 @@ which can be configured via defines for various temporal AA passes.
 	// Easier to do off screen check before conversion.
 	// BackN is in units of 2pixels/viewportWidthInPixels
 	// This converts back projection vector to [-1 to 1] offset in viewport.
-	BackN = SvPositionToScreenPosition(SvPosition).xy - BackN;
+	BackN = ScreenPos - BackN;
 	bool OffScreen = max(abs(BackN.x), abs(BackN.y)) >= 1.0;
 	// Also clamp to be on screen (fixes problem with DOF).
 	// The .z and .w is the 1/width and 1/height.

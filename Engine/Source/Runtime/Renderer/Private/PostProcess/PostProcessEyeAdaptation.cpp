@@ -209,6 +209,14 @@ void FRCPassPostProcessEyeAdaptation::Process(FRenderingCompositePassContext& Co
 
 	Context.RHICmdList.CopyToResolveTarget(EyeAdaptation->GetRenderTargetItem().TargetableTexture, EyeAdaptation->GetRenderTargetItem().ShaderResourceTexture, false, FResolveParams());
 
+	if (View.StereoPass == eSSP_LEFT_EYE)
+	{
+		Context.RHICmdList.CopyResourceToGPU(
+			EyeAdaptation->GetRenderTargetItem().TargetableTexture,
+			EyeAdaptation->GetRenderTargetItem().TargetableTexture,
+			1, 0, FResolveParams());
+	}
+
 	Context.View.SetValidEyeAdaptation();
 }
 

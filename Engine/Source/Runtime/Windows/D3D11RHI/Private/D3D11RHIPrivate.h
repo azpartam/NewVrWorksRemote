@@ -19,6 +19,11 @@ DECLARE_LOG_CATEGORY_EXTERN(LogD3D11RHI, Log, All);
 #include "D3D11RHIBasePrivate.h"
 #include "StaticArray.h"
 
+
+#include "AllowWindowsPlatformTypes.h"
+#include "nvapi.h"
+#include "HideWindowsPlatformTypes.h"
+
 // D3D RHI public headers.
 #include "D3D11Util.h"
 #include "D3D11State.h"
@@ -502,6 +507,8 @@ public:
 	virtual void RHIPushEvent(const TCHAR* Name, FColor Color) final override;
 	virtual void RHIPopEvent() final override;
 	virtual bool RHICopySubTextureRegion(FTexture2DRHIParamRef SourceTexture, FTexture2DRHIParamRef DestinationTexture, FBox2D SourceBox, FBox2D DestinationBox) final override;
+	virtual void RHISetGPUMask(uint32 Mask) final override;
+	virtual void RHICopyResourceToGPU(FTextureRHIParamRef SourceTextureRHI, FTextureRHIParamRef DestTextureRHI, uint32 DestGPUIndex, uint32 SrcGPUIndex, const FResolveParams& ResolveParams) final override;
 
 	// Accessors.
 	ID3D11Device* GetDevice() const
@@ -511,6 +518,11 @@ public:
 	FD3D11DeviceContext* GetDeviceContext() const
 	{
 		return Direct3DDeviceIMContext;
+	}
+
+	ID3D11MultiGPUDevice* GetMultiGPUDevice() const
+	{
+		return MultiGPUDevice;
 	}
 
 	IDXGIFactory1* GetFactory() const
@@ -580,6 +592,12 @@ protected:
 
 	/** The global D3D device's immediate context */
 	TRefCountPtr<FD3D11Device> Direct3DDevice;
+
+	/** The global Multi-GPU device for VR-SLI */
+	ID3D11MultiGPUDevice* MultiGPUDevice;
+
+	/** Multi-GPU caps */
+	NV_MULTIGPU_CAPS MultiGPUCaps;
 
 	FD3D11StateCache StateCache;
 

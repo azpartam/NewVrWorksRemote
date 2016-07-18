@@ -487,6 +487,8 @@ public:
 	virtual void RHISetSinglePassStereoParameters(bool bEnable, uint32 RenderTargetIndexOffset, uint8 IndependentViewportMaskEnable) final override;
 	virtual void RHIPushEvent(const TCHAR* Name, FColor Color) final override;
 	virtual void RHIPopEvent() final override;
+	virtual void RHISetGPUMask(uint32 Mask) final override;
+	virtual void RHICopyResourceToGPU(FTextureRHIParamRef SourceTextureRHI, FTextureRHIParamRef DestTextureRHI, uint32 DestGPUIndex, uint32 SrcGPUIndex, const FResolveParams& ResolveParams) final override;
 
 	void Cleanup();
 

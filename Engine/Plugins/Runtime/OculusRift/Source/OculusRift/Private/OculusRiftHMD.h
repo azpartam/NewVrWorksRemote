@@ -506,6 +506,8 @@ public:
 
 	virtual bool IsHMDActive() override { return Session->IsActive(); }
 
+	virtual int32 GetViewportGap() const override;
+
 	virtual FHMDLayerManager* GetLayerManager() override { return pCustomPresent->GetLayerMgr(); }
 
 	virtual void					 SetTrackingOrigin(EHMDTrackingOrigin::Type) override;

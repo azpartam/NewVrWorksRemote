@@ -131,14 +131,14 @@ static NSOpenGLContext* CreateContext( NSOpenGLContext* SharedContext )
 			bExplicitRendererSetup = true;
 		}
 		
-		if(DisplayMask || GMacExplicitRendererID || GNumActiveGPUsForRendering > 1 || GMacUseAutomaticGraphicsSwitching)
+		if (DisplayMask || GMacExplicitRendererID || GNumExplicitGPUsForRendering > 1 || GMacUseAutomaticGraphicsSwitching)
 		{
 			Attributes.Add(kCGLPFASupportsAutomaticGraphicsSwitching);
 			Attributes.Add(NSOpenGLPFAAllowOfflineRenderers);
 		}
 		
 		// Specify a single explicit renderer ID
-		if (GMacExplicitRendererID && (GNumActiveGPUsForRendering == 1) && !GMacUseAutomaticGraphicsSwitching)
+		if (GMacExplicitRendererID && (GNumExplicitGPUsForRendering == 1) && !GMacUseAutomaticGraphicsSwitching)
 		{
 			Attributes.Add(NSOpenGLPFARendererID);
 			Attributes.Add(GMacExplicitRendererID);
@@ -153,7 +153,7 @@ static NSOpenGLContext* CreateContext( NSOpenGLContext* SharedContext )
 	NSOpenGLContext* Context = [[NSOpenGLContext alloc] initWithFormat: PixelFormat shareContext: SharedContext];
 	check(Context);
 	
-	if((GNumActiveGPUsForRendering > 1 || GMacUseAutomaticGraphicsSwitching) && GMacExplicitRendererID)
+	if ((GNumExplicitGPUsForRendering > 1 || GMacUseAutomaticGraphicsSwitching) && GMacExplicitRendererID)
 	{
 		for(uint32 i = 0; i < [PixelFormat numberOfVirtualScreens]; i++)
 		{
@@ -575,7 +575,7 @@ void FPlatformOpenGLContext::VerifyCurrentContext()
 void FPlatformOpenGLContext::RegisterGraphicsSwitchingCallback(void)
 {
 #if WITH_SLI
-	GNumActiveGPUsForRendering = 1;
+	GNumExplicitGPUsForRendering = 1;
 #endif
 	
 	GConfig->GetBool(MAC_OPENGL_SETTINGS, TEXT("bAllowAutomaticGraphicsSwitching"), GMacUseAutomaticGraphicsSwitching, MAC_OPENGL_INI);
@@ -639,7 +639,7 @@ void FPlatformOpenGLContext::RegisterGraphicsSwitchingCallback(void)
 #if WITH_SLI
 			if(GMacUseMultipleGPUs)
 			{
-				GNumActiveGPUsForRendering = !bRenderersMatch ? 1 : HardwareRenderers.Num();
+				GNumExplicitGPUsForRendering = !bRenderersMatch ? 1 : HardwareRenderers.Num();
 			}
 #endif
 		}

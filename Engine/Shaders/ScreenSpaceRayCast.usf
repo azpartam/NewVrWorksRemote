@@ -228,9 +228,6 @@ void RayCast(
 		float4 SampleUV1 = RayUVz.xyxy + RayStepUVz.xyxy * float4( 3, 3, 4, 4 );
 		float4 SampleZ   = RayUVz.zzzz + RayStepUVz.zzzz * float4( 1, 2, 3, 4 );
 
-		// Remap for possible project distortion
-		SampleUV0 = RemapForVRProject(SampleUV0);
-		SampleUV1 = RemapForVRProject(SampleUV1);
 		
 		// Use lower res for farther samples
 		float4 SampleDepth = SampleDepthTexture( Texture, Sampler, Level, SampleUV0, SampleUV1 );
@@ -282,9 +279,6 @@ void RayCast(
 		float4 SampleUV1 = RayUVz.xyxy + RayStepUVz.xyxy * float4( 3, 3, 4, 4 );
 		float4 SampleZ   = RayUVz.zzzz + RayStepUVz.zzzz * float4( 1, 2, 3, 4 );
 
-		// Remap for possible project distortion
-		SampleUV0 = RemapForVRProject(SampleUV0);
-		SampleUV1 = RemapForVRProject(SampleUV1);
 
 		// Use lower res for farther samples
 		float4 SampleDepth = SampleDepthTexture( Texture, Sampler, Level, SampleUV0, SampleUV1 );

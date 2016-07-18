@@ -12,6 +12,7 @@
 #include "PostProcessHistogram.h"
 #include "PostProcessEyeAdaptation.h"
 #include "SceneUtils.h"
+#include "StereoRendering.h"
 
 static TAutoConsoleVariable<float> CVarUpscaleSoftness(
 	TEXT("r.Upscale.Softness"),
@@ -290,6 +291,31 @@ void FRCPassPostProcessUpscale::Process(FRenderingCompositePassContext& Context)
 	if (View.bVRProjectEnabled && GEngine->HMDDevice.IsValid() && View.Family->EngineShowFlags.StereoRendering)
 	{
 		DestRect = View.NonVRProjectViewRect;
+	}
+
+	int32 ViewportGap = View.StereoPass != eSSP_FULL ? GEngine->StereoRenderingDevice->GetViewportGap() : 0;
+
+	if (ViewportGap > 0.0f)
+	{
+		if (GEngine->StereoRenderingDevice->IsEmulatedStereo())
+		{
+			if (View.StereoPass == eSSP_RIGHT_EYE)
+			{
+				DestRect.Min.X += ViewportGap;
+			}
+			else
+			{
+				DestRect.Max.X -= ViewportGap;
+			}
+		}
+		else
+		{
+			if (View.StereoPass == eSSP_RIGHT_EYE)
+			{
+				DestRect.Min.X += 2 * ViewportGap;
+				DestRect.Max.X += 2 * ViewportGap;
+			}
+		}
 	}
 
 	const FSceneRenderTargetItem& DestRenderTarget = PassOutputs[0].RequestSurface(Context);

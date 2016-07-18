@@ -833,6 +833,16 @@ void FVulkanCommandListContext::RHISetSinglePassStereoParameters(bool bEnable, u
 	VULKAN_SIGNAL_UNIMPLEMENTED();
 }
 
+void FVulkanCommandListContext::RHISetGPUMask(uint32 Mask)
+{
+	VULKAN_SIGNAL_UNIMPLEMENTED();
+}
+
+void FVulkanCommandListContext::RHICopyResourceToGPU(FTextureRHIParamRef SourceTextureRHI, FTextureRHIParamRef DestTextureRHI, uint32 DestGPUIndex, uint32 SrcGPUIndex, const FResolveParams& ResolveParams)
+{
+	VULKAN_SIGNAL_UNIMPLEMENTED();
+}
+
 void FVulkanCommandListContext::SubmitCurrentCommands()
 {
 	if (IsImmediate())

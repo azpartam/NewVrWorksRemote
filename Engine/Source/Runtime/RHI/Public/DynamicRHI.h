@@ -462,6 +462,8 @@ public:
 	virtual void RHIPopEvent() = 0;
 
 	virtual void RHIUpdateTextureReference(FTextureReferenceRHIParamRef TextureRef, FTextureRHIParamRef NewTexture) = 0;
+	virtual void RHISetGPUMask(uint32 Mask) = 0;
+	virtual void RHICopyResourceToGPU(FTextureRHIParamRef SourceTextureRHI, FTextureRHIParamRef DestTextureRHI, uint32 DestGPUIndex, uint32 SrcGPUIndex, const FResolveParams& ResolveParams) = 0;
 };
 
 /** The interface which is implemented by the dynamically bound RHI. */

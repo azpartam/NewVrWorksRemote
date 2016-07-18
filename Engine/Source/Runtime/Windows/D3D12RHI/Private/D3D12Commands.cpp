@@ -2209,3 +2209,8 @@ void FD3D12CommandContext::RHISubmitCommandsHint()
 		PendingFence = nullptr;
 	}
 }
+
+void FD3D12CommandContext::RHISetGPUMask(uint32 Mask)
+{
+	UE_LOG(LogRHI, Fatal, TEXT("D3D12 render path does not support GPU mask!"));
+}

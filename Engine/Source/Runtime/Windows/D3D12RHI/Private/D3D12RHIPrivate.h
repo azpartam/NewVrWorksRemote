@@ -92,7 +92,7 @@ bool GIsDoingQuery = false;
 #endif
 
 using namespace D3D12RHI;
-
+	
 /** The interface which is implemented by the dynamically bound RHI. */
 class FD3D12DynamicRHI : public FDynamicRHI
 {

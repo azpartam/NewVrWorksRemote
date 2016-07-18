@@ -209,10 +209,12 @@ extern RHI_API class FVertexElementTypeSupportInfo GVertexElementTypeSupport;
 /** When greater than one, indicates that SLI rendering is enabled */
 #if PLATFORM_DESKTOP
 #define WITH_SLI (1)
-extern RHI_API int32 GNumActiveGPUsForRendering;
+extern RHI_API int32 GNumAlternateFrameRenderingGroups;
+extern RHI_API int32 GNumExplicitGPUsForRendering;
 #else
 #define WITH_SLI (0)
-#define GNumActiveGPUsForRendering (1)
+#define GNumAlternateFrameRenderingGroups (1)
+#define GNumExplicitGPUsForRendering (1)
 #endif
 
 /** Whether the next frame should profile the GPU. */
@@ -273,6 +275,9 @@ extern RHI_API bool GRHISupportsMSAADepthSampleAccess;
 
 /** True if the RHI supports pascal features */
 extern RHI_API bool GSupportsSinglePassStereo;
+
+/** True if the RHI supports multiple GPUs for stereo rendering. **/
+extern RHI_API bool GRHISupportsMultipleGPUStereo;
 
 /** Called once per frame only from within an RHI. */
 extern RHI_API void RHIPrivateBeginFrame();

@@ -91,6 +91,14 @@ static TAutoConsoleVariable<int32> CVarSinglePassStereo(
 	TEXT("0 to disable SinglePassStereo support, 1 to enable."),
 	ECVF_ReadOnly | ECVF_RenderThreadSafe);
 
+static TAutoConsoleVariable<int32> CVarEnableVRSLI(
+	TEXT("vr.MGPU"),
+	0,
+	TEXT("Toggles VR SLI support.\n")
+	TEXT("0: off (default)\n")
+	TEXT("1: on (requires NVAPI support for SetGPUMask)\n"),
+	ECVF_RenderThreadSafe);
+
 #if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
 static TAutoConsoleVariable<float> CVarGeneralPurposeTweak(
 	TEXT("r.GeneralPurposeTweak"),
@@ -1649,6 +1657,7 @@ void FSceneRenderer::RenderFinish(FRHICommandListImmediate& RHICmdList)
 		for(int32 ViewIndex = 0;ViewIndex < Views.Num();ViewIndex++)
 		{	
 			FViewInfo& View = Views[ViewIndex];
+			RHICmdList.SetGPUMask(View.StereoPass);
 			if (!View.bIsReflectionCapture && !View.bIsSceneCapture )
 			{
 				SCOPED_CONDITIONAL_DRAW_EVENTF(RHICmdList, EventView, Views.Num() > 1, TEXT("View%d"), ViewIndex);
@@ -1713,6 +1722,7 @@ void FSceneRenderer::RenderFinish(FRHICommandListImmediate& RHICmdList)
 				}
 			}
 		}
+		RHICmdList.SetGPUMask(0);
 	}
 	
 #endif //!(UE_BUILD_SHIPPING || UE_BUILD_TEST)
@@ -1761,6 +1771,8 @@ void FSceneRenderer::RenderFinish(FRHICommandListImmediate& RHICmdList)
 		{
 			const FViewInfo& View = Views[ViewIndex];
 
+			RHICmdList.SetGPUMask(View.StereoPass);
+
 			if(!View.IsPerspectiveProjection())
 			{
 				continue;
@@ -1768,6 +1780,7 @@ void FSceneRenderer::RenderFinish(FRHICommandListImmediate& RHICmdList)
 
 			GRenderTargetPool.PresentContent(RHICmdList, View);
 		}
+		RHICmdList.SetGPUMask(0);
 	}
 
 #endif
@@ -1840,6 +1853,8 @@ void FSceneRenderer::RenderCustomDepthPass(FRHICommandListImmediate& RHICmdList)
 
 			FViewInfo& View = Views[ViewIndex];
 
+			RHICmdList.SetGPUMask(View.StereoPass);
+
 			if (View.bVRProjectEnabled)
 				View.BeginVRProjectionStates(RHICmdList);
 			else
@@ -1863,6 +1878,7 @@ void FSceneRenderer::RenderCustomDepthPass(FRHICommandListImmediate& RHICmdList)
 				View.EndVRProjectionStates(RHICmdList);
 			}
 		}
+		RHICmdList.SetGPUMask(0);
 
 		// resolve using the current ResolveParams 
 		SceneContext.FinishRenderingCustomDepth(RHICmdList);

@@ -407,6 +407,11 @@ void FOpenGLDynamicRHI::RHISetModifiedWModeStereo(const FLensMatchedShading::Ste
 	UE_LOG(LogRHI, Fatal, TEXT("OpenGL RHI does not support w-warp!"));
 }
 
+void FOpenGLDynamicRHI::RHISetGPUMask(uint32 Mask)
+{
+	UE_LOG(LogRHI, Fatal, TEXT("OpenGL Render path does not support GPU mask!"));
+}
+
 inline void FOpenGLDynamicRHI::UpdateScissorRectInOpenGLContext( FOpenGLContextState& ContextState )
 {
 	VERIFY_GL_SCOPE();

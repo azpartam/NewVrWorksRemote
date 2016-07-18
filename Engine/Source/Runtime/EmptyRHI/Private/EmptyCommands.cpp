@@ -70,6 +70,11 @@ void FEmptyDynamicRHI::RHISetModifiedWModeStereo(const FLensMatchedShading::Ster
 
 }
 
+void FEmptyDynamicRHI::SetGPUMask(uint32 Mask)
+{
+
+}
+
 void FEmptyDynamicRHI::RHISetBoundShaderState( FBoundShaderStateRHIParamRef BoundShaderStateRHI)
 {
 	FEmptyBoundShaderState* BoundShaderState = ResourceCast(BoundShaderStateRHI);

@@ -571,6 +571,8 @@ void FDeferredShadingSceneRenderer::RenderLights(FRHICommandListImmediate& RHICm
 							{
 								FViewInfo& View = Views[ViewIndex];
 
+								RHICmdList.SetGPUMask(View.StereoPass);
+
 								if (LightSceneInfo->ShouldRenderLight(View))
 								{
 									FSceneViewState* ViewState = (FSceneViewState*)View.State;
@@ -583,7 +585,8 @@ void FDeferredShadingSceneRenderer::RenderLights(FRHICommandListImmediate& RHICm
 										}
 									}
 								}
-							}					
+							}		
+							RHICmdList.SetGPUMask(0);
 						}
 					}
 				}
@@ -912,6 +915,8 @@ void FDeferredShadingSceneRenderer::RenderLight(FRHICommandList& RHICmdList, con
 	{
 		FViewInfo& View = Views[ViewIndex];
 
+		RHICmdList.SetGPUMask(View.StereoPass);
+
 		bool bUseIESTexture = false;
 
 		if(View.Family->EngineShowFlags.TexturedLightProfiles)
@@ -1063,6 +1068,7 @@ void FDeferredShadingSceneRenderer::RenderLight(FRHICommandList& RHICmdList, con
 			}
 		}
 	}
+	RHICmdList.SetGPUMask(0);
 
 	if (bStencilDirty)
 	{
@@ -1091,6 +1097,8 @@ void FDeferredShadingSceneRenderer::RenderSimpleLightsStandardDeferred(FRHIComma
 			const FSphere LightBounds(SimpleLightPerViewData.Position, SimpleLight.Radius);
 
 			FViewInfo& View = Views[ViewIndex];
+
+			RHICmdList.SetGPUMask(View.StereoPass);
 
 			// Set the device viewport for the view. Since point/spot lights render geometry, need to use the
 			// vr projection geometry shader and viewports.
@@ -1130,5 +1138,6 @@ void FDeferredShadingSceneRenderer::RenderSimpleLightsStandardDeferred(FRHIComma
 				View.EndVRProjectionStates(RHICmdList);
 			}
 		}
+		RHICmdList.SetGPUMask(0);
 	}
 }
