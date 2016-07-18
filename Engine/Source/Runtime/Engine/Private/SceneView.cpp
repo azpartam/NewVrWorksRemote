@@ -1837,8 +1837,21 @@ void FSceneView::EndFinalPostprocessSettings(const FSceneViewInitOptions& ViewIn
 		if (Fraction != 1.0f)
 		{
 			// compute the view rectangle with the ScreenPercentage applied
+			FIntRect InScaledViewRect;
 			const FIntRect ScreenPercentageAffectedViewRect = ViewInitOptions.GetConstrainedViewRect().Scale(Fraction);
-			SetScaledViewRect(ScreenPercentageAffectedViewRect);
+			if (!ViewInitOptions.ViewFamily || ViewInitOptions.ViewFamily->Views.Num() == 1)
+			{
+				InScaledViewRect = ScreenPercentageAffectedViewRect;
+			}
+			else if (ViewInitOptions.ViewFamily)
+			{
+				uint32 LastViewIndex = ViewInitOptions.ViewFamily->Views.Num() - 2;
+				auto& LastView = ViewInitOptions.ViewFamily->Views[LastViewIndex]->ViewRect;
+				int32 X = LastView.Max.X;
+				int32 Y = ScreenPercentageAffectedViewRect.Min.Y;
+				InScaledViewRect = FIntRect(X, Y, X + ScreenPercentageAffectedViewRect.Width(), Y + ScreenPercentageAffectedViewRect.Height());
+			}
+			SetScaledViewRect(InScaledViewRect);
 		}
 	}
 }
