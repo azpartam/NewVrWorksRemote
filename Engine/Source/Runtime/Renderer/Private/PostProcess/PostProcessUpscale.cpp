@@ -285,6 +285,7 @@ void FRCPassPostProcessUpscale::Process(FRenderingCompositePassContext& Context)
 	// no upscale if separate ren target is used.
 	FIntRect DestRect = (ViewFamily.bUseSeparateRenderTarget) ? View.ViewRect : View.UnscaledViewRect; // Simple upscaling, ES2 post process does not currently have a specific upscaling pass.
 	FIntPoint SrcSize = InputDesc->Extent;
+	FIntRect FullClearRect(0, 0, ViewFamily.FamilyLinearSizeX, ViewFamily.FamilyLinearSizeY);
 
 	// For upscaling multi-res on an HMD, UnscaledViewRect will not be correct; we need
 	// to get the destination size from NonVRProjectViewRect instead.
@@ -295,6 +296,7 @@ void FRCPassPostProcessUpscale::Process(FRenderingCompositePassContext& Context)
 		if (View.VRProjMode == FSceneView::EVRProjectMode::LensMatched)
 		{
 			DestRect = DestRect.Scale(1.5f);
+			FullClearRect = FullClearRect.Scale(1.5f);
 		}
 	}
 
@@ -337,11 +339,12 @@ void FRCPassPostProcessUpscale::Process(FRenderingCompositePassContext& Context)
 	// with distortion (bTessellatedQuad) we need to clear the background
 	FIntRect ExcludeRect = bTessellatedQuad ? FIntRect() : DestRect;
 
-	Context.SetViewportAndCallRHI(DestRect);
 	if (View.StereoPass == eSSP_FULL || View.StereoPass == eSSP_LEFT_EYE)
 	{
+		Context.SetViewportAndCallRHI(ViewportGap > 0.0 ? FullClearRect : DestRect);
 		Context.RHICmdList.Clear(true, FLinearColor::Black, false, 1.0f, false, 0, ExcludeRect);
 	}
+	Context.SetViewportAndCallRHI(DestRect);
 
 	// set the state
 	Context.RHICmdList.SetBlendState(TStaticBlendState<>::GetRHI());
