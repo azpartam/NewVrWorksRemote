@@ -19,11 +19,6 @@ DECLARE_LOG_CATEGORY_EXTERN(LogD3D11RHI, Log, All);
 #include "D3D11RHIBasePrivate.h"
 #include "StaticArray.h"
 
-
-#include "AllowWindowsPlatformTypes.h"
-#include "nvapi.h"
-#include "HideWindowsPlatformTypes.h"
-
 // D3D RHI public headers.
 #include "D3D11Util.h"
 #include "D3D11State.h"
@@ -595,9 +590,6 @@ protected:
 
 	/** The global Multi-GPU device for VR-SLI */
 	ID3D11MultiGPUDevice* MultiGPUDevice;
-
-	/** Multi-GPU caps */
-	NV_MULTIGPU_CAPS MultiGPUCaps;
 
 	FD3D11StateCache StateCache;
 

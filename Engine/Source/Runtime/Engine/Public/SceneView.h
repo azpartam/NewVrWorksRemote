@@ -583,17 +583,18 @@ BEGIN_UNIFORM_BUFFER_STRUCT_WITH_CONSTRUCTOR(FFrameUniformShaderParameters, ENGI
 	DECLARE_UNIFORM_BUFFER_STRUCT_MEMBER(float, HMDEyePaddingOffset)
 	DECLARE_UNIFORM_BUFFER_STRUCT_MEMBER_EX(float, ReflectionCubemapMaxMip, EShaderPrecisionModifier::Half)
 
+	// VR Projection 
+	DECLARE_UNIFORM_BUFFER_STRUCT_MEMBER(uint32, VRProjectionMode)
+
+	// SinglePassStereo
+	DECLARE_UNIFORM_BUFFER_STRUCT_MEMBER(uint32, bIsSinglePassStereo)
+
 	DECLARE_UNIFORM_BUFFER_STRUCT_MEMBER_ARRAY(FVector4, GlobalVolumeCenterAndExtent_UB, [GMaxGlobalDistanceFieldClipmaps])
 	DECLARE_UNIFORM_BUFFER_STRUCT_MEMBER_ARRAY(FVector4, GlobalVolumeWorldToUVAddAndMul_UB, [GMaxGlobalDistanceFieldClipmaps])
 	DECLARE_UNIFORM_BUFFER_STRUCT_MEMBER(float, GlobalVolumeDimension_UB)
 	DECLARE_UNIFORM_BUFFER_STRUCT_MEMBER(float, GlobalVolumeTexelSize_UB)
 	DECLARE_UNIFORM_BUFFER_STRUCT_MEMBER(float, MaxGlobalDistance_UB)
 
-	// SinglePassStereo
-	DECLARE_UNIFORM_BUFFER_STRUCT_MEMBER(uint32, bIsSinglePassStereo)
-
-	// VR Projection 
-	DECLARE_UNIFORM_BUFFER_STRUCT_MEMBER(uint32, VRProjectionMode)
 
 	DECLARE_UNIFORM_BUFFER_STRUCT_MEMBER_TEXTURE(Texture3D, GlobalDistanceFieldTexture0_UB)
 	DECLARE_UNIFORM_BUFFER_STRUCT_MEMBER_SAMPLER(SamplerState, GlobalDistanceFieldSampler0_UB)

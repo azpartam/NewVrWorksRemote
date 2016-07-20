@@ -1146,21 +1146,11 @@ void FRCPassPostProcessTonemap::Process(FRenderingCompositePassContext& Context)
 
 	const FSceneRenderTargetItem& DestRenderTarget = PassOutputs[0].RequestSurface(Context);
 	
-	// Set the view family's render target/viewport.
-	FSceneRenderTargets& SceneContext = FSceneRenderTargets::Get(Context.RHICmdList);
-	if (View.VRProjMode == FSceneView::EVRProjectMode::LensMatched && View.bVRProjectEnabled && !bDoScreenPercentageInTonemapper)
-	{
-		SetRenderTarget(Context.RHICmdList, DestRenderTarget.TargetableTexture, SceneContext.GetSceneDepthSurface(), ESimpleRenderTargetMode::EUninitializedColorExistingDepth, FExclusiveDepthStencil::DepthRead_StencilNop);
-		Context.RHICmdList.SetDepthStencilState(TStaticDepthStencilState<false, CF_DepthNear>::GetRHI());
-	}
-	else
-	{
-		SetRenderTarget(Context.RHICmdList, DestRenderTarget.TargetableTexture, FTextureRHIParamRef(), ESimpleRenderTargetMode::EUninitializedColorAndDepth);
-		Context.RHICmdList.SetDepthStencilState(TStaticDepthStencilState<false, CF_Always>::GetRHI());
-	}
+
 
 	const EShaderPlatform ShaderPlatform = GShaderPlatformForFeatureLevel[Context.GetFeatureLevel()];
 
+	FSceneRenderTargets& SceneContext = FSceneRenderTargets::Get(Context.RHICmdList);
 	if (IsVulkanPlatform(ShaderPlatform))
 	{
 		//@HACK: needs to set the framebuffer to clear/ignore in vulkan (doesn't support RHIClear)
@@ -1172,8 +1162,17 @@ void FRCPassPostProcessTonemap::Process(FRenderingCompositePassContext& Context)
 	else
 	{
 		// Set the view family's render target/viewport.
-		SetRenderTarget(Context.RHICmdList, DestRenderTarget.TargetableTexture, FTextureRHIParamRef(), ESimpleRenderTargetMode::EUninitializedColorAndDepth);
-
+		if (View.VRProjMode == FSceneView::EVRProjectMode::LensMatched && View.bVRProjectEnabled && !bDoScreenPercentageInTonemapper)
+		{
+			SetRenderTarget(Context.RHICmdList, DestRenderTarget.TargetableTexture, SceneContext.GetSceneDepthSurface(), ESimpleRenderTargetMode::EUninitializedColorExistingDepth, FExclusiveDepthStencil::DepthRead_StencilNop);
+			Context.RHICmdList.SetDepthStencilState(TStaticDepthStencilState<false, CF_DepthNear>::GetRHI());
+		}
+		else
+		{
+			SetRenderTarget(Context.RHICmdList, DestRenderTarget.TargetableTexture, FTextureRHIParamRef(), ESimpleRenderTargetMode::EUninitializedColorAndDepth);
+			Context.RHICmdList.SetDepthStencilState(TStaticDepthStencilState<false, CF_Always>::GetRHI());
+		}
+		
 		if (Context.HasHmdMesh() && View.StereoPass == eSSP_LEFT_EYE)
 		{
 			// needed when using an hmd mesh instead of a full screen quad because we don't touch all of the pixels in the render target

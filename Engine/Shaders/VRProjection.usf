@@ -145,7 +145,7 @@ uint VRProjectCalculateViewportMask(const uint MultiResWidth, const uint MultiRe
 
 uint VRProjectCalculateNormalViewportMask(float4 Position0, float4 Position1, float4 Position2)
 {
-	uint Ret = 0xff;
+	uint Ret = 0xffff;
 	if (MultiResIsActive())
 	{
 		Ret = VRProjectCalculateViewportMask(3, 3, View.NDCSplitsX, View.NDCSplitsY, float2(-1.0f, 1.0f), Position0, Position1, Position2);

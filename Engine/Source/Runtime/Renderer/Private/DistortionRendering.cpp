@@ -525,13 +525,13 @@ void TDistortionMeshDrawingPolicy<DistortMeshPolicy>::SetSharedState(
 		DomainShader->SetParameters(RHICmdList, MaterialRenderProxy,*View);
 	}
 
+	if (View->bVRProjectEnabled)
+	{
+		FastGeometryShader->SetParameters(RHICmdList, VertexFactory, MaterialRenderProxy, View);
+	}
+
 	if (UseDebugViewPS())
 	{
-		if (View->bVRProjectEnabled)
-		{
-			FastGeometryShader->SetParameters(RHICmdList, VertexFactory, MaterialRenderProxy, View);
-	 	}
-
 		check(!bInitializeOffsets);
 //later		TShaderMapRef<FShaderComplexityAccumulatePixelShader> ShaderComplexityPixelShader(GetGlobalShaderMap(View->ShaderMap));
 		//don't add any vertex complexity

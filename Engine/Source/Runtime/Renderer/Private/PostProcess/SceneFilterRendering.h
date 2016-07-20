@@ -37,8 +37,7 @@ extern void DrawRectangle(
 	FIntPoint TargetSize,
 	FIntPoint TextureSize,
 	class FShader* VertexShader,
-	EDrawRectangleFlags Flags = EDRF_Default,
-	bool bForceNoRemap = false
+	EDrawRectangleFlags Flags = EDRF_Default
 	);
 
 extern void DrawTransformedRectangle(
@@ -88,8 +87,7 @@ extern void DrawPostProcessPass(
 	class FShader* VertexShader,
 	EStereoscopicPass StereoView,
 	bool bHasCustomMesh,
-	EDrawRectangleFlags Flags = EDRF_Default,
-	bool bForceNoRemap = false
+	EDrawRectangleFlags Flags = EDRF_Default
 	);
 
 extern TGlobalResource<FFilterVertexDeclaration> GFilterVertexDeclaration;

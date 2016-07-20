@@ -24,6 +24,7 @@
 #define D3D_OVERLOADS 1
 #include "AllowWindowsPlatformTypes.h"
 #include <D3D11.h>
+#include "nvapi.h"
 #include "HideWindowsPlatformTypes.h"
 
 #undef DrawText

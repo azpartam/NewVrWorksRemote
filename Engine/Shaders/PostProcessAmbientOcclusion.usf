@@ -626,10 +626,6 @@ void MainPSandCS(in float4 UVAndScreenPos, float4 SvPosition, out float4 OutColo
 	float ScaleFactor = ScreenSpaceAOParams[2].x;
 	float ScaleRadiusInWorldSpace = ScreenSpaceAOParams[2].z;
 
-//	float HzbStepMipLevelFactorValue = ScreenSpaceAOParams[4].z;
-	// use a constant to get better performance
-	float HzbStepMipLevelFactorValue = 0.5f;
-
 	if (VRProjectionIsActive())
 	{
 		float2 PixelPos = SvPosition.xy - ViewPortRectMinAndInvSize.xy;

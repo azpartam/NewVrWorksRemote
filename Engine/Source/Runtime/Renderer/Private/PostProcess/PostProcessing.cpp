@@ -1928,7 +1928,7 @@ void FPostProcessing::Process(FRHICommandListImmediate& RHICmdList, FViewInfo& V
 		if (bDoScreenPercentage && !bResultsUpsampled)
 		{
 			// Check if we can save the Upscale pass and do it in the Tonemapper to save performance
-			if (Tonemapper && !PaniniConfig.IsEnabled() && !Tonemapper->bDoGammaOnly)
+			if (Tonemapper && !PaniniConfig.IsEnabled() && !Tonemapper->bDoGammaOnly && !Context.View.bVRProjectEnabled)
 			{
 				int32 TonemapperScreenPercentage = CVarTonemapperScreenPercentage.GetValueOnRenderThread();
 

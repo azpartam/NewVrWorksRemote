@@ -590,6 +590,7 @@ void FD3D11DynamicRHI::InitD3DDevice()
 			check(!"Internal error, EnumAdapters() failed but before it worked")
 		}
 
+		NV_MULTIGPU_CAPS MultiGPUCaps;
 		VERIFYD3D11RESULT(NvAPI_D3D11_MultiGPU_GetCaps(&MultiGPUCaps));
 		// Enable VR-SLI driver layer, before device is created
 		// Note this should eventually be a render property, since it is selecting an explicit MGPU model.

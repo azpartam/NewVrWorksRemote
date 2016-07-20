@@ -434,15 +434,16 @@ void GatherRadiance(inout float4 Color, float3 WorldPosition, float3 RayDirectio
 	float IndirectSpecularOcclusion = 1.0f;
 
 #if SUPPORT_DFAO_INDIRECT_OCCLUSION
-	float2 ScreenUV = ScreenPosition * View.ScreenPositionScaleBias.xy + View.ScreenPositionScaleBias.wz;
-	float IndirectDiffuseOcclusion;
+
 
 	// EHartNV : ToDo - clean this up, the screen remapping should likely get moved into a multires function
+	float2 ScreenUV = ScreenPosition * View.ScreenPositionScaleBias.xy + View.ScreenPositionScaleBias.wz;
 	if (VRProjectionIsActive())
 	{
 		ScreenUV = VRProjMapLinearToVRProj( ScreenPosition * float2(0.5, -0.5) + 0.5);
 		ScreenUV = ScreenUV * View.ViewRectToRenderTargetUVScaleBias.xy + View.ViewRectToRenderTargetUVScaleBias.zw;
 	}
+	float IndirectDiffuseOcclusion;
 	GetDistanceFieldAOSpecularOcclusion(ScreenUV, RayDirection, Roughness, ShadingModelID == SHADINGMODELID_TWOSIDED_FOLIAGE, IndirectSpecularOcclusion, IndirectDiffuseOcclusion);
 	// Apply DFAO to IndirectIrradiance before mixing with indirect specular
 	IndirectIrradiance *= IndirectDiffuseOcclusion;	

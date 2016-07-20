@@ -224,8 +224,7 @@ template<uint32 TextureType> void VisualizeTextureForTextureType(FRHICommandList
 		// TextureSize
 		FIntPoint(1, 1),
 		*VertexShader,
-		bLensMatchedShadeEnabled ? EDRF_Default : EDRF_UseTriangleOptimization,
-		true);
+		bLensMatchedShadeEnabled ? EDRF_Default : EDRF_UseTriangleOptimization);
 }
 
 void RenderVisualizeTexture(FRHICommandListImmediate& RHICmdList, ERHIFeatureLevel::Type FeatureLevel, const FVisualizeTextureData& Data)
@@ -556,8 +555,7 @@ void FVisualizeTexture::PresentContent(FRHICommandListImmediate& RHICmdList, con
 			FIntPoint(RenderTarget->GetSizeX(), RenderTarget->GetSizeY()),
 			VisualizeTextureRect.Size(),
 			*VertexShader,
-			View.VRProjMode == FSceneView::EVRProjectMode::LensMatched ? EDRF_Default : EDRF_UseTriangleOptimization,
-			true);
+			View.VRProjMode == FSceneView::EVRProjectMode::LensMatched ? EDRF_Default : EDRF_UseTriangleOptimization);
 	}
 
 	// this is a helper class for FCanvas to be able to get screen size
