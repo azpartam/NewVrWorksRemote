@@ -2033,7 +2033,18 @@ public:
 	// SceneViewExtension interface
 	virtual void SetupViewFamily(FSceneViewFamily& InViewFamily) {}
 
-	virtual void SetupView(FSceneViewFamily& InViewFamily, FSceneView& InView) {}
+	virtual void SetupView(FSceneViewFamily& InViewFamily, FSceneView& InView)
+	{
+		// just tweak the views for the gap
+		if (InView.StereoPass == eSSP_RIGHT_EYE)
+		{
+			InView.ViewRect.Min.X += GetViewportGap();
+		}
+		else
+		{
+			InView.ViewRect.Max.X -= GetViewportGap();
+		}
+	}
 
 	virtual void BeginRenderViewFamily(FSceneViewFamily& InViewFamily){}
 	virtual void PreRenderViewFamily_RenderThread(FRHICommandListImmediate& RHICmdList, FSceneViewFamily& InViewFamily) {}
