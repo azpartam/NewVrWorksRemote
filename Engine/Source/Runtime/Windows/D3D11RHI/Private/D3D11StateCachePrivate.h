@@ -362,7 +362,7 @@ public:
 		if (Direct3DDeviceMultiGPU)
 		{
 			// Ignore GD3D11SkipStateCaching, since GPUMask always applies to all GPUs.
-			if (GPUMask != State && GRHISupportsMultipleGPUStereo)
+			if (GPUMask != State && (GRHISupportsMultipleGPUStereo || State == 0))
 			{
 				GPUMask = State;
 				Direct3DDeviceMultiGPU->SetGPUMask(State);
