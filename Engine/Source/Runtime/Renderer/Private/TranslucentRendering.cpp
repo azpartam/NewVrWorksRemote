@@ -1167,6 +1167,9 @@ void FDeferredShadingSceneRenderer::RenderTranslucencyParallel(FRHICommandListIm
 		SCOPED_CONDITIONAL_DRAW_EVENTF(RHICmdList, EventView, Views.Num() > 1, TEXT("View%d"), ViewIndex);
 
 		const FViewInfo& View = Views[ViewIndex];
+
+		RHICmdList.SetGPUMask(View.StereoPass);
+
 		{
 			if (SceneContext.IsSeparateTranslucencyActive(View))
 			{
@@ -1228,6 +1231,7 @@ void FDeferredShadingSceneRenderer::RenderTranslucencyParallel(FRHICommandListIm
 			DrawViewElementsParallel<FTranslucencyDrawingPolicyFactory>(GParallelTranslucencyContext, SDPG_Foreground, false, ParallelCommandListSet);
 			}
 		}
+
 		FinishTranslucentRenderTarget(RHICmdList, View, TPT_NonSeparateTransluceny);
 
 #if 0 // unsupported visualization in the parallel case
@@ -1290,6 +1294,8 @@ void FDeferredShadingSceneRenderer::RenderTranslucencyParallel(FRHICommandListIm
 			EndTimingSeparateTranslucencyPass(RHICmdList, View);
 		}
 	}
+
+	RHICmdList.SetGPUMask(0);
 }
 
 static TAutoConsoleVariable<int32> CVarParallelTranslucency(

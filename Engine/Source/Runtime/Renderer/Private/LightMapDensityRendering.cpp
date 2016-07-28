@@ -49,6 +49,7 @@ bool FDeferredShadingSceneRenderer::RenderLightMapDensities(FRHICommandListImmed
 			SCOPED_CONDITIONAL_DRAW_EVENTF(RHICmdList, EventView, Views.Num() > 1, TEXT("View%d"), ViewIndex);
 
 			FViewInfo& View = Views[ViewIndex];
+			RHICmdList.SetGPUMask(View.StereoPass);
 
 			// Opaque blending, depth tests and writes.
 			RHICmdList.SetBlendState(TStaticBlendState<>::GetRHI());

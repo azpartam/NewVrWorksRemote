@@ -222,6 +222,7 @@ void FDeferredShadingSceneRenderer::ClearGBufferAtMaxZ(FRHICommandList& RHICmdLi
 		SCOPED_CONDITIONAL_DRAW_EVENTF(RHICmdList, EventView, Views.Num() > 1, TEXT("ClearView%d"), ViewIndex);
 
 		FViewInfo& View = Views[ViewIndex];
+		RHICmdList.SetGPUMask(View.StereoPass);
 
 		// Set viewport for this view
 		RHICmdList.SetViewport(View.ViewRect.Min.X, View.ViewRect.Min.Y, 0, View.ViewRect.Max.X, View.ViewRect.Max.Y, 1);
@@ -239,6 +240,7 @@ void FDeferredShadingSceneRenderer::ClearGBufferAtMaxZ(FRHICommandList& RHICmdLi
 		};
 		DrawPrimitiveUP(RHICmdList, PT_TriangleStrip, 2, ClearQuadVertices, sizeof(ClearQuadVertices[0]));
 	}
+	RHICmdList.SetGPUMask(0);
 }
 
 bool FDeferredShadingSceneRenderer::RenderBasePassStaticDataType(FRHICommandList& RHICmdList, FViewInfo& View, const EBasePassDrawListType DrawType)
@@ -1437,10 +1439,8 @@ void FDeferredShadingSceneRenderer::Render(FRHICommandListImmediate& RHICmdList)
 		for(int32 ViewIndex = 0; ViewIndex < Views.Num(); ++ViewIndex)
 		{	
 			SCOPED_CONDITIONAL_DRAW_EVENTF(RHICmdList, EventView,Views.Num() > 1, TEXT("View%d"), ViewIndex);
-			RHICmdList.SetGPUMask(Views[ViewIndex].StereoPass);
 			GCompositionLighting.ProcessAfterLighting(RHICmdList, Views[ViewIndex]);
 		}
-		RHICmdList.SetGPUMask(0);
 		ServiceLocalQueue();
 	}
 
@@ -1550,6 +1550,7 @@ void FDeferredShadingSceneRenderer::Render(FRHICommandListImmediate& RHICmdList)
 	for (int32 ViewIndex = 0; ViewIndex < Views.Num(); ++ViewIndex)
 	{
 		const FViewInfo& View = Views[ViewIndex];
+		RHICmdList.SetGPUMask(0);
 		RHICmdList.SetViewport(View.ViewRect.Min.X, View.ViewRect.Min.Y, 0.0f, View.ViewRect.Max.X, View.ViewRect.Max.Y, 1.0f);
 		GetRendererModule().RenderOverlayExtensions(View, RHICmdList, SceneContext);
 	}
@@ -2041,6 +2042,7 @@ bool FDeferredShadingSceneRenderer::PreRenderPrePass(FRHICommandListImmediate& R
 			SCOPED_CONDITIONAL_DRAW_EVENTF(RHICmdList, EventView, Views.Num() > 1, TEXT("View%d"), ViewIndex);
 
 			FViewInfo& View = Views[ViewIndex];
+			RHICmdList.SetGPUMask(View.StereoPass);
 			RHICmdList.SetViewport(View.ViewRect.Min.X, View.ViewRect.Min.Y, 0.0f, View.ViewRect.Max.X, View.ViewRect.Max.Y, 1.0f);
 
 			// Set shaders, states
@@ -2069,6 +2071,7 @@ bool FDeferredShadingSceneRenderer::PreRenderPrePass(FRHICommandListImmediate& R
 				*ScreenVertexShader,
 				EDRF_UseTriangleOptimization);
 		}
+		RHICmdList.SetGPUMask(0);
 	}
 	return bDepthWasCleared;
 }
@@ -2206,6 +2209,7 @@ bool FDeferredShadingSceneRenderer::RenderPrePassHMD(FRHICommandListImmediate& R
 	for (int32 ViewIndex = 0; ViewIndex < Views.Num(); ++ViewIndex)
 	{
 		const FViewInfo& View = Views[ViewIndex];
+		RHICmdList.SetGPUMask(View.StereoPass);
 
 		if (View.bVRProjectEnabled)
 		{
@@ -2231,6 +2235,7 @@ bool FDeferredShadingSceneRenderer::RenderPrePassHMD(FRHICommandListImmediate& R
 			View.EndVRProjectionStates(RHICmdList);
 		}
 	}
+	RHICmdList.SetGPUMask(0);
 
 	// return scissor to normal after multires
 	RHICmdList.SetScissorRect(false, 0, 0, 0, 0);
@@ -2332,6 +2337,7 @@ void FDeferredShadingSceneRenderer::ClearLPVs(FRHICommandListImmediate& RHICmdLi
 		SCOPED_CONDITIONAL_DRAW_EVENTF(RHICmdList, EventView, Views.Num() > 1, TEXT("View%d"), ViewIndex);
 
 		FViewInfo& View = Views[ViewIndex];
+		RHICmdList.SetGPUMask(View.StereoPass);
 
 		FSceneViewState* ViewState = (FSceneViewState*)Views[ViewIndex].State;
 		if(ViewState)
@@ -2347,6 +2353,7 @@ void FDeferredShadingSceneRenderer::ClearLPVs(FRHICommandListImmediate& RHICmdLi
 			}
 		}
 	}
+	RHICmdList.SetGPUMask(0);
 }
 
 void FDeferredShadingSceneRenderer::UpdateLPVs(FRHICommandListImmediate& RHICmdList)
@@ -2359,6 +2366,9 @@ void FDeferredShadingSceneRenderer::UpdateLPVs(FRHICommandListImmediate& RHICmdL
 		SCOPED_CONDITIONAL_DRAW_EVENTF(RHICmdList, EventView, Views.Num() > 1, TEXT("View%d"), ViewIndex);
 
 		FViewInfo& View = Views[ViewIndex];
+		
+		RHICmdList.SetGPUMask(View.StereoPass);
+
 		FSceneViewState* ViewState = (FSceneViewState*)Views[ViewIndex].State;
 
 		if(ViewState)
@@ -2374,6 +2384,7 @@ void FDeferredShadingSceneRenderer::UpdateLPVs(FRHICommandListImmediate& RHICmdL
 			}
 		}
 	}
+	RHICmdList.SetGPUMask(0);
 }
 
 /** A simple pixel shader used on PC to read scene depth from scene color alpha and write it to a downsized depth buffer. */
@@ -2454,8 +2465,11 @@ void FDeferredShadingSceneRenderer::UpdateDownsampledDepthSurface(FRHICommandLis
 		for (int32 ViewIndex = 0; ViewIndex < Views.Num(); ViewIndex++)
 		{
 			const FViewInfo& View = Views[ViewIndex];
+			RHICmdList.SetGPUMask(View.StereoPass);
+
 			DownsampleDepthSurface(RHICmdList, SceneContext.GetSmallDepthSurface(), View, 1.0f / SceneContext.GetSmallColorDepthDownsampleFactor(), true);
 		}
+		RHICmdList.SetGPUMask(0);
 	}
 }
 
@@ -2572,6 +2586,10 @@ void FDeferredShadingSceneRenderer::CopyStencilToLightingChannelTexture(FRHIComm
 		for (int32 ViewIndex = 0; ViewIndex < Views.Num(); ViewIndex++)
 		{
 			const FViewInfo& View = Views[ViewIndex];
+			
+			
+			RHICmdList.SetGPUMask(View.StereoPass);
+
 			// Set shaders and texture
 			TShaderMapRef<FScreenVS> ScreenVertexShader(View.ShaderMap);
 			TShaderMapRef<FCopyStencilToLightingChannelsPS> PixelShader(View.ShaderMap);
@@ -2599,6 +2617,7 @@ void FDeferredShadingSceneRenderer::CopyStencilToLightingChannelTexture(FRHIComm
 				*ScreenVertexShader,
 				EDRF_UseTriangleOptimization);
 		}
+		RHICmdList.SetGPUMask(0);
 
 		FResolveParams ResolveParams;
 

@@ -1132,6 +1132,7 @@ void FSceneRenderer::RenderDistortionES2(FRHICommandListImmediate& RHICmdList)
 			SCOPED_CONDITIONAL_DRAW_EVENTF(RHICmdList, EventView, Views.Num() > 1, TEXT("View%d"), ViewIndex);
 
 			FViewInfo& View = Views[ViewIndex];
+			RHICmdList.SetGPUMask(View.StereoPass);
 
 			// useful when we move this into the compositing graph
 			FRenderingCompositePassContext Context(RHICmdList, View);
@@ -1163,6 +1164,7 @@ void FSceneRenderer::RenderDistortionES2(FRHICommandListImmediate& RHICmdList)
 				*VertexShader,
 				EDRF_UseTriangleOptimization);
 		}
+		RHICmdList.SetGPUMask(0);
 	
 		// Distort scene color in place
 		for(int32 ViewIndex = 0, Num = Views.Num(); ViewIndex < Num; ++ViewIndex)
@@ -1170,6 +1172,7 @@ void FSceneRenderer::RenderDistortionES2(FRHICommandListImmediate& RHICmdList)
 			SCOPED_CONDITIONAL_DRAW_EVENTF(RHICmdList, EventView, Views.Num() > 1, TEXT("View%d"), ViewIndex);
 
 			FViewInfo& View = Views[ViewIndex];
+			RHICmdList.SetGPUMask(View.StereoPass);
 
 			// useful when we move this into the compositing graph
 			FRenderingCompositePassContext Context(RHICmdList, View);
@@ -1185,7 +1188,8 @@ void FSceneRenderer::RenderDistortionES2(FRHICommandListImmediate& RHICmdList)
 			// draw only distortion meshes
 			View.DistortionPrimSet.DrawAccumulatedOffsets(RHICmdList, View, false);
 		}
-	
+		RHICmdList.SetGPUMask(0);
+
 		// Set distorted scene color as main
 		SceneContext.SetSceneColor(SceneColorDistorted);
 	}

@@ -627,8 +627,10 @@ void FDeferredShadingSceneRenderer::RenderLights(FRHICommandListImmediate& RHICm
 					for (int32 ViewIndex = 0; ViewIndex < Views.Num(); ViewIndex++)
 					{
 						const FViewInfo& View = Views[ViewIndex];
+						RHICmdList.SetGPUMask(View.StereoPass);
 						View.HeightfieldLightingViewInfo.ClearShadowing(View, RHICmdList, LightSceneInfo);
 					}
+					RHICmdList.SetGPUMask(0);
 
 					// All shadows render with min blending
 					bool bClearToWhite = true;

@@ -711,7 +711,6 @@ void FDeferredShadingSceneRenderer::RenderReflectionCaptureSpecularBounceForAllV
 		const FViewInfo& View = Views[ViewIndex];
 
 		RHICmdList.SetGPUMask(View.StereoPass);
-
 		RHICmdList.SetViewport(View.ViewRect.Min.X, View.ViewRect.Min.Y, 0.0f, View.ViewRect.Max.X, View.ViewRect.Max.Y, 1.0f);
 
 		

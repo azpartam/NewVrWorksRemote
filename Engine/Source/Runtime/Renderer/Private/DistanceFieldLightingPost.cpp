@@ -1204,6 +1204,7 @@ void UpsampleBentNormalAO(
 	for (int32 ViewIndex = 0; ViewIndex < Views.Num(); ViewIndex++)
 	{
 		const FViewInfo& View = Views[ViewIndex];
+		RHICmdList.SetGPUMask(View.StereoPass);
 
 		SCOPED_DRAW_EVENT(RHICmdList, UpsampleAO);
 

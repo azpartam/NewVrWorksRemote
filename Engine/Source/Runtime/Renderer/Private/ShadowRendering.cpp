@@ -3206,6 +3206,7 @@ bool FDeferredShadingSceneRenderer::RenderOnePassPointLightShadows(FRHICommandLi
 					SCOPED_CONDITIONAL_DRAW_EVENTF(RHICmdList, EventView, Views.Num() > 1, TEXT("View%d"), ViewIndex);
 
 					const FViewInfo& View = Views[ViewIndex];
+					RHICmdList.SetGPUMask(View.StereoPass);
 
 					// Set the device viewport for the view.
 					if (View.bVRProjectEnabled)
@@ -3232,6 +3233,7 @@ bool FDeferredShadingSceneRenderer::RenderOnePassPointLightShadows(FRHICommandLi
 						View.EndVRProjectionStates(RHICmdList);
 					}
 				}
+				RHICmdList.SetGPUMask(0);
 			}
 
 			// Don't inject shadowed lighting with whole scene shadows used for previewing a light with static shadows,
@@ -3276,6 +3278,7 @@ void FSceneRenderer::RenderProjections(
 		SCOPED_CONDITIONAL_DRAW_EVENTF(RHICmdList, EventView, Views.Num() > 1, TEXT("View%d"), ViewIndex);
 
 		const FViewInfo& View = Views[ViewIndex];
+		RHICmdList.SetGPUMask(View.StereoPass);
 
 		// EHartNV : ToDo - determine if this is really necessary, or whether it is just a small inefficiency
 		// In multi-res mode, defer viewport/scissor setting to RenderProjection().
@@ -3313,6 +3316,7 @@ void FSceneRenderer::RenderProjections(
 			RHICmdList.SetScissorRect(false, 0, 0, 0, 0);
 		}
 	}
+	RHICmdList.SetGPUMask(0);
 }
 
 // Sort by descending resolution

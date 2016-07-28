@@ -354,6 +354,7 @@ bool FDeferredShadingSceneRenderer::RenderVertexDensities(FRHICommandListImmedia
 			SCOPED_CONDITIONAL_DRAW_EVENTF(RHICmdList, EventView, Views.Num() > 1, TEXT("View%d"), ViewIndex);
 
 			FViewInfo& View = Views[ViewIndex];
+			RHICmdList.SetGPUMask(View.StereoPass);
 
 			// Opaque blending, depth tests and writes.
 			RHICmdList.SetBlendState(TStaticBlendState<CW_RGBA, BO_Add, BF_One, BF_One, BO_Add, BF_One, BF_One>::GetRHI());
@@ -376,6 +377,7 @@ bool FDeferredShadingSceneRenderer::RenderVertexDensities(FRHICommandListImmedia
 				}
 			}
 		}
+		RHICmdList.SetGPUMask(0);
 	}
 
 	return false;
