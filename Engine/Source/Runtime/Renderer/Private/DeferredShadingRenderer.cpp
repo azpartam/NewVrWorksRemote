@@ -566,6 +566,7 @@ static void SetupBasePassView(FRHICommandList& RHICmdList, const FViewInfo& View
 	else if(!View.IsInstancedStereoPass() || bIsEditorPrimitivePass)
 	{
 		RHICmdList.SetViewport(View.ViewRect.Min.X, View.ViewRect.Min.Y, 0, View.ViewRect.Max.X, View.ViewRect.Max.Y, 1);
+		RHICmdList.SetGPUMask(View.StereoPass);
 	}
 	else
 	{
@@ -683,8 +684,10 @@ bool FDeferredShadingSceneRenderer::RenderBasePassView(FRHICommandListImmediate&
 	if (View.IsSinglePassStereoAllowed())
 	{
 		RHICmdList.SetSinglePassStereoParameters(false, 0, true);
-		RHICmdList.SetScissorRect(false, 0, 0, 0, 0);
 	}
+
+	RHICmdList.SetGPUMask(0);
+	RHICmdList.SetScissorRect(false, 0, 0, 0, 0);
 
 	return bDirty;
 }
@@ -1708,6 +1711,7 @@ static void SetupPrePassView(FRHICommandList& RHICmdList, const FViewInfo& View)
 	else if(!View.IsInstancedStereoPass())
 	{
 		RHICmdList.SetViewport(View.ViewRect.Min.X, View.ViewRect.Min.Y, 0.0f, View.ViewRect.Max.X, View.ViewRect.Max.Y, 1.0f);
+		RHICmdList.SetGPUMask(View.StereoPass);
 	}
 	else
 	{
@@ -1820,8 +1824,10 @@ bool FDeferredShadingSceneRenderer::RenderPrePassView(FRHICommandList& RHICmdLis
 	if (View.IsSinglePassStereoAllowed())
 	{
 		RHICmdList.SetSinglePassStereoParameters(false, 0, true);
-		RHICmdList.SetScissorRect(false, 0, 0, 0, 0);
 	}
+
+	RHICmdList.SetScissorRect(false, 0, 0, 0, 0);
+	RHICmdList.SetGPUMask(0);
 
 	return bDirty;
 }
@@ -2114,16 +2120,11 @@ bool FDeferredShadingSceneRenderer::RenderPrePass(FRHICommandListImmediate& RHIC
 
 				if (View.ShouldRenderView())
 				{
-					RHICmdList.SetGPUMask(View.bIsInstancedStereoEnabled ? 0 : View.StereoPass);
-
 					bDepthWasCleared = RenderPrePassViewParallel(View, RHICmdList, AfterTasksAreStarted, !bDidPrePre) || bDepthWasCleared;
 					bDirty = true; // assume dirty since we are not going to wait
 					bDidPrePre = true;
 				}
 			}
-
-			RHICmdList.SetGPUMask(0);
-			RHICmdList.SetScissorRect(false, 0, 0, 0, 0);
 		}
 		else
 		{
@@ -2135,15 +2136,13 @@ bool FDeferredShadingSceneRenderer::RenderPrePass(FRHICommandListImmediate& RHIC
 
 				if (View.ShouldRenderView())
 				{
-					RHICmdList.SetGPUMask(View.bIsInstancedStereoEnabled ? 0 : View.StereoPass);
-
 					bDirty |= RenderPrePassView(RHICmdList, View);
 				}
 			}
-
-			RHICmdList.SetGPUMask(0);
-			RHICmdList.SetScissorRect(false, 0, 0, 0, 0);
 		}
+
+		RHICmdList.SetGPUMask(0);
+		RHICmdList.SetScissorRect(false, 0, 0, 0, 0);
 	}
 	if (!bDidPrePre)
 	{
@@ -2286,15 +2285,10 @@ bool FDeferredShadingSceneRenderer::RenderBasePass(FRHICommandListImmediate& RHI
 
 				if (View.ShouldRenderView())
 				{
-					RHICmdList.SetGPUMask(View.bIsInstancedStereoEnabled ? 0 : View.StereoPass);
-
 					RenderBasePassViewParallel(View, RHICmdList);
 				}
 
 				RenderEditorPrimitives(RHICmdList, View, bDirty);
-
-				RHICmdList.SetGPUMask(0);
-				RHICmdList.SetScissorRect(false, 0, 0, 0, 0);
 			}
 
 			bDirty = true; // assume dirty since we are not going to wait
@@ -2309,15 +2303,10 @@ bool FDeferredShadingSceneRenderer::RenderBasePass(FRHICommandListImmediate& RHI
 
 				if (View.ShouldRenderView())
 				{
-					RHICmdList.SetGPUMask(View.bIsInstancedStereoEnabled ? 0 : View.StereoPass);
-
 					bDirty |= RenderBasePassView(RHICmdList, View);
 				}
 
 				RenderEditorPrimitives(RHICmdList, View, bDirty);
-
-				RHICmdList.SetGPUMask(0);
-				RHICmdList.SetScissorRect(false, 0, 0, 0, 0);
 			}
 		}	
 	}
