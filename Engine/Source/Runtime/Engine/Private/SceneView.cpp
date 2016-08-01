@@ -2221,6 +2221,10 @@ void FSceneView::SetupVRProjection(int32 ViewportGap)
 
 	if (VRProjMode == EVRProjectMode::MultiRes) // Set up VR projection for multi-res
 	{
+		// Disable SPS if MultiRes is enabled
+		bAllowSinglePassStereo = false;
+		CVarSinglePassStereoRendering.AsVariable()->Set(0, ECVF_SetByConsole);
+
 		// Set up the multi-res configuration: viewport split positions and relative pixel densities
 		// Hard-coded for now!
 		if (MultiResLevel == 1)
@@ -2399,18 +2403,11 @@ void FSceneView::CheckSinglePassStereo()
 	// SinglePassStereo has to be supported and enabled to work presently
 	int AllowSinglePassStereo = CVar && CVar->GetValueOnGameThread() ? CVarSinglePassStereoRendering.GetValueOnGameThread() : 0;
 	bAllowSinglePassStereo = (AllowSinglePassStereo > 0) && StereoPass != eSSP_FULL && GSupportsSinglePassStereo;
-
-	// Disable SPS if MultiRes is enabled
-	if (bVRProjectEnabled && VRProjMode == FSceneView::EVRProjectMode::MultiRes)
-	{
-		bAllowSinglePassStereo = false;
-		CVarSinglePassStereoRendering.AsVariable()->Set(0, ECVF_SetByConsole);
-	}
 }
 
 void FSceneView::SetupSinglePassStereo()
 {
-	CheckSinglePassStereo();
+	// CheckSinglePassStereo();
 
 	if (!bAllowSinglePassStereo)
 	{

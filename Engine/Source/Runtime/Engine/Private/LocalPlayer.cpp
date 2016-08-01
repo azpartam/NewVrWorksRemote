@@ -774,6 +774,7 @@ FSceneView* ULocalPlayer::CalcSceneView( class FSceneViewFamily* ViewFamily,
 
 	// Setup multi-res after both ScreenPercentage (applied in EndFinalPostprocessSettings)
 	// and any HMD adjustments (applied in ISceneViewExtension::SetupView)
+	View->CheckSinglePassStereo();
 	View->SetupVRProjection(0);
 
 	View->SetupSinglePassStereo();
