@@ -302,7 +302,7 @@ void MainPS(
 			#if ES2_PROFILE || ES3_1_PROFILE
 				BloomUV = FullViewUV.xy;
 			#endif
-			float4 CombinedBloom = Texture2DSample(PostprocessInput1, PostprocessInput1Sampler, BloomUV);
+			float4 CombinedBloom = Texture2DSample(PostprocessInput1, PostprocessInput1Sampler, VRProjMapRenderTargetVRProjToLinear(BloomUV));
 			float3 BloomDirtMaskColor = Texture2DSample(BloomDirtMask.Mask, BloomDirtMask.MaskSampler, SvPositionToViewportUV(SvPosition)).rgb * BloomDirtMask.Tint.rgb;
 			LinearColor += CombinedBloom.rgb * (ColorScale1.rgb + BloomDirtMaskColor); 
 		#endif
