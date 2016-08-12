@@ -136,8 +136,9 @@ void MainVS(
 	float2 ViewportPos = OutPosition.xy;
 
 	// Scale vignette to always be a circle with consistent corner intensity.
-	float2 VignetteSpacePos = VignetteSpace(ViewportPos);
-	OutExposureScaleVignette.yz = VignetteSpacePos;
+	float2 EyeUV = OutFullViewUV * View.RenderTargetToViewRectUVScaleBias.xy + View.RenderTargetToViewRectUVScaleBias.zw;
+	float2 EyePos = EyeUV * float2(2, -2) + float2(-1, 1);
+	OutExposureScaleVignette.yz = VignetteSpace(EyePos);
 
 	// Grain
 	OutGrainUV.xy = OutTexCoord + PostprocessInput0Size.zw * float2(-0.5,0.5);
@@ -316,8 +317,9 @@ void MainPS(
 				// Remap vignette position from multi-res to corresponding linear location
 				// @todo: Could be done in the vertex shader, by constructing a mesh that's split to match the
 				// multi-res viewports.
-				float2 LinearScreenPos = VRProjMapVRProjToLinear(FullViewUV) * float2(2, -2) + float2(-1, 1);
-				VignettePos = VignetteSpace(LinearScreenPos);
+                float2 EyeUV = VRProjMapVRProjToLinear(FullViewUV);
+                float2 EyePos = EyeUV * float2(2,-2) + float2(-1,1);
+                VignettePos = VignetteSpace(EyePos);
 			}
 			LinearColor.rgb *= ComputeVignetteMask(VignettePos, TonemapperParams.x);
 		#endif

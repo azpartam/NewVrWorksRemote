@@ -259,17 +259,20 @@ void DrawRectangle(
 
 	DoDrawRectangleFlagOverride(Flags);
 
-	// triangle if extending to left and top of the given rectangle, if it's not left top of the viewport it can cause artifacts
-	if(X > 0.0f || Y > 0.0f)
-	{
-		// don't use triangle optimization
-		Flags = EDRF_Default;
-	}
-
 	static const auto CVarLensMatchedShading = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("vr.LensMatchedShading"));
 	static const auto CVarLensMatchedShadingRendering = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("vr.LensMatchedShadingRendering"));
 	bool bLensMatchedShadeEnabled = GSupportsFastGeometryShader && GSupportsModifiedW &&
 		CVarLensMatchedShading && CVarLensMatchedShading->GetValueOnRenderThread() && CVarLensMatchedShadingRendering && CVarLensMatchedShadingRendering->GetValueOnRenderThread() > 0;
+
+	// We draw an octagon instead of a FS triangle if LMS is enabled. We purposely only do it for triangles so that disabling triangle optimization from console also disables octagons.
+	static const auto CVarLMSDrawRectangleOptimization = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("vr.LensMatchedShadingRectangleOptimization"));
+	bool bDrawOctagon = (CVarLMSDrawRectangleOptimization->GetValueOnRenderThread() && !bForceNoRemap && bLensMatchedShadeEnabled && Flags == EDRF_UseTriangleOptimization);
+	// triangle if extending to left and top of the given rectangle, if it's not left top of the viewport it can cause artifacts
+	if (!bDrawOctagon && (X > 0.0f || Y > 0.0f))
+	{
+		// don't use triangle optimization
+		Flags = EDRF_Default;
+	}
 
 	// Set up vertex uniform parameters for scaling and biasing the rectangle.
 	// Note: Use DrawRectangle in the vertex shader to calculate the correct vertex position and uv.
@@ -281,10 +284,6 @@ void DrawRectangle(
 	Parameters.InvTargetSizeAndTextureSize = FVector4( 
 		1.0f / TargetSize.X, 1.0f / TargetSize.Y, 
 		1.0f / TextureSize.X, 1.0f / TextureSize.Y);
-
-	// We draw an octagon instead of a FS triangle if LMS is enabled. We purposely only do it for triangles so that disabling triangle optimization from console also disables octagons.
-	static const auto CVarLMSDrawRectangleOptimization = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("vr.LensMatchedShadingRectangleOptimization"));
-	bool bDrawOctagon = (CVarLMSDrawRectangleOptimization->GetValueOnRenderThread() && !bForceNoRemap && bLensMatchedShadeEnabled && Flags == EDRF_UseTriangleOptimization);
 	Parameters.bDisableRemap = !bDrawOctagon;
 
 	SetUniformBufferParameterImmediate(RHICmdList, VertexShader->GetVertexShader(), VertexShader->GetUniformBufferParameter<FDrawRectangleParameters>(), Parameters);
