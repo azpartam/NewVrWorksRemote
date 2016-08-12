@@ -2325,9 +2325,20 @@ void FSceneView::SetupVRProjection(int32 ViewportGap)
 			LensMatchedShadingConf.WarpDown = (1.f + LensMatchedShadingConf.WarpDown) / ResolutionScale - 1.f;
 		}
 
-
 		// round locations before mirroring
 		FIntRect OriginalViewport = ViewRect;
+		
+		// slightly adjust warp parameters to guarantee clean downsampling (warped render target size should be multiple of 4)
+		FVector2D OriginalSize = FVector2D(OriginalViewport.Size());
+		FVector2D RelativeSize = FVector2D(LensMatchedShadingConf.RelativeSizeLeft + LensMatchedShadingConf.RelativeSizeRight, LensMatchedShadingConf.RelativeSizeUp + LensMatchedShadingConf.RelativeSizeDown);
+		FVector2D ViewWarpSize = OriginalSize* RelativeSize;
+		FIntPoint ViewWarpCeil = FIntPoint(ceil(ViewWarpSize.X), ceil(ViewWarpSize.Y));
+		const uint32 DividableBy = 4; // make sure this matches DividableBy in SceneRenderTargets.cpp::QuantizeBufferSize
+		FIntPoint ViewWarpAdjusted = ViewWarpCeil + FIntPoint(DividableBy - (ViewWarpCeil.X % DividableBy), DividableBy - (ViewWarpCeil.Y % DividableBy));
+		FVector2D AdjustmentFactor = FVector2D(ViewWarpAdjusted) / (RelativeSize * OriginalSize);
+		LensMatchedShadingConf.RelativeSizeLeft *= AdjustmentFactor.X; LensMatchedShadingConf.RelativeSizeRight *= AdjustmentFactor.X;
+		LensMatchedShadingConf.RelativeSizeDown *= AdjustmentFactor.Y; LensMatchedShadingConf.RelativeSizeUp *= AdjustmentFactor.Y;
+
 		FLensMatchedShading::RoundSplitsToNearestPixel(&OriginalViewport, &LensMatchedShadingConf);
 
 		// need special 5x3 mirrored stereo for instance stereo rendering

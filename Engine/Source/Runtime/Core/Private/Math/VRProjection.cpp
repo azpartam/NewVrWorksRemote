@@ -658,6 +658,9 @@ void FLensMatchedShading::CalculateViewports(
 	RealRTSize.Min.Y = FMath::FloorToInt(float(RealRTSize.Min.Y) * HeightScale);
 	RealRTSize.Max.Y = FMath::CeilToInt(float(RealRTSize.Max.Y) * HeightScale);
 
+	// this calculation can introduce off-by-one errors because of floating point math + floor/ceil, so correct for that
+	RealRTSize.Max -= RealRTSize.Size() - FIntPoint(round(SizeLeft + SizeRight), round(SizeUp + SizeDown));
+
 	FVector2D Center;
 	Center.X = FMath::RoundHalfToEven(RealRTSize.Min.X + RealRTSize.Width() * SizeLeft / (SizeLeft + SizeRight));
 	Center.Y = FMath::RoundHalfToEven(RealRTSize.Min.Y + RealRTSize.Height() * SizeUp / (SizeUp + SizeDown));
