@@ -80,10 +80,10 @@ void FSceneRenderer::RenderModifiedWBoundaryMask(FRHICommandListImmediate& RHICm
 	// no vertex buffer needed as we compute it in VS
 	RHICmdList.SetStreamSource(0, NULL, 0, 0);
 
-	// the mask itself consists of eight triangles per view
+	// mask is two triangles covering the screen which will be warped into octagon shape
 	RHICmdList.DrawPrimitive(PT_TriangleList,
 		/*BaseVertexIndex=*/ 0,
-		/*NumPrimitives=*/ 8,
+		/*NumPrimitives=*/ 2,
 		/*NumInstances=*/ 1
 		);
 }

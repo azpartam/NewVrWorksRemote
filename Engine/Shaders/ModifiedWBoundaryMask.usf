@@ -4,42 +4,29 @@
 	ModifiedWBoundaryMask.usf: VS and GS for drawing ModifiedW boundary mask
 =============================================================================*/
 
-// INSIDE defines the inner boundary of the mask. If <1.0, it will be visible on the final render (useful for debugging)
-#define INSIDE 1.f
-// GUARD defines the outer boundary. The required value differs depending on the ModifiedW warp factors, so just setting
-// it to a sufficiently large number will do
-#define GUARD 100.f
+// BOUNDARY defines the boundary of the mask. If <1.0, it will be visible on the final render (useful for debugging)
+#define BOUNDARY 1.f
 
 // We generate the vertices in the VS rather than passing in through a vertex buffer
-static const float2 MaskVerts[8] = {
-	{ -INSIDE, INSIDE },
-	{ INSIDE, INSIDE },
-	{ INSIDE, -INSIDE },
-	{ -INSIDE, -INSIDE },
-	{ -GUARD, GUARD },
-	{ GUARD, GUARD },
-	{ GUARD, -GUARD },
-	{ -GUARD, -GUARD }
+static const float2 MaskVerts[4] = {
+	{ -BOUNDARY, BOUNDARY },
+	{ BOUNDARY, BOUNDARY },
+	{ BOUNDARY, -BOUNDARY },
+	{ -BOUNDARY, -BOUNDARY },
 };
 
-// The mask itself is composed of eight triangles arranged in four trapezoids which border the rectangular viewport
-static const int MaskInds[24] = {
-	0, 1, 4,
-	1, 5, 4,
-	1, 2, 5,
-	2, 6, 5,
-	3, 6, 2,
-	3, 7, 6,
-	4, 7, 0,
-	0, 7, 3
+// The mask itself is composed of two triangles forming a fullscreen quad, which will turn into an octagon once going through the ModifiedW pipeline
+static const int MaskInds[6] = {
+	0, 2, 1,
+	0, 3, 2
 };
 
-// The draw call itself will be eight triangles, so simply look up values in the vertex/index constant arrays
+// The draw call itself will be two triangles, so simply look up values in the vertex/index constant arrays
 void VSMain(in uint InVertexId : SV_VertexID,
 	out float4 OutPosition : SV_Position)
 {
 	float2 CurrentVertex = MaskVerts[MaskInds[InVertexId]];
-	OutPosition = float4(CurrentVertex.xy, 1, 1); // depth=1 maps to near plane
+	OutPosition = float4(CurrentVertex.xy, 0, 1); // depth=0 maps to near plane
 }
 
 // Simple FastGS to just broadcast to all viewports

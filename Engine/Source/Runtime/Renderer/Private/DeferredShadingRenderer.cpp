@@ -2200,9 +2200,18 @@ bool FDeferredShadingSceneRenderer::RenderPrePassHMD(FRHICommandListImmediate& R
 	RHICmdList.SetScissorRect(false, 0, 0, 0, 0);
 
 	SceneContext.BeginRenderingPrePass(RHICmdList, true);
+	// since engine defaults to clearing Z to 0, there's no easy way to clear to a custom value through the SceneContext API
+	// it's inefficent, but we will just clear depth again here to get octagon working correctly in the least invasive way possible
+	if (IsLMSEnabled)
+	{
+		FLinearColor ClearColor(0, 0, 0);
+		float ClearDepth = 1.f; // we plan to clear Z to near plane, then overwrite the visible octagon to far plane
+		uint32 ClearStencil = 0;
+		RHICmdList.Clear(false, ClearColor, true, ClearDepth, true, ClearStencil, FIntRect());
+	}
 
 	RHICmdList.SetBlendState(TStaticBlendState<CW_NONE>::GetRHI());
-	RHICmdList.SetDepthStencilState(TStaticDepthStencilState<true, CF_DepthNearOrEqual>::GetRHI());
+	RHICmdList.SetDepthStencilState(TStaticDepthStencilState<true, CF_Always>::GetRHI());
 	RHICmdList.SetRasterizerState(TStaticRasterizerState<FM_Solid, CM_None>::GetRHI());
 
 	for (int32 ViewIndex = 0; ViewIndex < Views.Num(); ++ViewIndex)
@@ -2236,7 +2245,8 @@ bool FDeferredShadingSceneRenderer::RenderPrePassHMD(FRHICommandListImmediate& R
 	}
 	RHICmdList.SetGPUMask(0);
 
-	// return scissor to normal after multires
+	// return viewport and scissor to normal after multires
+	RHICmdList.SetViewport(0.0f, 0.0f, 0.0f, SceneContext.GetBufferSizeXY().X, SceneContext.GetBufferSizeXY().Y, 1.0f);
 	RHICmdList.SetScissorRect(false, 0, 0, 0, 0);
 
 	SceneContext.FinishRenderingPrePass(RHICmdList);
