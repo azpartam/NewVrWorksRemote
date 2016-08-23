@@ -145,6 +145,32 @@ void FVRProjection::CalculateFastGSCBData(
 // Conservative Conf has splits at 25% in from each edge,
 // and scales the outer Viewports to 70% of their original pixel density.
 // Overall, reduces pixel Count by 28%.
+CORE_API const FMultiRes::Configuration FMultiRes::Configuration_Rift_Conservative =
+{
+	0.63f, 0.62f,
+	0.53f, 0.45f,
+	{ 0.0f, 0.0f }, // SplitX are calculated by calling CalculateSplits()
+	{ 0.0f, 0.0f },	// SplitY are calculated by calling CalculateSplits()
+	{ 0.62f, 1.0f, 0.75f },
+	{ 0.66f, 1.00f, 0.49f }
+};
+
+// Conservative Conf has splits at 25% in from each edge,
+// and scales the outer Viewports to 70% of their original pixel density.
+// Overall, reduces pixel Count by 28%.
+CORE_API const FMultiRes::Configuration FMultiRes::Configuration_Rift_Aggressive =
+{
+	0.4f, 0.4f,
+	0.57f, 0.41f,
+	{ 0.0f, 0.0f }, // SplitX are calculated by calling CalculateSplits()
+	{ 0.0f, 0.0f },	// SplitY are calculated by calling CalculateSplits()
+	{ 0.64f, 1.0f, 0.64f },
+	{ 0.64f, 1.0f, 0.64f }
+};
+
+// Conservative Conf has splits at 25% in from each edge,
+// and scales the outer Viewports to 70% of their original pixel density.
+// Overall, reduces pixel Count by 28%.
 CORE_API const FMultiRes::Configuration FMultiRes::Configuration_Vive_Quality =
 {
 	0.55f, 0.52f,
@@ -561,13 +587,22 @@ FVector2D FMultiRes::MapMultiResToLinear(const RemapCBData* CBData, const FVecto
 }
 
 
-CORE_API const FLensMatchedShading::Configuration FLensMatchedShading::Configuration_CrescentBay =
+CORE_API const FLensMatchedShading::Configuration FLensMatchedShading::Configuration_Rift_Conservative =
 {
-	0.425f, 0.425f,
-	0.425f, 0.425f,
+	0.471f, 0.471f,
+	0.471f, 0.471f,
 
-	0.391f, 0.521f, // Relative to Oculus recommended render target size for one eye, 1332 x 1586
-	0.557f, 0.384f
+	0.414f, 0.553f, // relative to CV1 render target size for one eye, 1332x1586
+	0.534f, 0.368f
+};
+
+CORE_API const FLensMatchedShading::Configuration FLensMatchedShading::Configuration_Rift_Aggressive =
+{
+	0.9f, 0.9f,
+	0.9f, 0.9f,
+
+	0.361f, 0.481f, // relative to CV1 render target size for one eye, 1332x1586
+	0.465f, 0.321f
 };
 
 CORE_API const FLensMatchedShading::Configuration FLensMatchedShading::Configuration_Vive_Quality =
