@@ -136,9 +136,8 @@ void MainVS(
 	float2 ViewportPos = OutPosition.xy;
 
 	// Scale vignette to always be a circle with consistent corner intensity.
-	float2 EyeUV = OutFullViewUV * View.RenderTargetToViewRectUVScaleBias.xy + View.RenderTargetToViewRectUVScaleBias.zw;
-	float2 EyePos = EyeUV * float2(2, -2) + float2(-1, 1);
-	OutExposureScaleVignette.yz = VignetteSpace(EyePos);
+	float2 VignetteSpacePos = VignetteSpace(ViewportPos);
+	OutExposureScaleVignette.yz = VignetteSpacePos;
 
 	// Grain
 	OutGrainUV.xy = OutTexCoord + PostprocessInput0Size.zw * float2(-0.5,0.5);
