@@ -321,6 +321,8 @@ bool FDeferredShadingSceneRenderer::RenderFog(FRHICommandListImmediate& RHICmdLi
 		{
 			const FViewInfo& View = Views[ViewIndex];
 
+			RHICmdList.SetGPUMask(View.StereoPass);
+
 			SCOPED_DRAW_EVENTF(RHICmdList, Fog, TEXT("ExponentialHeightFog %dx%d"), View.ViewRect.Width(), View.ViewRect.Height());
 			SCOPED_GPU_STAT(RHICmdList, Stat_GPU_Fog);
 
@@ -354,6 +356,7 @@ bool FDeferredShadingSceneRenderer::RenderFog(FRHICommandListImmediate& RHICmdLi
 				sizeof(Vertices[0])
 				);
 		}
+		RHICmdList.SetGPUMask(0);
 
 		//no need to resolve since we used alpha blending
 		SceneContext.FinishRenderingSceneColor(RHICmdList, false);

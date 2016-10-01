@@ -16,12 +16,15 @@ bool bIsInstancedStereoEmulated;
 
 struct FDepthOnlyVSToPS
 {
-	#if !MATERIALBLENDING_SOLID || OUTPUT_PIXEL_DEPTH_OFFSET
+	#if !MATERIALBLENDING_SOLID || OUTPUT_PIXEL_DEPTH_OFFSET || ((MULTIRES || LENS_MATCHED) && INSTANCED_STEREO)
 		FVertexFactoryInterpolantsVSToPS FactoryInterpolants;
 		float4 PixelPosition : TEXCOORD6;
 	#endif
 
 	float4 Position : SV_POSITION;
+#if SINGLE_PASS_STEREO
+	float4 NvXRight : NV_X_RIGHT;
+#endif
 };
 
 #if USING_TESSELLATION	
@@ -64,6 +67,24 @@ struct FDepthOnlyVSToPS
 		ISOLATE
 		{
 			O.Position = mul(WorldPosition, ResolvedView.TranslatedWorldToClip);
+
+			#if SINGLE_PASS_STEREO
+			BRANCH
+			if (bIsSinglePassStereo)
+			{
+				float4 WorldPositionRight = WorldPosition;
+				WorldPositionRight.xyz -= ResolvedView.PreViewTranslation.xyz;
+				WorldPositionRight.xyz += ResolvedViewRight.PreViewTranslation.xyz;
+				O.NvXRight = mul(WorldPositionRight, ResolvedViewRight.TranslatedWorldToClip).x;
+			}
+			else
+			{
+				O.NvXRight = 0;
+			}
+
+			// Bias the depth
+			O.Position.z += InstancedStereoDepthBias * O.Position.w * (float)bNeedsInstancedStereoBias;
+			#endif
 		}
 			
 		#if !MATERIALBLENDING_SOLID || OUTPUT_PIXEL_DEPTH_OFFSET
@@ -117,6 +138,10 @@ void Main(
 	ResolvedView = ResolveView();
 #endif
 
+#if SINGLE_PASS_STEREO
+	ResolvedViewRight = ResolveView(1);
+#endif
+
 	FVertexFactoryIntermediates VFIntermediates = GetVertexFactoryIntermediates(Input);
 	float4 WorldPos = VertexFactoryGetWorldPosition(Input, VFIntermediates);
 
@@ -139,11 +164,26 @@ void Main(
 	{
 		float4 RasterizedWorldPosition = VertexFactoryGetRasterizedWorldPosition(Input, VFIntermediates, WorldPos);
 		Output.Position = mul(RasterizedWorldPosition, ResolvedView.TranslatedWorldToClip);
+	
+		#if SINGLE_PASS_STEREO
+		BRANCH
+		if (bIsSinglePassStereo)
+		{
+			float4 WorldPositionRight = WorldPos;
+			WorldPositionRight.xyz -= ResolvedView.PreViewTranslation.xyz;
+			WorldPositionRight.xyz += ResolvedViewRight.PreViewTranslation.xyz;
+			RasterizedWorldPosition = VertexFactoryGetRasterizedWorldPosition(Input, VFIntermediates, WorldPositionRight);
+			Output.NvXRight = mul(RasterizedWorldPosition, ResolvedViewRight.TranslatedWorldToClip).x;
+		}
+		else
+		{
+			Output.NvXRight = 0;
+		}
+		#endif
 	}
-
 	#if INSTANCED_STEREO && !MULTI_VIEW
 	BRANCH 
-	if (bIsInstancedStereo || bIsInstancedStereoEmulated)  
+	if ((bIsInstancedStereo || bIsInstancedStereoEmulated) && !LensMatchedShadingIsActive())  
 	{
 		// Clip at the center of the screen
 		OutClipDistance = dot(Output.Position, EyeClipEdge[EyeIndex]);
@@ -168,7 +208,7 @@ void Main(
 #endif
 #endif
 
-#if !MATERIALBLENDING_SOLID || USING_TESSELLATION || OUTPUT_PIXEL_DEPTH_OFFSET
+#if !MATERIALBLENDING_SOLID || USING_TESSELLATION || OUTPUT_PIXEL_DEPTH_OFFSET || ((MULTIRES || LENS_MATCHED) && INSTANCED_STEREO)
 	// Masked and transparent materials need texture coords to clip, and tessellated
 	// materials need texture coords to displace
 	Output.FactoryInterpolants = VertexFactoryGetInterpolants(Input, VFIntermediates, VertexParameters);
@@ -194,3 +234,13 @@ void Main(
 }
 
 #endif // VERTEXSHADER
+
+#if SINGLE_PASS_STEREO && INSTANCED_STEREO
+VRPROJECT_CREATE_FASTGS_SPS_INSTANCED_STEREO(VRProjectFastGS, FDepthOnlyVSToPS, Position, NvXRight, FactoryInterpolants.PackedEyeIndex)
+#elif SINGLE_PASS_STEREO
+VRPROJECT_CREATE_FASTGS_SPS(VRProjectFastGS, FDepthOnlyVSToPS, Position, NvXRight)
+#elif INSTANCED_STEREO
+VRPROJECT_CREATE_FASTGS_INSTANCED_STEREO(VRProjectFastGS, FDepthOnlyVSToPS, Position, FactoryInterpolants.PackedEyeIndex)
+#else
+VRPROJECT_CREATE_FASTGS(VRProjectFastGS, FDepthOnlyVSToPS, Position)
+#endif

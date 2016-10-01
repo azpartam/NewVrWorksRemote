@@ -73,8 +73,16 @@ int3 GetClipFlag( float3 Origin, float Radius )
 	//float3 ClipExpand = Radius * float3( ResolvedView.ViewToClip[0][0], ResolvedView.ViewToClip[1][1], ResolvedView.ViewToClip[2][2] );
 	float4 ClipExpand = mul( float4( Radius, Radius, Radius, 0 ), ResolvedView.ViewToClip );
 	float4 ClipPos = mul( float4( Origin, 1.0 ), ResolvedView.TranslatedWorldToClip );
+#if SINGLE_PASS_STEREO
+	float4 ClipExpandRight = mul(float4(Radius, Radius, Radius, 0), ResolvedViewRight.ViewToClip);
+	float3 OriginRight = Origin - ResolvedView.PreViewTranslation.xyz + ResolvedViewRight.PreViewTranslation.xyz;
+	float4 ClipPosRight = mul(float4(OriginRight, 1.0), ResolvedViewRight.TranslatedWorldToClip);
+	int3 Clip0 = (ClipPos.xyz - ClipExpand.xyz <  ClipPos.w + ClipExpand.w) || (ClipPosRight.xyz - ClipExpandRight.xyz <  ClipPosRight.w + ClipExpandRight.w);
+	int3 Clip1 = (ClipPos.xyz + ClipExpand.xyz > -ClipPos.w - ClipExpand.w) || (ClipPosRight.xyz + ClipExpandRight.xyz > -ClipPosRight.w - ClipExpandRight.w);
+#else
     int3 Clip0 = ClipPos.xyz - ClipExpand.xyz <  ClipPos.w + ClipExpand.w;
     int3 Clip1 = ClipPos.xyz + ClipExpand.xyz > -ClipPos.w - ClipExpand.w;
+#endif
     return Clip0 + 2 * Clip1;
 }
 

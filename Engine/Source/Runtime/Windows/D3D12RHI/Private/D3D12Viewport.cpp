@@ -645,7 +645,7 @@ void FD3D12CommandContext::RHIEndDrawingViewport(FViewportRHIParamRef ViewportRH
 	bool bNativelyPresented = Viewport->Present(bLockToVsync);
 
 	// Don't wait on the GPU when using SLI, let the driver determine how many frames behind the GPU should be allowed to get
-	if (GNumActiveGPUsForRendering == 1)
+	if (GNumAlternateFrameRenderingGroups == 1)
 	{
 		if (bNativelyPresented)
 		{

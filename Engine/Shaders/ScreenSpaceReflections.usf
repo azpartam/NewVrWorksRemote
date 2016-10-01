@@ -98,6 +98,11 @@ void ScreenSpaceReflectionsPS(in noperspective float4 UVAndScreenPos : TEXCOORD0
 	float2 ScreenPos = UVAndScreenPos.zw;
 	int2 PixelPos = (int2)SvPosition.xy;
 
+	if (VRProjectionIsActive())
+	{
+		ScreenPos = SvPositionToScreenPosition(SvPosition);
+	}
+
 	OutColor = 0;
 
 	FScreenSpaceData ScreenSpaceData = GetScreenSpaceData(UV);
@@ -158,7 +163,7 @@ void ScreenSpaceReflectionsPS(in noperspective float4 UVAndScreenPos : TEXCOORD0
 		// if there was a hit
 		BRANCH if( HitUVzTime.w < 1 )
 		{
-			OutColor = SampleHCBLevel( PostprocessInput2, PostprocessInput2Sampler, HitUVzTime.xyz, HCBLevel );
+			OutColor = SampleHCBLevel(PostprocessInput2, PostprocessInput2Sampler, HitUVzTime.xyz, HCBLevel);
 		}
 	}
 #else //SSR_QUALITY != SSR_CONE_QUALITY

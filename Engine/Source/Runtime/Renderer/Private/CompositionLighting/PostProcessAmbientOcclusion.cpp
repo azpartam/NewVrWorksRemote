@@ -343,14 +343,15 @@ void FRCPassPostProcessAmbientOcclusionSetup::Process(FRenderingCompositePassCon
 	SCOPED_DRAW_EVENTF(Context.RHICmdList, AmbientOcclusionSetup, TEXT("AmbientOcclusionSetup %dx%d"), DestRect.Width(), DestRect.Height());
 
 	// Set the view family's render target/viewport.
-	SetRenderTarget(Context.RHICmdList, DestRenderTarget.TargetableTexture, FTextureRHIParamRef());
+
+	SetRenderTarget(Context.RHICmdList, DestRenderTarget.TargetableTexture, FTextureRHIRef());
+	Context.RHICmdList.SetDepthStencilState(TStaticDepthStencilState<false, CF_Always>::GetRHI());
 
 	Context.SetViewportAndCallRHI(DestRect);
 
 	// set the state
 	Context.RHICmdList.SetBlendState(TStaticBlendState<>::GetRHI());
 	Context.RHICmdList.SetRasterizerState(TStaticRasterizerState<>::GetRHI());
-	Context.RHICmdList.SetDepthStencilState(TStaticDepthStencilState<false, CF_Always>::GetRHI());
 
 	FShader* VertexShader = 0;
 
@@ -477,6 +478,7 @@ class FPostProcessAmbientOcclusionPSandCS : public FGlobalShader
 
 public:
 	FShaderParameter HZBRemapping;
+	FShaderParameter ViewPortRectMinAndInvSize;
 	FPostProcessPassParameters PostprocessParameter;
 	FDeferredPixelShaderParameters DeferredParameters;
 	FScreenSpaceAOParameters ScreenSpaceAOParams;
@@ -494,6 +496,7 @@ public:
 		RandomNormalTexture.Bind(Initializer.ParameterMap, TEXT("RandomNormalTexture"));
 		RandomNormalTextureSampler.Bind(Initializer.ParameterMap, TEXT("RandomNormalTextureSampler"));
 		HZBRemapping.Bind(Initializer.ParameterMap, TEXT("HZBRemapping"));
+		ViewPortRectMinAndInvSize.Bind(Initializer.ParameterMap, TEXT("ViewPortRectMinAndInvSize"));
 		OutTexture.Bind(Initializer.ParameterMap, TEXT("OutTexture"));
 	}
 
@@ -519,6 +522,12 @@ public:
 	{
 		const FViewInfo& View = Context.View;
 		const FVector4 HZBRemappingValue = GetHZBValue(View);				
+		const FIntRect ViewPortRect = Context.GetViewport();
+		const FVector4 ViewPortRectMinAndInvSizeValue(
+			ViewPortRect.Min.X,
+			ViewPortRect.Min.Y,
+			1.f / ViewPortRect.Size().X,
+			1.f / ViewPortRect.Size().Y);
 		const FSceneRenderTargetItem& SSAORandomization = GSystemTextures.SSAORandomization->GetRenderTargetItem();
 
 		const FComputeShaderRHIParamRef ShaderRHI = GetComputeShader();
@@ -532,13 +541,22 @@ public:
 		SetTextureParameter(RHICmdList, ShaderRHI, RandomNormalTexture, RandomNormalTextureSampler, TStaticSamplerState<SF_Point, AM_Wrap, AM_Wrap, AM_Wrap>::GetRHI(), SSAORandomization.ShaderResourceTexture);
 		ScreenSpaceAOParams.Set(RHICmdList, View, ShaderRHI, InputTextureSize);
 		SetShaderValue(RHICmdList, ShaderRHI, HZBRemapping, HZBRemappingValue);			
-	}
 
+		SetShaderValue(Context.RHICmdList, ShaderRHI, ViewPortRectMinAndInvSize, ViewPortRectMinAndInvSizeValue);
+	}
 	
 	void SetParametersGfx(FRHICommandList& RHICmdList, const FRenderingCompositePassContext& Context, FIntPoint InputTextureSize, FUnorderedAccessViewRHIParamRef OutUAV)
 	{
 		const FViewInfo& View = Context.View;
 		const FVector4 HZBRemappingValue = GetHZBValue(View);
+
+		const FIntRect ViewPortRect = Context.GetViewport();
+		const FVector4 ViewPortRectMinAndInvSizeValue(
+			ViewPortRect.Min.X,
+			ViewPortRect.Min.Y,
+			1.f / ViewPortRect.Size().X,
+			1.f / ViewPortRect.Size().Y);
+
 		const FSceneRenderTargetItem& SSAORandomization = GSystemTextures.SSAORandomization->GetRenderTargetItem();
 
 		const FPixelShaderRHIParamRef ShaderRHI = GetPixelShader();
@@ -551,6 +569,8 @@ public:
 		SetTextureParameter(RHICmdList, ShaderRHI, RandomNormalTexture, RandomNormalTextureSampler, TStaticSamplerState<SF_Point, AM_Wrap, AM_Wrap, AM_Wrap>::GetRHI(), SSAORandomization.ShaderResourceTexture);
 		ScreenSpaceAOParams.Set(RHICmdList, View, ShaderRHI, InputTextureSize);
 		SetShaderValue(RHICmdList, ShaderRHI, HZBRemapping, HZBRemappingValue);
+
+		SetShaderValue(Context.RHICmdList, ShaderRHI, ViewPortRectMinAndInvSize, ViewPortRectMinAndInvSizeValue);
 	}
 
 	template <typename TRHICmdList>
@@ -565,6 +585,7 @@ public:
 	{
 		bool bShaderHasOutdatedParameters = FGlobalShader::Serialize(Ar);
 		Ar << HZBRemapping << PostprocessParameter << DeferredParameters << ScreenSpaceAOParams << RandomNormalTexture << RandomNormalTextureSampler << OutTexture;
+		Ar << ViewPortRectMinAndInvSize;
 		return bShaderHasOutdatedParameters;
 	}
 
@@ -918,13 +939,15 @@ void FRCPassPostProcessBasePassAO::Process(FRenderingCompositePassContext& Conte
 
 	// Set the view family's render target/viewport.
 	Context.RHICmdList.TransitionResource(EResourceTransitionAccess::EWritable, DestRenderTarget.TargetableTexture);
-	SetRenderTarget(Context.RHICmdList, DestRenderTarget.TargetableTexture,	FTextureRHIParamRef(), ESimpleRenderTargetMode::EExistingColorAndDepth);
+
+	SetRenderTarget(Context.RHICmdList, DestRenderTarget.TargetableTexture, FTextureRHIParamRef(), ESimpleRenderTargetMode::EExistingColorAndDepth);
+	Context.RHICmdList.SetDepthStencilState(TStaticDepthStencilState<false, CF_Always>::GetRHI());
+	
 	Context.SetViewportAndCallRHI(View.ViewRect);
 
 	// set the state
 	Context.RHICmdList.SetBlendState(TStaticBlendState<CW_RGBA, BO_Add, BF_DestColor, BF_Zero, BO_Add, BF_DestAlpha, BF_Zero>::GetRHI());
 	Context.RHICmdList.SetRasterizerState(TStaticRasterizerState<>::GetRHI());
-	Context.RHICmdList.SetDepthStencilState(TStaticDepthStencilState<false, CF_Always>::GetRHI());
 
 	TShaderMapRef<FPostProcessVS> VertexShader(Context.GetShaderMap());
 	TShaderMapRef<FPostProcessBasePassAOPS> PixelShader(Context.GetShaderMap());

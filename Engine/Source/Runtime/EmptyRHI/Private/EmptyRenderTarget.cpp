@@ -13,6 +13,11 @@ void FEmptyDynamicRHI::RHICopyToResolveTarget(FTextureRHIParamRef SourceTextureR
 
 }
 
+void FEmptyDynamicRHI::RHICopyResourceToGPU(FTextureRHIParamRef SourceTextureRHI, FTextureRHIParamRef DestTextureRHI, uint32 DestGPUIndex, uint32 SrcGPUIndex, const FResolveParams& ResolveParams)
+{
+
+}
+
 void FEmptyDynamicRHI::RHIReadSurfaceData(FTextureRHIParamRef TextureRHI, FIntRect Rect, TArray<FColor>& OutData, FReadSurfaceDataFlags InFlags)
 {
 

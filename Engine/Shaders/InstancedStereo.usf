@@ -30,11 +30,14 @@ uint GetEyeIndex(uint PackedIndex)
 
 bool IsInstancedStereo(uint PackedIndex)
 {
-	return (PackedIndex >> 1) > 0;
+	return (PackedIndex & (1 << 31)) != 0;
 }
 
 #if !COMPILER_HLSLCC
 static ViewState ResolvedView;
+	#if SINGLE_PASS_STEREO
+static ViewState ResolvedViewRight;
+	#endif
 #endif
 
 ViewState ResolveView()
@@ -42,10 +45,11 @@ ViewState ResolveView()
 	return GetPrimaryView();
 }
 
-#if INSTANCED_STEREO
+#if INSTANCED_STEREO || SINGLE_PASS_STEREO
 static const float EyeOffsetScale[2] = { -1.0, 1.0 };
 static const float4 EyeClipEdge[2] = { float4(-1.0, 0.0, 0.0, 1.0), float4(1.0, 0.0, 0.0, 1.0) };
 
+bool bIsSinglePassStereo;
 bool bIsInstancedStereo;
 
 ViewState ResolveView(uint ViewIndex)

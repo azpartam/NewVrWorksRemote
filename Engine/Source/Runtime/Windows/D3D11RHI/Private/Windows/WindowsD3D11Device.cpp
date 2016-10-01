@@ -7,6 +7,7 @@
 #include "D3D11RHIPrivate.h"
 #include "AllowWindowsPlatformTypes.h"
 	#include <delayimp.h>
+	#include "nvapi.h"
 #include "HideWindowsPlatformTypes.h"
 
 #include "HardwareInfo.h"
@@ -247,6 +248,15 @@ static uint32 CountAdapterOutputs(TRefCountPtr<IDXGIAdapter>& Adapter)
 
 	return OutputCount;
 }
+
+static void SetMultipleGPUVRHandler()
+{
+	static const auto EnableMultiGPUVRCVar = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("vr.MGPU"));
+
+	GRHISupportsMultipleGPUStereo = EnableMultiGPUVRCVar->GetValueOnGameThread() != 0 && (GNumExplicitGPUsForRendering > 1);
+}
+
+FAutoConsoleVariableSink CVarSetClockRateSink(FConsoleCommandDelegate::CreateStatic(&SetMultipleGPUVRHandler));
 
 void FD3D11DynamicRHIModule::FindAdapter()
 {
@@ -612,6 +622,12 @@ void FD3D11DynamicRHI::InitD3DDevice()
 			check(!"Internal error, EnumAdapters() failed but before it worked")
 		}
 
+		NV_MULTIGPU_CAPS MultiGPUCaps;
+		VERIFYD3D11RESULT(NvAPI_D3D11_MultiGPU_GetCaps(&MultiGPUCaps));
+		// Enable VR-SLI driver layer, before device is created
+		// Note this should eventually be a render property, since it is selecting an explicit MGPU model.
+		VERIFYD3D11RESULT(NvAPI_D3D11_MultiGPU_Init(true));
+
 		D3D_FEATURE_LEVEL ActualFeatureLevel = (D3D_FEATURE_LEVEL)0;
 
 		if (IsRHIDeviceAMD() && CVarAMDUseMultiThreadedDevice.GetValueOnAnyThread())
@@ -633,10 +649,29 @@ void FD3D11DynamicRHI::InitD3DDevice()
 			Direct3DDeviceIMContext.GetInitReference()
 			));
 
+		if (MultiGPUCaps.nSLIGPUs > 1)
+		{
+			ULONG CurrentVersion;
+			VERIFYD3D11RESULT(NvAPI_D3D11_CreateMultiGPUDevice(
+				Direct3DDevice.GetReference(),
+				ID3D11MultiGPUDevice_VER1,
+				&CurrentVersion,
+				&MultiGPUDevice,
+				MultiGPUCaps.nSLIGPUs));
+
+			GNumExplicitGPUsForRendering = MultiGPUCaps.nSLIGPUs;
+
+			SetMultipleGPUVRHandler();
+		}
+		else
+		{
+			MultiGPUDevice = NULL;
+		}
+
 		// We should get the feature level we asked for as earlier we checked to ensure it is supported.
 		check(ActualFeatureLevel == FeatureLevel);
 
-		StateCache.Init(Direct3DDeviceIMContext);
+		StateCache.Init(Direct3DDeviceIMContext, MultiGPUDevice);
 
 #if (UE_BUILD_SHIPPING && WITH_EDITOR) && PLATFORM_WINDOWS && !PLATFORM_64BITS
 		// Disable PIX for windows in the shipping editor builds
@@ -663,6 +698,9 @@ void FD3D11DynamicRHI::InitD3DDevice()
 		if( IsRHIDeviceNVIDIA() )
 		{
 			GSupportsDepthBoundsTest = true;
+			GSupportsSinglePassStereo = CheckSinglePassStereoSupport();
+			GSupportsFastGeometryShader = CheckFastGeometryShaderSupport();
+			GSupportsModifiedW = CheckModifiedWSupport();
 		}
 #endif
 
@@ -909,4 +947,112 @@ bool FD3D11DynamicRHI::RHIGetAvailableResolutions(FScreenResolutionArray& Resolu
 	} while(CurrentOutput < 1);
 
 	return true;
+}
+
+/** Check whether NVIDIA FastGS is supported on the current device */
+bool FD3D11DynamicRHI::CheckFastGeometryShaderSupport()
+{
+	check(Direct3DDevice);
+
+	// Baked-in HLSL bytecode for a simple do-nothing FastGS.
+	// HLSL:
+	//		struct GSOutput { float4 Position : SV_Position; };
+	//		[maxvertexcount(1)]
+	//		void main(triangle float4 Input[3] : SV_Position, inout TriangleStream<GSOutput> Output)
+	//		{
+	//			GSOutput vtx = { Input[0] };
+	//			Output.Append(vtx);
+	//		}
+	// Command line to compile it:
+	//		fxc /T gs_5_0 /E main /Qstrip_reflect /Qstrip_debug /Qstrip_priv /Fh test_fastgs.h test_fasgts.hlsl
+	static const BYTE Bytecode[] =
+	{
+		68, 88, 66, 67, 181, 32,
+		247, 152, 179, 222, 145, 80,
+		19, 79, 252, 244, 234, 155,
+		107, 17, 1, 0, 0, 0,
+		20, 1, 0, 0, 3, 0,
+		0, 0, 44, 0, 0, 0,
+		96, 0, 0, 0, 152, 0,
+		0, 0, 73, 83, 71, 78,
+		44, 0, 0, 0, 1, 0,
+		0, 0, 8, 0, 0, 0,
+		32, 0, 0, 0, 0, 0,
+		0, 0, 1, 0, 0, 0,
+		3, 0, 0, 0, 0, 0,
+		0, 0, 15, 15, 0, 0,
+		83, 86, 95, 80, 111, 115,
+		105, 116, 105, 111, 110, 0,
+		79, 83, 71, 53, 48, 0,
+		0, 0, 1, 0, 0, 0,
+		8, 0, 0, 0, 0, 0,
+		0, 0, 36, 0, 0, 0,
+		0, 0, 0, 0, 1, 0,
+		0, 0, 3, 0, 0, 0,
+		0, 0, 0, 0, 15, 0,
+		0, 0, 83, 86, 95, 80,
+		111, 115, 105, 116, 105, 111,
+		110, 0, 83, 72, 69, 88,
+		116, 0, 0, 0, 80, 0,
+		2, 0, 29, 0, 0, 0,
+		106, 8, 0, 1, 97, 0,
+		0, 5, 242, 16, 32, 0,
+		3, 0, 0, 0, 0, 0,
+		0, 0, 1, 0, 0, 0,
+		93, 24, 0, 1, 143, 0,
+		0, 3, 0, 0, 17, 0,
+		0, 0, 0, 0, 92, 40,
+		0, 1, 103, 0, 0, 4,
+		242, 32, 16, 0, 0, 0,
+		0, 0, 1, 0, 0, 0,
+		94, 0, 0, 2, 1, 0,
+		0, 0, 54, 0, 0, 6,
+		242, 32, 16, 0, 0, 0,
+		0, 0, 70, 30, 32, 0,
+		0, 0, 0, 0, 0, 0,
+		0, 0, 117, 0, 0, 3,
+		0, 0, 17, 0, 0, 0,
+		0, 0, 62, 0, 0, 1
+	};
+
+	NvAPI_Status status;
+	if (GSupportsSinglePassStereo)
+	{
+		NvAPI_D3D11_CREATE_FASTGS_EXPLICIT_DESC FastGSParams = { NVAPI_D3D11_CREATEFASTGSEXPLICIT_VER };
+		TRefCountPtr<ID3D11GeometryShader> FastGS;
+		status = NvAPI_D3D11_CreateFastGeometryShaderExplicit(Direct3DDevice, Bytecode, ARRAY_COUNT(Bytecode), nullptr, &FastGSParams, FastGS.GetInitReference());
+	}
+	else
+	{
+		NvAPI_D3D11_CREATE_GEOMETRY_SHADER_EX CreateGeometryShaderExArgs = { 0 };
+		CreateGeometryShaderExArgs.version = NVAPI_D3D11_CREATEGEOMETRYSHADEREX_2_VERSION;
+		CreateGeometryShaderExArgs.ForceFastGS = true;
+		TRefCountPtr<ID3D11GeometryShader> FastGS;
+		status = NvAPI_D3D11_CreateGeometryShaderEx_2(Direct3DDevice, Bytecode, ARRAY_COUNT(Bytecode), nullptr, &CreateGeometryShaderExArgs, FastGS.GetInitReference());
+	}
+
+	return (status == NVAPI_OK);
+}
+
+/** Check whether NVIDIA ModifiedW is supported on the current device */
+bool FD3D11DynamicRHI::CheckModifiedWSupport()
+{
+	NV_QUERY_MODIFIED_W_SUPPORT_PARAMS ModifiedW = { 0 };
+	ModifiedW.version = NV_QUERY_MODIFIED_W_SUPPORT_PARAMS_VER;
+
+	NvAPI_Status NvStatus = NvAPI_D3D_QueryModifiedWSupport(Direct3DDevice, &ModifiedW);
+	
+	return NvStatus == NVAPI_OK && ModifiedW.bModifiedWSupported > 0;
+}
+
+bool FD3D11DynamicRHI::CheckSinglePassStereoSupport()
+{
+	check(Direct3DDevice);
+
+	NV_QUERY_SINGLE_PASS_STEREO_SUPPORT_PARAMS SinglePassStereo = { 0 };
+	SinglePassStereo.version = NV_QUERY_SINGLE_PASS_STEREO_SUPPORT_PARAMS_VER;
+	NvAPI_Status NvStatus = NvAPI_D3D_QuerySinglePassStereoSupport(Direct3DDevice, &SinglePassStereo);
+
+	// SinglePassStereo.bSinglePassStereoSupported will be TRUE if supported
+	return (NvStatus == NVAPI_OK && SinglePassStereo.bSinglePassStereoSupported);
 }

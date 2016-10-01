@@ -483,6 +483,18 @@ void FOculusRiftHMD::CalculateRenderTargetSize(const FViewport& Viewport, uint32
 	InOutSizeX = GetSettings()->RenderTargetSize.X;
 	InOutSizeY = GetSettings()->RenderTargetSize.Y;
 
+	static const auto CVarLensMatchedShading = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("vr.LensMatchedShading"));
+	static const auto CVarLensMatchedShadingRendering = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("vr.LensMatchedShadingRendering"));
+	bool bLensMatchedShadeEnabled = GSupportsFastGeometryShader && GSupportsModifiedW &&
+		CVarLensMatchedShading && CVarLensMatchedShading->GetValueOnGameThread() && CVarLensMatchedShadingRendering->GetValueOnGameThread() > 0;
+
+	if (bLensMatchedShadeEnabled)
+	{
+		// Enlarge the buffer by 150% to keep the upsampled view center sharp
+		InOutSizeX *= 1.5f;
+		InOutSizeY *= 1.5f;
+	}
+
 	check(InOutSizeX != 0 && InOutSizeY != 0);
 }
 

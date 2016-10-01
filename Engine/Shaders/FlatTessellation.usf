@@ -93,6 +93,10 @@ struct FFlatTessellationHSToDS
 			ResolvedView = ResolveView();
 		#endif
 
+		#if SINGLE_PASS_STEREO
+			ResolvedViewRight = ResolveView(1);
+		#endif
+
 		FFlatTessellationHSToDS O = (FFlatTessellationHSToDS) 0;
 		
 		float3x3 TangentToLocal = VertexFactoryGetTangentToLocalDS(I[ControlPointID].FactoryInterpolants);
@@ -146,6 +150,10 @@ struct FFlatTessellationHSToDS
 			#endif
 		#else
 			ResolvedView = ResolveView();
+		#endif
+
+		#if SINGLE_PASS_STEREO
+			ResolvedViewRight = ResolveView(1);
 		#endif
 
 		// Get the barycentric coords
@@ -216,7 +224,7 @@ struct FFlatTessellationHSToDS
 
 		#if INSTANCED_STEREO && !MULTI_VIEW
 		BRANCH
-		if (IsInstancedStereo(I[0].PassSpecificData.FactoryInterpolants.InterpolantsVSToPS.PackedEyeIndex))
+		if (IsInstancedStereo(I[0].PassSpecificData.FactoryInterpolants.InterpolantsVSToPS.PackedEyeIndex) && !LensMatchedShadingIsActive())
 		{
 			const uint EyeIndex = GetEyeIndex(I[0].PassSpecificData.FactoryInterpolants.InterpolantsVSToPS.PackedEyeIndex);
 

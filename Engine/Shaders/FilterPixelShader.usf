@@ -14,6 +14,8 @@
 SamplerState FilterTextureSampler;
 Texture2D FilterTexture;
 
+int ForceLinear;
+
 #if COMBINE_METHOD == 1
 // optional texture that is additively blended on top of the many samples from the filter texture
 SamplerState AdditiveTextureSampler;
@@ -47,6 +49,15 @@ void Combine(inout float4 Dest, float4 Src, float4 Weight)
 #endif
 }
 
+float2 GetViewRectUV( float2 InUV)
+{
+	if (VRProjectionIsActive() && ForceLinear == 0)
+	{
+		return VRProjMapRenderTargetToViewRect(InUV);
+	}
+	return InUV;
+}
+
 #if NUM_SAMPLES==0
 // dynamic number of sample
 
@@ -55,6 +66,7 @@ half4 SampleWeights[MAX_NUM_SAMPLES];
 int SampleCount;
 
 # if (ES2_PROFILE || ES3_1_PROFILE)
+
 
 void Main(
 	noperspective float2 InUV : TEXCOORD0,
@@ -92,31 +104,47 @@ void Main(
 
 # else //!(ES2_PROFILE || ES3_1_PROFILE)
 
+float2 AddOffsetInLinearSpace( float2 ViewRectUV, float2 Offset)
+{
+	// Remap the center position from multi-res to linear space; add the offset; then remap
+	// back to multi-res space.
+	// @todo This seems pretty expensive.  Also, screwing around with the sample positions
+	// spoils the way filter weights are encoded in the subpixel offsets.  Is it a problem?
+	if (VRProjectionIsActive() && ForceLinear == 0)
+	{
+		float2 UV = VRProjMapVRProjToLinear( ViewRectUV) + Offset;
+		UV = VRProjMapLinearToVRProj( UV);
+		return VRProjMapViewRectToRenderTarget(UV);
+	}
+	return ViewRectUV + Offset;
+}
+
 void Main(
 	noperspective float2 InUV : TEXCOORD0,
 	out half4 OutColor : SV_Target0
 	)
 {
 	half4 Dest = 0;
+	float2 ViewRectUV = GetViewRectUV(InUV);
 	
 	int SampleIndex;
 	LOOP for (SampleIndex = 0; SampleIndex < SampleCount - 1; SampleIndex += 2)
 	{
 		{
-			const float2 UV = InUV + SampleOffsets[SampleIndex / 2].xy;
+			const float2 UV = AddOffsetInLinearSpace(ViewRectUV, SampleOffsets[SampleIndex / 2].xy);
 			const half Mask = ComputeMask(UV);
 			Combine(Dest, Texture2DSample(FilterTexture, FilterTextureSampler, UV), Mask * SampleWeights[SampleIndex + 0]);
 		}
 		
 		{
-			const float2 UV = InUV + SampleOffsets[SampleIndex / 2].wz;
+			const float2 UV = AddOffsetInLinearSpace(ViewRectUV, SampleOffsets[SampleIndex / 2].wz);
 			const half Mask = ComputeMask(UV);
 			Combine(Dest, Texture2DSample(FilterTexture, FilterTextureSampler, UV), Mask * SampleWeights[SampleIndex + 1]);
 		}
 	}
 	BRANCH if (SampleIndex < SampleCount)
 	{
-		const float2 UV = InUV + SampleOffsets[SampleIndex / 2].xy;
+		const float2 UV = AddOffsetInLinearSpace(ViewRectUV, SampleOffsets[SampleIndex / 2].xy);
 		const half Mask = ComputeMask(UV);
 		Combine(Dest, Texture2DSample(FilterTexture, FilterTextureSampler, UV), Mask * SampleWeights[SampleIndex + 0]);
 	}
@@ -133,6 +161,8 @@ void Main(
 
 #else //NUM_SAMPLES!=0
 
+// Multi-res needs to calculate offsets in PS
+float4 SampleOffsets[(NUM_SAMPLES + 1) / 2];
 half4 SampleWeights[NUM_SAMPLES];
 
 # if (ES2_PROFILE || ES3_1_PROFILE)
@@ -158,18 +188,44 @@ void Main(
 
 # else //!(ES2_PROFILE || ES3_1_PROFILE)
 
+float4 GetOffsetUVs(float2 ViewRectUV, float4 InterpolatedUV, float4 Offset)
+{
+	if (VRProjectionIsActive() && ForceLinear == 0)
+	{
+		// Remap the center position from multi-res to linear space; add the offset; then remap
+		// back to multi-res space.
+		// @todo This seems pretty expensive.  Also, screwing around with the sample positions
+		// spoils the way filter weights are encoded in the subpixel offsets.  Is it a problem?
+		float2 LinearUV = VRProjMapVRProjToLinear( ViewRectUV);
+		float4 UVUV;
+		UVUV.xy = VRProjMapLinearToVRProj( LinearUV + Offset.xy);
+		UVUV.xy = VRProjMapViewRectToRenderTarget(UVUV.xy);
+
+		// The odd wz swizzle here is consistent with the way offsets are applied in the VS
+		UVUV.wz = VRProjMapLinearToVRProj(LinearUV + Offset.wz);
+		UVUV.wz = VRProjMapViewRectToRenderTarget(UVUV.wz);
+
+		return UVUV;
+	}
+
+	//default to returning the interpolated set
+	return InterpolatedUV;
+}
+
 void Main(
 	noperspective float2 InUV : TEXCOORD0,
 	noperspective float4 InOffsetUVs[(NUM_SAMPLES + 1) / 2] : TEXCOORD1,
 	out float4 OutColor : SV_Target0
 	)
 {
+	float2 ViewRectUV = GetViewRectUV(InUV);
+
 	int SampleIndex;
 	half4 Dest = 0;
 	UNROLL for(SampleIndex = 0;SampleIndex < NUM_SAMPLES - 1;SampleIndex += 2)
 	{
 		half Mask; 
-		float4 UVUV = InOffsetUVs[SampleIndex / 2];
+		float4 UVUV = GetOffsetUVs(ViewRectUV, InOffsetUVs[SampleIndex / 2], SampleOffsets[SampleIndex / 2]);
 		
 		Mask = ComputeMask(UVUV.xy);
 		Combine(Dest, Texture2DSample(FilterTexture, FilterTextureSampler,UVUV.xy), Mask * SampleWeights[SampleIndex + 0]);
@@ -179,7 +235,7 @@ void Main(
 	}
 	FLATTEN if(SampleIndex < NUM_SAMPLES)
 	{
-		float4 UVUV = InOffsetUVs[SampleIndex / 2];
+		float4 UVUV = GetOffsetUVs(ViewRectUV, InOffsetUVs[SampleIndex / 2], SampleOffsets[SampleIndex / 2]);
 
 		half Mask = ComputeMask(UVUV.xy);
 		Combine(Dest, Texture2DSample(FilterTexture, FilterTextureSampler,UVUV.xy), Mask * SampleWeights[SampleIndex + 0]);

@@ -41,6 +41,12 @@ void MainVS(
 	OutPosition = mul(InPosition, FrustumComponentToClip);
 }
 
+struct FDecalVSToPS
+{
+	float4 Position : SV_POSITION;
+};
+VRPROJECT_CREATE_FASTGS(VRProjectFastGS, FDecalVSToPS, Position)
+
 float DistanceFunction(float4 SvPosition, float3 Pos)
 {
 	float3 SwizzlePos = Pos.zyx;
@@ -156,6 +162,9 @@ void FPixelShaderInOut_MainPS(inout FPixelShaderIn In, inout FPixelShaderOut Out
 	// make SvPosition appear to be rasterized with the depth from the depth buffer
 	In.SvPosition.z = LookupDeviceZ(ScreenUV);
 
+	// Remap for warped viewports, no-op for regular viewports
+	float4 LinearSvPosition = SvPositionToLinearSvPosition(In.SvPosition);
+
 	// default to no shadows, good for volumetric decals
 	Out.MRT[4] = 1;
 
@@ -201,7 +210,7 @@ void FPixelShaderInOut_MainPS(inout FPixelShaderIn In, inout FPixelShaderOut Out
 	}
 	else
 	{
-		float4 DecalVectorHom = mul(float4(In.SvPosition.xyz,1), SvPositionToDecal);
+		float4 DecalVectorHom = mul(float4(LinearSvPosition.xyz, 1), SvPositionToDecal);
 		OSPosition = DecalVectorHom.xyz / DecalVectorHom.w;
 
 		// clip content outside the decal

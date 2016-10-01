@@ -215,6 +215,36 @@ FGeometryShaderRHIRef FD3D12DynamicRHI::RHICreateGeometryShaderWithStreamOutput(
 	return Shader;
 }
 
+FGeometryShaderRHIRef FD3D12DynamicRHI::RHICreateFastGeometryShader(const TArray<uint8>& Code)
+{
+	UE_LOG(LogRHI, Fatal, TEXT("D3D12 RHI doesn't support fast geometry shaders!"));
+	return nullptr;
+}
+
+FVertexShaderRHIRef  FD3D12DynamicRHI::RHICreateVertexShaderWithSinglePassStereo(const TArray<uint8>& Code)
+{
+	UE_LOG(LogRHI, Fatal, TEXT("Not supported yet"));
+	return nullptr;
+}
+
+FHullShaderRHIRef  FD3D12DynamicRHI::RHICreateHullShaderWithSinglePassStereo(const TArray<uint8>& Code)
+{
+	UE_LOG(LogRHI, Fatal, TEXT("Not supported yet"));
+	return nullptr;
+}
+
+FDomainShaderRHIRef  FD3D12DynamicRHI::RHICreateDomainShaderWithSinglePassStereo(const TArray<uint8>& Code)
+{
+	UE_LOG(LogRHI, Fatal, TEXT("Not supported yet"));
+	return nullptr;
+}
+
+FGeometryShaderRHIRef  FD3D12DynamicRHI::RHICreateFastGeometryShader_2(const TArray<uint8>& Code, uint32 Usage)
+{
+	UE_LOG(LogRHI, Fatal, TEXT("Not supported yet"));
+	return nullptr;
+}
+
 FComputeShaderRHIRef FD3D12DynamicRHI::RHICreateComputeShader(const TArray<uint8>& Code)
 {
 	FShaderCodeReader ShaderCode(Code);

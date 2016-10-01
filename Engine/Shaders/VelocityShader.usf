@@ -216,6 +216,8 @@ void MainVertexShader(
 #endif
 }
 
+VRPROJECT_CREATE_FASTGS(VRProjectFastGS, FVelocityVSToPS, Position)
+
 /*=============================================================================
  * Pixel Shader
  *============================================================================*/

@@ -23,6 +23,9 @@ extern const TCHAR* GetDepthDrawingModeString(EDepthDrawingMode Mode);
 template<bool>
 class TDepthOnlyVS;
 
+template<bool>
+class TDepthOnlyFastGS;
+
 class FDepthOnlyPS;
 
 /**
@@ -34,8 +37,8 @@ public:
 
 	struct ContextDataType : public FMeshDrawingPolicy::ContextDataType
 	{
-		explicit ContextDataType(const bool InbIsInstancedStereo) : FMeshDrawingPolicy::ContextDataType(InbIsInstancedStereo), bIsInstancedStereoEmulated(false) {};
-		ContextDataType(const bool InbIsInstancedStereo, const bool InbIsInstancedStereoEmulated) : FMeshDrawingPolicy::ContextDataType(InbIsInstancedStereo), bIsInstancedStereoEmulated(InbIsInstancedStereoEmulated) {};
+		explicit ContextDataType(const bool InbIsInstancedStereo, const bool InIsSinglePassStereo) : FMeshDrawingPolicy::ContextDataType(InbIsInstancedStereo, InIsSinglePassStereo), bIsInstancedStereoEmulated(false) {};
+		ContextDataType(const bool InbIsInstancedStereo, const bool InIsSinglePassStereo, const bool InbIsInstancedStereoEmulated) : FMeshDrawingPolicy::ContextDataType(InbIsInstancedStereo, InIsSinglePassStereo), bIsInstancedStereoEmulated(InbIsInstancedStereoEmulated) {};
 		ContextDataType() : bIsInstancedStereoEmulated(false) {};
 		bool bIsInstancedStereoEmulated;
 	};
@@ -69,7 +72,9 @@ public:
 	* @param DynamicStride - optional stride for dynamic vertex data
 	* @return new bound shader state object
 	*/
-	FBoundShaderStateInput GetBoundShaderStateInput(ERHIFeatureLevel::Type InFeatureLevel);
+	FBoundShaderStateInput GetBoundShaderStateInput(ERHIFeatureLevel::Type InFeatureLevel, bool bMultiRes = false);
+
+	FGeometryShaderRHIRef GetMultiResFastGS();
 
 	void SetMeshRenderState(
 		FRHICommandList& RHICmdList, 
@@ -92,6 +97,7 @@ private:
 
 	FShaderPipeline* ShaderPipeline;
 	TDepthOnlyVS<false>* VertexShader;
+	TDepthOnlyFastGS<false>* FastGeometryShader;
 	FDepthOnlyPS* PixelShader;
 };
 
@@ -105,8 +111,8 @@ public:
 
 	struct ContextDataType : public FMeshDrawingPolicy::ContextDataType
 	{
-		explicit ContextDataType(const bool InbIsInstancedStereo) : FMeshDrawingPolicy::ContextDataType(InbIsInstancedStereo), bIsInstancedStereoEmulated(false) {};
-		ContextDataType(const bool InbIsInstancedStereo, const bool InbIsInstancedStereoEmulated) : FMeshDrawingPolicy::ContextDataType(InbIsInstancedStereo), bIsInstancedStereoEmulated(InbIsInstancedStereoEmulated) {};
+		explicit ContextDataType(const bool InbIsInstancedStereo, const bool InIsSinglePassStereo) : FMeshDrawingPolicy::ContextDataType(InbIsInstancedStereo, InIsSinglePassStereo), bIsInstancedStereoEmulated(false) {};
+		ContextDataType(const bool InbIsInstancedStereo, const bool InIsSinglePassStereo, const bool InbIsInstancedStereoEmulated) : FMeshDrawingPolicy::ContextDataType(InbIsInstancedStereo, InIsSinglePassStereo), bIsInstancedStereoEmulated(InbIsInstancedStereoEmulated) {};
 		ContextDataType() : bIsInstancedStereoEmulated(false) {};
 		bool bIsInstancedStereoEmulated;
 	};
@@ -135,7 +141,9 @@ public:
 	* as well as the shaders needed to draw the mesh
 	* @return new bound shader state object
 	*/
-	FBoundShaderStateInput GetBoundShaderStateInput(ERHIFeatureLevel::Type InFeatureLevel);
+	FBoundShaderStateInput GetBoundShaderStateInput(ERHIFeatureLevel::Type InFeatureLevel, bool bMultiRes = false);
+
+	FGeometryShaderRHIRef GetMultiResFastGS();
 
 	void SetMeshRenderState(
 		FRHICommandList& RHICmdList, 
@@ -156,6 +164,7 @@ public:
 private:
 	FShaderPipeline* ShaderPipeline;
 	TDepthOnlyVS<true> * VertexShader;
+	TDepthOnlyFastGS<true> * FastGeometryShader;
 };
 
 /**
@@ -190,7 +199,8 @@ public:
 		const FPrimitiveSceneProxy* PrimitiveSceneProxy,
 		FHitProxyId HitProxyId,
 		const bool bIsInstancedStereo = false,
-		const bool bIsInstancedStereoEmulated = false
+		const bool bIsInstancedStereoEmulated = false,
+		const bool bIsSinglePassStereo = false
 		);
 
 	static bool DrawStaticMesh(
@@ -224,6 +234,7 @@ private:
 		const FPrimitiveSceneProxy* PrimitiveSceneProxy,
 		FHitProxyId HitProxyId, 
 		const bool bIsInstancedStereo = false, 
-		const bool bIsInstancedStereoEmulated = false
+		const bool bIsInstancedStereoEmulated = false,
+		const bool bIsSinglePassStereo = false
 		);
 };

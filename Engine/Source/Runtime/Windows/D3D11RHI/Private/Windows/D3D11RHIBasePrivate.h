@@ -1,4 +1,4 @@
-// Copyright 1998-2016 Epic Games, Inc. All Rights Reserved.
+// Copyright 1998-2016 Epic Games, Inc. All Rights Reserved
 
 /*=============================================================================
 	D3D11BaseRHIPrivate.h: Private D3D RHI definitions for Windows.
@@ -24,6 +24,7 @@
 #define D3D_OVERLOADS 1
 #include "AllowWindowsPlatformTypes.h"
 #include <D3D11.h>
+#include "nvapi.h"
 #include "HideWindowsPlatformTypes.h"
 
 #undef DrawText

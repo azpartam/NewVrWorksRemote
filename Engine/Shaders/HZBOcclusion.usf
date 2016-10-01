@@ -29,6 +29,26 @@ void HZBBuildPS(noperspective float4 RenderTargetUVAndScreenPos : TEXCOORD0, out
 	Depth.y = SceneDepthTexture.SampleLevel( SceneDepthTextureSampler, UV[1], 0 ).r;
 	Depth.z = SceneDepthTexture.SampleLevel( SceneDepthTextureSampler, UV[2], 0 ).r;
 	Depth.w = SceneDepthTexture.SampleLevel( SceneDepthTextureSampler, UV[3], 0 ).r;
+
+	if (LensMatchedShadingIsActive())
+	{
+		// correct depths here so we don't have to do it each time HZB is read
+		float3 wPos0 = float3(UV[0] * View.BufferSizeAndInvSize.xy, Depth.x);
+		float3 wPos1 = float3(UV[1] * View.BufferSizeAndInvSize.xy, Depth.y);
+		float3 wPos2 = float3(UV[2] * View.BufferSizeAndInvSize.xy, Depth.z);
+		float3 wPos3 = float3(UV[3] * View.BufferSizeAndInvSize.xy, Depth.w);
+
+		float3 corrected0 = ModifiedWMapWindowToClip(GetModifiedWConfigurationView(), wPos0);
+		float3 corrected1 = ModifiedWMapWindowToClip(GetModifiedWConfigurationView(), wPos1);
+		float3 corrected2 = ModifiedWMapWindowToClip(GetModifiedWConfigurationView(), wPos2);
+		float3 corrected3 = ModifiedWMapWindowToClip(GetModifiedWConfigurationView(), wPos3);
+
+		Depth.x = corrected0.z;
+		Depth.y = corrected1.z;
+		Depth.z = corrected2.z;
+		Depth.w = corrected3.z;
+	}
+
 #else
 	const float2 InUV = RenderTargetUVAndScreenPos.xy;
 	

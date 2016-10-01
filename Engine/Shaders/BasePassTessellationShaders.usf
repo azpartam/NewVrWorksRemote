@@ -14,14 +14,23 @@ FBasePassVSToDS PassInterpolate(FBasePassVSToDS a, float aInterp, FBasePassVSToD
 
 	#if NEEDS_BASEPASS_FOGGING
 		TESSELLATION_INTERPOLATE_MEMBER(BasePassInterpolants.VertexFog);
+		#if SINGLE_PASS_STEREO
+		TESSELLATION_INTERPOLATE_MEMBER(BasePassInterpolants.VertexFogRight);
+		#endif
 	#endif
 
 	#if TRANSLUCENCY_LIGHTING_VOLUMETRIC_PERVERTEX_NONDIRECTIONAL || TRANSLUCENCY_LIGHTING_VOLUMETRIC_PERVERTEX_DIRECTIONAL
 		TESSELLATION_INTERPOLATE_MEMBER(AmbientLightingVector);
+		#if SINGLE_PASS_STEREO
+		TESSELLATION_INTERPOLATE_MEMBER(AmbientLightingVectorRight);
+		#endif
 	#endif
 
 	#if TRANSLUCENCY_LIGHTING_VOLUMETRIC_PERVERTEX_DIRECTIONAL
 		TESSELLATION_INTERPOLATE_MEMBER(DirectionalLightingVector);
+		#if SINGLE_PASS_STEREO
+		TESSELLATION_INTERPOLATE_MEMBER(DirectionalLightingVectorRight);
+		#endif
 	#endif
 
 	#if USE_WORLD_POSITION_EXCLUDING_SHADER_OFFSETS
@@ -30,8 +39,14 @@ FBasePassVSToDS PassInterpolate(FBasePassVSToDS a, float aInterp, FBasePassVSToD
 
 	#if WRITES_VELOCITY_TO_GBUFFER
 		TESSELLATION_INTERPOLATE_MEMBER(BasePassInterpolants.VelocityPrevScreenPosition);
+		#if SINGLE_PASS_STEREO
+			TESSELLATION_INTERPOLATE_MEMBER(BasePassInterpolants.VelocityPrevScreenPositionRight);
+		#endif
 		#if WRITES_VELOCITY_TO_GBUFFER_USE_POS_INTERPOLATOR
 		TESSELLATION_INTERPOLATE_MEMBER(BasePassInterpolants.VelocityScreenPosition);
+		#if SINGLE_PASS_STEREO
+			TESSELLATION_INTERPOLATE_MEMBER(BasePassInterpolants.VelocityScreenPositionRight);
+		#endif
 		#endif
 	#endif
 
@@ -51,19 +66,47 @@ FBasePassVSToPS PassFinalizeTessellationOutput(FBasePassVSToDS Interpolants, flo
 	ISOLATE
 	{
 		O.Position = mul(WorldPosition, ResolvedView.TranslatedWorldToClip);
+
+		#if SINGLE_PASS_STEREO
+		BRANCH
+		if (bIsSinglePassStereo)
+		{
+			float4 WorldPositionRight = WorldPosition;
+			WorldPositionRight.xyz -= ResolvedView.PreViewTranslation.xyz;
+			WorldPositionRight.xyz += ResolvedViewRight.PreViewTranslation.xyz;
+			O.NvXRight = mul(WorldPositionRight, ResolvedViewRight.TranslatedWorldToClip).x;
+		}
+		else
+		{
+			O.NvXRight = 0;
+		}
+		#endif
+
 #if WRITES_VELOCITY_TO_GBUFFER
 		float SkipVelocity = O.BasePassInterpolants.VelocityPrevScreenPosition.w;
 		O.BasePassInterpolants.VelocityPrevScreenPosition = mul(float4(Interpolants.BasePassInterpolants.VelocityPrevScreenPosition.xyz, 1), ResolvedView.PrevTranslatedWorldToClip);
 		// Move the mask to .z when as we don't need the clip space Z
 		O.BasePassInterpolants.VelocityPrevScreenPosition.z = SkipVelocity;
+		#if SINGLE_PASS_STEREO
+			float SkipVelocityRight = O.BasePassInterpolants.VelocityPrevScreenPositionRight.w;
+			O.BasePassInterpolants.VelocityPrevScreenPositionRight = mul(float4(Interpolants.BasePassInterpolants.VelocityPrevScreenPositionRight.xyz, 1), ResolvedViewRight.PrevTranslatedWorldToClip);
+			// Move the mask to .z when as we don't need the clip space Z
+			O.BasePassInterpolants.VelocityPrevScreenPositionRight.z = SkipVelocityRight;
+		#endif
 		#if WRITES_VELOCITY_TO_GBUFFER_USE_POS_INTERPOLATOR
 		O.BasePassInterpolants.VelocityScreenPosition = mul(float4(Interpolants.BasePassInterpolants.VelocityScreenPosition.xyz, 1), ResolvedView.TranslatedWorldToClip);
+		#if SINGLE_PASS_STEREO
+			O.BasePassInterpolants.VelocityScreenPositionRight = mul(float4(Interpolants.BasePassInterpolants.VelocityScreenPositionRight.xyz, 1), ResolvedViewRight.TranslatedWorldToClip);
+		#endif
 		#endif
 #endif
 	}
 
 	#if USE_WORLD_POSITION_EXCLUDING_SHADER_OFFSETS
 		O.BasePassInterpolants.PixelPositionExcludingWPO = Interpolants.BasePassInterpolants.WorldPositionExcludingWPO;
+		#if SINGLE_PASS_STEREO
+		O.BasePassInterpolants.PixelPositionExcludingWPORight = Interpolants.BasePassInterpolants.WorldPositionExcludingWPO - ResolvedView.PreViewTranslation.xyz + ResolvedViewRight.PreViewTranslation.xyz;
+		#endif
 	#endif
 
 	return O;

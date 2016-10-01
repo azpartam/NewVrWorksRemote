@@ -50,6 +50,16 @@ void DirectionalPixelMain(
 	)
 {
 	OutColor = 0;
+
+	if (VRProjectionIsActive())
+	{
+		// Recalculate ScreenVector per-pixel, remapping multi-res UVs to corresponding linear UVs
+		// @todo: Could be done in the vertex shader, by constructing a mesh that's split to match the
+		// multi-res viewports.
+		float4 LinearSvPos = SvPositionToLinearSvPosition(SVPos);
+		ScreenVector = mul(float4(LinearSvPos.xy, 1, 1), View.SVPositionToTranslatedWorld).xyz;
+	}
+
 	float3 CameraVector = normalize(ScreenVector);
 
 	FScreenSpaceData ScreenSpaceData = GetScreenSpaceData(InUV);
@@ -84,7 +94,20 @@ void RadialPixelMain(
 	)
 {
 	OutColor = 0;
-	float2 ScreenUV = InScreenPosition.xy / InScreenPosition.w * View.ScreenPositionScaleBias.xy + View.ScreenPositionScaleBias.wz;
+
+	// EHartNV : ToDo - review if this is reasonable for all paths
+	float2 ScreenUV = SVPos.xy * View.BufferSizeAndInvSize.zw;
+
+	// jukimNV : we can't depend on depth test to kill pixels for LMS mode with point/spot lights, so kill here by checking visibility in final image
+	if (LensMatchedShadingIsActive())
+	{
+		float2 ViewUV = VRProjMapRenderTargetToViewRect(ScreenUV);
+		float2 LinearUV = VRProjMapVRProjToLinear(ViewUV);
+		if (LinearUV.x < 0.0 || LinearUV.x > 1.0 || LinearUV.y < 0.0 || LinearUV.y > 1.0)
+		{
+			return;
+		}
+	}
 	
 	FScreenSpaceData ScreenSpaceData = GetScreenSpaceData(ScreenUV);
 

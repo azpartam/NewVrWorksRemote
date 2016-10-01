@@ -1,0 +1,21 @@
+// Copyright 1998-2016 Epic Games, Inc. All Rights Reserved.
+
+/*=============================================================================
+	PostProcessMultiResWarp.usf: PostProcessing down sample.
+=============================================================================*/
+
+#include "Common.usf"
+#include "PostProcessCommon.usf"
+
+
+
+
+
+// pixel shader entry point
+void MainPS(noperspective float2 InUV : TEXCOORD0, out float4 OutColor : SV_Target0)
+{
+	InUV = VRProjMapRenderTargetLinearToVRProj(InUV);
+
+	OutColor = Texture2DSample(PostprocessInput0, PostprocessInput0Sampler, InUV);
+}
+

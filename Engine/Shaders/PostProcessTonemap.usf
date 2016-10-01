@@ -463,7 +463,7 @@ void MainPS(
 			#if ES2_PROFILE || ES3_1_PROFILE
 				BloomUV = FullViewUV.xy;
 			#endif
-			float4 CombinedBloom = Texture2DSample(PostprocessInput1, PostprocessInput1Sampler, BloomUV);
+			float4 CombinedBloom = Texture2DSample(PostprocessInput1, PostprocessInput1Sampler, VRProjMapRenderTargetVRProjToLinear(BloomUV));
 			float3 BloomDirtMaskColor = Texture2DSample(BloomDirtMask.Mask, BloomDirtMask.MaskSampler, SvPositionToViewportUV(SvPosition)).rgb * BloomDirtMask.Tint.rgb;
 
 #if DEBUG_TONEMAPPER
@@ -491,7 +491,17 @@ void MainPS(
 		LinearColor *= ExposureScale;
 
 		#if USE_VIGNETTE
-			LinearColor.rgb *= ComputeVignetteMask( InExposureScaleVignette.yz, TonemapperParams.x );
+			float2 VignettePos = InExposureScaleVignette.yz;
+			if (VRProjectionIsActive())
+			{
+				// Remap vignette position from multi-res to corresponding linear location
+				// @todo: Could be done in the vertex shader, by constructing a mesh that's split to match the
+				// multi-res viewports.
+                float2 EyeUV = VRProjMapVRProjToLinear(FullViewUV);
+                float2 EyePos = EyeUV * float2(2,-2) + float2(-1,1);
+                VignettePos = VignetteSpace(EyePos);
+			}
+			LinearColor.rgb *= ComputeVignetteMask(VignettePos, TonemapperParams.x);
 		#endif
 
 		#if USE_GRAIN_INTENSITY

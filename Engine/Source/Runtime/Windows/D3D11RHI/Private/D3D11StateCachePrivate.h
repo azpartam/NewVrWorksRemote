@@ -23,6 +23,10 @@
 #define D3D11_STATE_CACHE_DEBUG 0
 #endif
 
+// If set, check the MGPU mask before deciding to cache state. State caching currently 
+// is only supported on state set on gpu 0 or broadcast to all gpus.
+#define D3D11_STATE_CACHE_MGPU_MASK  1
+
 //-----------------------------------------------------------------------------
 //	
 //-----------------------------------------------------------------------------
@@ -49,6 +53,12 @@ extern bool GD3D11SkipStateCaching;
 static const bool GD3D11SkipStateCaching = false;
 #endif
 
+#if D3D11_ALLOW_STATE_CACHE && D3D11_STATE_CACHE_MGPU_MASK
+#define D3D11_STATE_CACHE_SKIP_MGPU(GpuMask) (GpuMask > 1)
+#else
+#define D3D11_STATE_CACHE_SKIP_MGPU(GpuMask) (0)
+#endif
+
 //-----------------------------------------------------------------------------
 //	FD3D11StateCache Class Definition
 //-----------------------------------------------------------------------------
@@ -63,6 +73,8 @@ public:
 	};
 protected:
 	ID3D11DeviceContext* Direct3DDeviceIMContext;
+
+	ID3D11MultiGPUDevice* Direct3DDeviceMultiGPU;
 
 #if D3D11_ALLOW_STATE_CACHE
 	// Shader Resource Views Cache
@@ -125,6 +137,8 @@ protected:
 
 	bool bAlwaysSetIndexBuffers;
 
+	uint32 GPUMask;
+
 #endif
 
 	template <EShaderFrequency ShaderFrequency>
@@ -179,7 +193,7 @@ protected:
 #if D3D11_ALLOW_STATE_CACHE
 		D3D11_STATE_CACHE_VERIFY_PRE();
 
-		if ( bAlwaysSetIndexBuffers || (CurrentIndexBuffer != IndexBuffer || CurrentIndexFormat != Format || CurrentIndexOffset != Offset) || GD3D11SkipStateCaching)
+		if (bAlwaysSetIndexBuffers || (CurrentIndexBuffer != IndexBuffer || CurrentIndexFormat != Format || CurrentIndexOffset != Offset) || GD3D11SkipStateCaching || D3D11_STATE_CACHE_SKIP_MGPU(GPUMask)) 
 		{
 			CurrentIndexBuffer = IndexBuffer;
 			CurrentIndexFormat = Format;
@@ -206,7 +220,7 @@ protected:
 #if D3D11_ALLOW_STATE_CACHE
 		D3D11_STATE_CACHE_VERIFY_PRE();
 		check(ResourceIndex < ARRAYSIZE(CurrentShaderResourceViews[ShaderFrequency]));
-		if ((CurrentShaderResourceViews[ShaderFrequency][ResourceIndex] != SRV) || GD3D11SkipStateCaching)
+		if ((CurrentShaderResourceViews[ShaderFrequency][ResourceIndex] != SRV) || GD3D11SkipStateCaching || D3D11_STATE_CACHE_SKIP_MGPU(GPUMask))
 		{
 			if(SRV)
 			{
@@ -239,7 +253,7 @@ protected:
 		D3D11_STATE_CACHE_VERIFY_PRE();
 		check(StreamIndex < ARRAYSIZE(CurrentVertexBuffers));
 		FD3D11VertexBufferState& Slot = CurrentVertexBuffers[StreamIndex];
-		if ((Slot.VertexBuffer != VertexBuffer || Slot.Offset != Offset || Slot.Stride != Stride) || GD3D11SkipStateCaching)
+		if ((Slot.VertexBuffer != VertexBuffer || Slot.Offset != Offset || Slot.Stride != Stride) || GD3D11SkipStateCaching || D3D11_STATE_CACHE_SKIP_MGPU(GPUMask))
 		{
 			Slot.VertexBuffer = VertexBuffer;
 			Slot.Offset = Offset;
@@ -266,7 +280,7 @@ protected:
 #if D3D11_ALLOW_STATE_CACHE
 		D3D11_STATE_CACHE_VERIFY_PRE();
 		check(SamplerIndex < ARRAYSIZE(CurrentSamplerStates[ShaderFrequency]));;
-		if ((CurrentSamplerStates[ShaderFrequency][SamplerIndex] != SamplerState) || GD3D11SkipStateCaching)
+		if ((CurrentSamplerStates[ShaderFrequency][SamplerIndex] != SamplerState) || GD3D11SkipStateCaching || D3D11_STATE_CACHE_SKIP_MGPU(GPUMask))
 		{
 			CurrentSamplerStates[ShaderFrequency][SamplerIndex] = SamplerState;
 			if (AlternatePathFunction != nullptr)
@@ -334,11 +348,43 @@ public:
 #endif	// D3D11_ALLOW_STATE_CACHE
 	}
 
+	D3D11_STATE_CACHE_INLINE uint32 GetGPUMask()
+	{
+#if D3D11_ALLOW_STATE_CACHE
+		return GPUMask;
+#else
+		return 0;
+#endif
+	}
+
+	D3D11_STATE_CACHE_INLINE void SetGPUMask(uint32 State)
+	{
+
+#if D3D11_ALLOW_STATE_CACHE
+		D3D11_STATE_CACHE_VERIFY_PRE();
+		if (Direct3DDeviceMultiGPU)
+		{
+			// Ignore GD3D11SkipStateCaching, since GPUMask always applies to all GPUs.
+			if (GPUMask != State && (GRHISupportsMultipleGPUStereo || State == 0))
+			{
+				GPUMask = State;
+				Direct3DDeviceMultiGPU->SetGPUMask(State);
+			}
+		}
+		D3D11_STATE_CACHE_VERIFY_POST();
+#else // !D3D11_ALLOW_STATE_CACHE
+		if (Direct3DDeviceMultiGPU)
+		{
+			Direct3DDeviceMultiGPU->SetGPUMask(State);
+		}
+#endif // D3D11_ALLOW_STATE_CACHE
+	}
+
 	D3D11_STATE_CACHE_INLINE void SetViewport(D3D11_VIEWPORT Viewport)
 	{
 #if D3D11_ALLOW_STATE_CACHE
 		D3D11_STATE_CACHE_VERIFY_PRE();
-		if ((CurrentNumberOfViewports != 1 || FMemory::Memcmp(&CurrentViewport[0],&Viewport, sizeof(D3D11_VIEWPORT))) || GD3D11SkipStateCaching)
+		if ((CurrentNumberOfViewports != 1 || FMemory::Memcmp(&CurrentViewport[0], &Viewport, sizeof(D3D11_VIEWPORT))) || GD3D11SkipStateCaching || D3D11_STATE_CACHE_SKIP_MGPU(GPUMask))
 		{
 			FMemory::Memcpy(&CurrentViewport[0], &Viewport, sizeof(D3D11_VIEWPORT));
 			CurrentNumberOfViewports = 1;
@@ -354,7 +400,7 @@ public:
 	{
 #if D3D11_ALLOW_STATE_CACHE
 		D3D11_STATE_CACHE_VERIFY_PRE();
-		if ((CurrentNumberOfViewports != Count || FMemory::Memcmp(&CurrentViewport[0], Viewports, sizeof(D3D11_VIEWPORT) * Count)) || GD3D11SkipStateCaching)
+		if ((CurrentNumberOfViewports != Count || FMemory::Memcmp(&CurrentViewport[0], Viewports, sizeof(D3D11_VIEWPORT) * Count)) || GD3D11SkipStateCaching || D3D11_STATE_CACHE_SKIP_MGPU(GPUMask))
 		{
 			FMemory::Memcpy(&CurrentViewport[0], Viewports, sizeof(D3D11_VIEWPORT) * Count);
 			CurrentNumberOfViewports = Count;
@@ -457,7 +503,7 @@ public:
 #if D3D11_ALLOW_STATE_CACHE
 		D3D11_STATE_CACHE_VERIFY_PRE();
 		FD3D11ConstantBufferState& Current = CurrentConstantBuffers[ShaderFrequency][SlotIndex];
-		if ((Current.Buffer != ConstantBuffer || Current.FirstConstant != 0 || Current.NumConstants != D3D11_REQ_CONSTANT_BUFFER_ELEMENT_COUNT) || GD3D11SkipStateCaching)
+		if ((Current.Buffer != ConstantBuffer || Current.FirstConstant != 0 || Current.NumConstants != D3D11_REQ_CONSTANT_BUFFER_ELEMENT_COUNT) || GD3D11SkipStateCaching || D3D11_STATE_CACHE_SKIP_MGPU(GPUMask))
 		{
 			Current.Buffer = ConstantBuffer;
 			Current.FirstConstant = 0;
@@ -488,12 +534,12 @@ template <EShaderFrequency ShaderFrequency>
 		{
 			switch (ShaderFrequency)
 			{
-			case SF_Vertex:		Direct3DDeviceIMContext1->VSGetConstantBuffers(StartSlot, NumBuffers, ConstantBuffers); break;
-			case SF_Hull:		Direct3DDeviceIMContext1->HSGetConstantBuffers(StartSlot, NumBuffers, ConstantBuffers); break;
-			case SF_Domain:		Direct3DDeviceIMContext1->DSGetConstantBuffers(StartSlot, NumBuffers, ConstantBuffers); break;
-			case SF_Geometry:	Direct3DDeviceIMContext1->GSGetConstantBuffers(StartSlot, NumBuffers, ConstantBuffers); break;
-			case SF_Pixel:		Direct3DDeviceIMContext1->PSGetConstantBuffers(StartSlot, NumBuffers, ConstantBuffers); break;
-			case SF_Compute:	Direct3DDeviceIMContext1->CSGetConstantBuffers(StartSlot, NumBuffers, ConstantBuffers); break;
+			case SF_Vertex:		Direct3DDeviceIMContext->VSGetConstantBuffers(StartSlotIndex, NumBuffers, ConstantBuffers); break;
+			case SF_Hull:		Direct3DDeviceIMContext->HSGetConstantBuffers(StartSlotIndex, NumBuffers, ConstantBuffers); break;
+			case SF_Domain:		Direct3DDeviceIMContext->DSGetConstantBuffers(StartSlotIndex, NumBuffers, ConstantBuffers); break;
+			case SF_Geometry:	Direct3DDeviceIMContext->GSGetConstantBuffers(StartSlotIndex, NumBuffers, ConstantBuffers); break;
+			case SF_Pixel:		Direct3DDeviceIMContext->PSGetConstantBuffers(StartSlotIndex, NumBuffers, ConstantBuffers); break;
+			case SF_Compute:	Direct3DDeviceIMContext->CSGetConstantBuffers(StartSlotIndex, NumBuffers, ConstantBuffers); break;
 			}
 
 		}
@@ -504,7 +550,7 @@ template <EShaderFrequency ShaderFrequency>
 	{
 #if D3D11_ALLOW_STATE_CACHE
 		D3D11_STATE_CACHE_VERIFY_PRE();
-		if ((CurrentRasterizerState != State) || GD3D11SkipStateCaching)
+		if ((CurrentRasterizerState != State) || GD3D11SkipStateCaching || D3D11_STATE_CACHE_SKIP_MGPU(GPUMask))
 		{
 			CurrentRasterizerState = State;
 			Direct3DDeviceIMContext->RSSetState(State);
@@ -532,7 +578,7 @@ template <EShaderFrequency ShaderFrequency>
 	{
 #if D3D11_ALLOW_STATE_CACHE
 		D3D11_STATE_CACHE_VERIFY_PRE();
-		if ((CurrentBlendState != State || CurrentBlendSampleMask != SampleMask || FMemory::Memcmp(CurrentBlendFactor, BlendFactor, sizeof(CurrentBlendFactor))) || GD3D11SkipStateCaching)
+		if ((CurrentBlendState != State || CurrentBlendSampleMask != SampleMask || FMemory::Memcmp(CurrentBlendFactor, BlendFactor, sizeof(CurrentBlendFactor))) || GD3D11SkipStateCaching || D3D11_STATE_CACHE_SKIP_MGPU(GPUMask))
 		{
 			CurrentBlendState = State;
 			CurrentBlendSampleMask = SampleMask;
@@ -564,7 +610,7 @@ template <EShaderFrequency ShaderFrequency>
 	{
 #if D3D11_ALLOW_STATE_CACHE
 		D3D11_STATE_CACHE_VERIFY_PRE();
-		if ((CurrentDepthStencilState != State || CurrentReferenceStencil != RefStencil) || GD3D11SkipStateCaching)
+		if ((CurrentDepthStencilState != State || CurrentReferenceStencil != RefStencil) || GD3D11SkipStateCaching || D3D11_STATE_CACHE_SKIP_MGPU(GPUMask))
 		{
 			CurrentDepthStencilState = State;
 			CurrentReferenceStencil = RefStencil;
@@ -594,7 +640,7 @@ template <EShaderFrequency ShaderFrequency>
 	{
 #if D3D11_ALLOW_STATE_CACHE
 		D3D11_STATE_CACHE_VERIFY_PRE();
-		if ((CurrentVertexShader != Shader) || GD3D11SkipStateCaching)
+		if ((CurrentVertexShader != Shader) || GD3D11SkipStateCaching || D3D11_STATE_CACHE_SKIP_MGPU(GPUMask))
 		{
 			CurrentVertexShader = Shader;
 			Direct3DDeviceIMContext->VSSetShader(Shader, nullptr, 0);
@@ -622,7 +668,7 @@ template <EShaderFrequency ShaderFrequency>
 	{
 #if D3D11_ALLOW_STATE_CACHE
 		D3D11_STATE_CACHE_VERIFY_PRE();
-		if ((CurrentHullShader != Shader) || GD3D11SkipStateCaching)
+		if ((CurrentHullShader != Shader) || GD3D11SkipStateCaching || D3D11_STATE_CACHE_SKIP_MGPU(GPUMask))
 		{
 			CurrentHullShader = Shader;
 			Direct3DDeviceIMContext->HSSetShader(Shader, nullptr, 0);
@@ -650,7 +696,7 @@ template <EShaderFrequency ShaderFrequency>
 	{
 #if D3D11_ALLOW_STATE_CACHE
 		D3D11_STATE_CACHE_VERIFY_PRE();
-		if ((CurrentDomainShader != Shader) || GD3D11SkipStateCaching)
+		if ((CurrentDomainShader != Shader) || GD3D11SkipStateCaching || D3D11_STATE_CACHE_SKIP_MGPU(GPUMask))
 		{
 			CurrentDomainShader = Shader;
 			Direct3DDeviceIMContext->DSSetShader(Shader, nullptr, 0);
@@ -678,7 +724,7 @@ template <EShaderFrequency ShaderFrequency>
 	{
 #if D3D11_ALLOW_STATE_CACHE
 		D3D11_STATE_CACHE_VERIFY_PRE();
-		if ((CurrentGeometryShader != Shader) || GD3D11SkipStateCaching)
+		if ((CurrentGeometryShader != Shader) || GD3D11SkipStateCaching || D3D11_STATE_CACHE_SKIP_MGPU(GPUMask))
 		{
 			CurrentGeometryShader = Shader;
 			Direct3DDeviceIMContext->GSSetShader(Shader, nullptr, 0);
@@ -706,7 +752,7 @@ template <EShaderFrequency ShaderFrequency>
 	{
 #if D3D11_ALLOW_STATE_CACHE
 		D3D11_STATE_CACHE_VERIFY_PRE();
-		if ((CurrentPixelShader != Shader) || GD3D11SkipStateCaching)
+		if ((CurrentPixelShader != Shader) || GD3D11SkipStateCaching || D3D11_STATE_CACHE_SKIP_MGPU(GPUMask))
 		{
 			CurrentPixelShader = Shader;
 			Direct3DDeviceIMContext->PSSetShader(Shader, nullptr, 0);
@@ -734,7 +780,7 @@ template <EShaderFrequency ShaderFrequency>
 	{
 #if D3D11_ALLOW_STATE_CACHE
 		D3D11_STATE_CACHE_VERIFY_PRE();
-		if ((CurrentComputeShader != Shader) || GD3D11SkipStateCaching)
+		if ((CurrentComputeShader != Shader) || GD3D11SkipStateCaching || D3D11_STATE_CACHE_SKIP_MGPU(GPUMask))
 		{
 			CurrentComputeShader = Shader;
 			Direct3DDeviceIMContext->CSSetShader(Shader, nullptr, 0);
@@ -762,7 +808,7 @@ template <EShaderFrequency ShaderFrequency>
 	{
 #if D3D11_ALLOW_STATE_CACHE
 		D3D11_STATE_CACHE_VERIFY_PRE();
-		if ((CurrentInputLayout != InputLayout) || GD3D11SkipStateCaching)
+		if ((CurrentInputLayout != InputLayout) || GD3D11SkipStateCaching || D3D11_STATE_CACHE_SKIP_MGPU(GPUMask))
 		{
 			CurrentInputLayout = InputLayout;
 			Direct3DDeviceIMContext->IASetInputLayout(InputLayout);
@@ -837,7 +883,7 @@ public:
 	{
 #if D3D11_ALLOW_STATE_CACHE
 		D3D11_STATE_CACHE_VERIFY_PRE();
-		if ((CurrentPrimitiveTopology != PrimitiveTopology) || GD3D11SkipStateCaching)
+		if ((CurrentPrimitiveTopology != PrimitiveTopology) || GD3D11SkipStateCaching || D3D11_STATE_CACHE_SKIP_MGPU(GPUMask))
 		{
 			CurrentPrimitiveTopology = PrimitiveTopology;
 			Direct3DDeviceIMContext->IASetPrimitiveTopology(PrimitiveTopology);
@@ -861,15 +907,21 @@ public:
 	FD3D11StateCacheBase()
 		: Direct3DDeviceIMContext(nullptr)
 	{
+#if D3D11_ALLOW_STATE_CACHE
 		FMemory::Memzero(CurrentShaderResourceViews, sizeof(CurrentShaderResourceViews));
+#endif
 	}
 
-	void Init(ID3D11DeviceContext* InDeviceContext, bool bInAlwaysSetIndexBuffers = false )
+	void Init(ID3D11DeviceContext* InDeviceContext, ID3D11MultiGPUDevice* InID3D11DeviceMultiGPU, bool bInAlwaysSetIndexBuffers = false)
 	{
 		SetContext(InDeviceContext);
 		
+		Direct3DDeviceMultiGPU = InID3D11DeviceMultiGPU;
+
 #if D3D11_ALLOW_STATE_CACHE
 		bAlwaysSetIndexBuffers = bInAlwaysSetIndexBuffers;
+
+		GPUMask = 0;
 #endif
 	}
 

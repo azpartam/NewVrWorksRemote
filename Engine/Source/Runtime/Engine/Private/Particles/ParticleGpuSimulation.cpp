@@ -4479,6 +4479,38 @@ void FFXSystem::FinalizeGPUSimulation(FRHICommandListImmediate& RHICmdList)
 	RHICmdList.TransitionResources(EResourceTransitionAccess::EReadable, RenderTargets, 2);	
 }
 
+void FFXSystem::CopyGPUSimulationMGPU(FRHICommandListImmediate& RHICmdList, EParticleSimulatePhase::Type Phase)
+{
+	FParticleStateTextures& CurrentStateTextures = ParticleSimulationResources->GetVisualizeStateTextures();
+
+	verify(CurrentStateTextures.VelocityTextureTargetRHI->GetSizeX() == CurrentStateTextures.PositionTextureTargetRHI->GetSizeX());
+
+	int32 MaxParticles = 0;
+	for (TSparseArray<FParticleSimulationGPU*>::TIterator It(GPUSimulations); It; ++It)
+	{
+		FParticleSimulationGPU* Simulation = *It;
+		if (Simulation->SimulationPhase == Phase && Simulation->TileVertexBuffer.AlignedTileCount > 0)
+		{
+			MaxParticles += Simulation->VertexBuffer.ParticleCount;
+		}
+	}
+
+	int32 ParticlesPerRow = CurrentStateTextures.PositionTextureTargetRHI->GetSizeX();
+	int32 MaxRowCount = FMath::DivideAndRoundUp(MaxParticles, ParticlesPerRow);
+
+	if (MaxRowCount)
+	{
+		FResolveParams Params;
+		Params.Rect.X1 = 0;
+		Params.Rect.Y1 = 0;
+		Params.Rect.X2 = ParticlesPerRow;
+		Params.Rect.Y2 = MaxRowCount;
+
+		RHICmdList.CopyResourceToGPU(CurrentStateTextures.PositionTextureTargetRHI, CurrentStateTextures.PositionTextureTargetRHI, 1, 0, Params);
+		RHICmdList.CopyResourceToGPU(CurrentStateTextures.VelocityTextureTargetRHI, CurrentStateTextures.VelocityTextureTargetRHI, 1, 0, Params);
+	}
+}
+
 void FFXSystem::SimulateGPUParticles(
 	FRHICommandListImmediate& RHICmdList,
 	EParticleSimulatePhase::Type Phase,

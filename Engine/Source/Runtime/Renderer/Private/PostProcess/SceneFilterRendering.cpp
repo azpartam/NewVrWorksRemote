@@ -22,23 +22,23 @@ public:
 		TResourceArray<FFilterVertex, VERTEXBUFFER_ALIGNMENT> Vertices;
 		Vertices.SetNumUninitialized(6);
 
-		Vertices[0].Position = FVector4(1,  1,	0,	1);
+		Vertices[0].Position = FVector4(1,  1,	1,	1);
 		Vertices[0].UV = FVector2D(1,	1);
 
-		Vertices[1].Position = FVector4(0,  1,	0,	1);
+		Vertices[1].Position = FVector4(0,  1,	1,	1);
 		Vertices[1].UV = FVector2D(0,	1);
 
-		Vertices[2].Position = FVector4(1,	0,	0,	1);
+		Vertices[2].Position = FVector4(1,	0,	1,	1);
 		Vertices[2].UV = FVector2D(1,	0);
 
-		Vertices[3].Position = FVector4(0,	0,	0,	1);
+		Vertices[3].Position = FVector4(0,	0,	1,	1);
 		Vertices[3].UV = FVector2D(0,	0);
 
 		//The final two vertices are used for the triangle optimization (a single triangle spans the entire viewport )
-		Vertices[4].Position = FVector4(-1,  1,	0,	1);
+		Vertices[4].Position = FVector4(-1,  1,	1,	1);
 		Vertices[4].UV = FVector2D(-1,	1);
 
-		Vertices[5].Position = FVector4(1,  -1,	0,	1);
+		Vertices[5].Position = FVector4(1,  -1,	1,	1);
 		Vertices[5].UV = FVector2D(1, -1);
 
 		// Create vertex buffer. Fill buffer with initial data upon creation
@@ -120,6 +120,82 @@ uint32 FTesselatedScreenRectangleIndexBuffer::NumPrimitives() const
 /** We don't need a vertex buffer as we can compute the vertex attributes in the VS */
 static TGlobalResource<FTesselatedScreenRectangleIndexBuffer> GTesselatedScreenRectangleIndexBuffer;
 
+/**
+* Static vertex and index buffer used for 2D screen octagons (for lens-matched shading).
+*/
+class FScreenOctagonVertexBuffer : public FVertexBuffer
+{
+public:
+	/** Initialize the RHI for this rendering resource */
+	void InitRHI() override
+	{
+		// Triangle fan shape with 8 vertices, one at each corner and one at each axis intersection
+		TResourceArray<FFilterVertex, VERTEXBUFFER_ALIGNMENT> Vertices;
+		Vertices.SetNumUninitialized(8);
+
+		// four corners
+		Vertices[0].Position = FVector4(1, 1, 1, 1);
+		Vertices[0].UV = FVector2D(1, 1);
+
+		Vertices[1].Position = FVector4(0, 1, 1, 1);
+		Vertices[1].UV = FVector2D(0, 1);
+
+		Vertices[2].Position = FVector4(1, 0, 1, 1);
+		Vertices[2].UV = FVector2D(1, 0);
+
+		Vertices[3].Position = FVector4(0, 0, 1, 1);
+		Vertices[3].UV = FVector2D(0, 0);
+
+		// four axes
+		Vertices[4].Position = FVector4(0.5, 1, 1, 1);
+		Vertices[4].UV = FVector2D(0.5, 1);
+
+		Vertices[5].Position = FVector4(0, 0.5, 1, 1);
+		Vertices[5].UV = FVector2D(0, 0.5);
+
+		Vertices[6].Position = FVector4(0.5, 0, 1, 1);
+		Vertices[6].UV = FVector2D(0.5, 0);
+
+		Vertices[7].Position = FVector4(1, 0.5, 1, 1);
+		Vertices[7].UV = FVector2D(1, 0.5);
+
+		// Create vertex buffer. Fill buffer with initial data upon creation
+		FRHIResourceCreateInfo CreateInfo(&Vertices);
+		VertexBufferRHI = RHICreateVertexBuffer(Vertices.GetResourceDataSize(), BUF_Static, CreateInfo);
+	}
+};
+
+class FScreenOctagonIndexBuffer : public FIndexBuffer
+{
+public:
+	/** Initialize the RHI for this rendering resource */
+	void InitRHI() override
+	{
+		// triangle fan shape with shared vertex at 0,0 
+		const uint16 Indices[] = { 
+			3, 2, 6,
+			3, 7, 2,
+			3, 0, 7,
+			3, 4, 0,
+			3, 1, 4,
+			3, 5, 1
+		};
+
+		TResourceArray<uint16, INDEXBUFFER_ALIGNMENT> IndexBuffer;
+		uint32 NumIndices = ARRAY_COUNT(Indices);
+		IndexBuffer.AddUninitialized(NumIndices);
+		FMemory::Memcpy(IndexBuffer.GetData(), Indices, NumIndices * sizeof(uint16));
+
+		// Create index buffer. Fill buffer with initial data upon creation
+		FRHIResourceCreateInfo CreateInfo(&IndexBuffer);
+		IndexBufferRHI = RHICreateIndexBuffer(sizeof(uint16), IndexBuffer.GetResourceDataSize(), BUF_Static, CreateInfo);
+	}
+};
+
+/** Global resource  */
+static TGlobalResource<FScreenOctagonVertexBuffer> GScreenOctagonVertexBuffer;
+static TGlobalResource<FScreenOctagonIndexBuffer> GScreenOctagonIndexBuffer;
+
 
 /** Vertex declaration for the 2D screen rectangle. */
 TGlobalResource<FFilterVertexDeclaration> GFilterVertexDeclaration;
@@ -131,6 +207,7 @@ BEGIN_UNIFORM_BUFFER_STRUCT( FDrawRectangleParameters,)
 	DECLARE_UNIFORM_BUFFER_STRUCT_MEMBER( FVector4, PosScaleBias )
 	DECLARE_UNIFORM_BUFFER_STRUCT_MEMBER( FVector4, UVScaleBias )
 	DECLARE_UNIFORM_BUFFER_STRUCT_MEMBER( FVector4, InvTargetSizeAndTextureSize )
+	DECLARE_UNIFORM_BUFFER_STRUCT_MEMBER( uint32, bDisableRemap )
 END_UNIFORM_BUFFER_STRUCT( FDrawRectangleParameters )
 
 IMPLEMENT_UNIFORM_BUFFER_STRUCT(FDrawRectangleParameters,TEXT("DrawRectangleParameters"));
@@ -175,15 +252,24 @@ void DrawRectangle(
 	FIntPoint TextureSize,
 	FShader* VertexShader,
 	EDrawRectangleFlags Flags,
-	uint32 InstanceCount
+	uint32 InstanceCount,
+	bool bForceNoRemap
 	)
 {
 	float ClipSpaceQuadZ = 0.0f;
 
 	DoDrawRectangleFlagOverride(Flags);
 
+	static const auto CVarLensMatchedShading = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("vr.LensMatchedShading"));
+	static const auto CVarLensMatchedShadingRendering = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("vr.LensMatchedShadingRendering"));
+	bool bLensMatchedShadeEnabled = GSupportsFastGeometryShader && GSupportsModifiedW &&
+		CVarLensMatchedShading && CVarLensMatchedShading->GetValueOnRenderThread() && CVarLensMatchedShadingRendering && CVarLensMatchedShadingRendering->GetValueOnRenderThread() > 0;
+
+	// We draw an octagon instead of a FS triangle if LMS is enabled. We purposely only do it for triangles so that disabling triangle optimization from console also disables octagons.
+	static const auto CVarLMSDrawRectangleOptimization = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("vr.LensMatchedShadingRectangleOptimization"));
+	bool bDrawOctagon = (CVarLMSDrawRectangleOptimization->GetValueOnRenderThread() && !bForceNoRemap && bLensMatchedShadeEnabled && Flags == EDRF_UseTriangleOptimization);
 	// triangle if extending to left and top of the given rectangle, if it's not left top of the viewport it can cause artifacts
-	if(X > 0.0f || Y > 0.0f)
+	if (!bDrawOctagon && (X > 0.0f || Y > 0.0f))
 	{
 		// don't use triangle optimization
 		Flags = EDRF_Default;
@@ -199,6 +285,7 @@ void DrawRectangle(
 	Parameters.InvTargetSizeAndTextureSize = FVector4( 
 		1.0f / TargetSize.X, 1.0f / TargetSize.Y, 
 		1.0f / TextureSize.X, 1.0f / TextureSize.Y);
+	Parameters.bDisableRemap = !bDrawOctagon;
 
 	SetUniformBufferParameterImmediate(RHICmdList, VertexShader->GetVertexShader(), VertexShader->GetUniformBufferParameter<FDrawRectangleParameters>(), Parameters);
 
@@ -216,6 +303,21 @@ void DrawRectangle(
 			/*StartIndex=*/ 0,
 			/*NumPrimitives=*/ GTesselatedScreenRectangleIndexBuffer.NumPrimitives(),
 			/*NumInstances=*/ InstanceCount
+			);
+	}
+	else if (bDrawOctagon)
+	{
+		// override everything that could use triangle optimization and draw octagon instead
+		RHICmdList.SetStreamSource(0, GScreenOctagonVertexBuffer.VertexBufferRHI, sizeof(FFilterVertex), 0);
+		RHICmdList.DrawIndexedPrimitive(
+			GScreenOctagonIndexBuffer.IndexBufferRHI,
+			PT_TriangleList,
+			/*BaseVertexIndex=*/ 0,
+			/*MinIndex=*/ 0,
+			/*NumVertices=*/ 8,
+			/*StartIndex=*/ 0,
+			/*NumPrimitives=*/ 6,
+			/*NumInstances=*/ 1  //NV_CEM is this correct or is it "InstanceCount"?
 			);
 	}
 	else
@@ -347,7 +449,8 @@ void DrawPostProcessPass(
 	FShader* VertexShader,
 	EStereoscopicPass StereoView,
 	bool bHasCustomMesh,
-	EDrawRectangleFlags Flags)
+	EDrawRectangleFlags Flags,
+	bool bForceNoRemap)
 {
 	if (bHasCustomMesh && StereoView != eSSP_FULL)
 	{
@@ -355,6 +458,6 @@ void DrawPostProcessPass(
 	}
 	else
 	{
-		DrawRectangle(RHICmdList, X, Y, SizeX, SizeY, U, V, SizeU, SizeV, TargetSize, TextureSize, VertexShader, Flags);
+		DrawRectangle(RHICmdList, X, Y, SizeX, SizeY, U, V, SizeU, SizeV, TargetSize, TextureSize, VertexShader, Flags, bForceNoRemap);
 	}
 }

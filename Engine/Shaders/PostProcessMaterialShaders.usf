@@ -27,12 +27,14 @@ void MainPS(
 	FPixelMaterialInputs PixelMaterialInputs;
 
 	// can be optimized
-	float2 ScreenUV = SvPositionToBufferUV(SvPosition);
+    float2 ScreenUV = SvPositionToBufferUV(SvPosition);
+
+    float2 LinearScreenUV = VRProjMapRenderTargetVRProjToLinear(ScreenUV);
 
 #if NUM_MATERIAL_TEXCOORDS
-	for(int CoordinateIndex = 0;CoordinateIndex < NUM_MATERIAL_TEXCOORDS;CoordinateIndex++)
-	{
-		Parameters.TexCoords[CoordinateIndex] = ScreenUV;
+    for(int CoordinateIndex = 0;CoordinateIndex < NUM_MATERIAL_TEXCOORDS;CoordinateIndex++)
+    {
+		Parameters.TexCoords[CoordinateIndex] = CoordinateIndex ? ScreenUV : LinearScreenUV;
 	}
 #endif
 

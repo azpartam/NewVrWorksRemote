@@ -69,6 +69,32 @@ static TAutoConsoleVariable<int32> CVarMultiView(
 	TEXT("0 to disable multi-view instanced stereo, 1 to enable.\n")
 	TEXT("Currently only supported by the PS4 RHI."),
 	ECVF_ReadOnly | ECVF_RenderThreadSafe);
+	
+static TAutoConsoleVariable<int32> CVarMultiRes(
+	TEXT("vr.MultiRes"),
+	0,
+	TEXT("0 to disable MultiRes support, 1 to enable."),
+	ECVF_ReadOnly | ECVF_RenderThreadSafe);
+
+static TAutoConsoleVariable<int32> CVarLensMatchedShading(
+	TEXT("vr.LensMatchedShading"),
+	0,
+	TEXT("0 to disable ModifiedW support, 1 to enable."),
+	ECVF_ReadOnly | ECVF_RenderThreadSafe);
+
+static TAutoConsoleVariable<int32> CVarSinglePassStereo(
+	TEXT("vr.SinglePassStereo"),
+	0,
+	TEXT("0 to disable SinglePassStereo support, 1 to enable."),
+	ECVF_ReadOnly | ECVF_RenderThreadSafe);
+
+static TAutoConsoleVariable<int32> CVarEnableVRSLI(
+	TEXT("vr.MGPU"),
+	0,
+	TEXT("Toggles VR SLI support.\n")
+	TEXT("0: off (default)\n")
+	TEXT("1: on (requires NVAPI support for SetGPUMask)\n"),
+	ECVF_RenderThreadSafe);
 
 #if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
 static TAutoConsoleVariable<float> CVarGeneralPurposeTweak(
@@ -571,7 +597,8 @@ void FViewInfo::CreateUniformBuffer(
 	const FMatrix& EffectiveTranslatedViewMatrix, 
 	const FMatrix& EffectiveViewToTranslatedWorld, 
 	FBox* OutTranslucentCascadeBoundsArray, 
-	int32 NumTranslucentCascades) const
+	int32 NumTranslucentCascades,
+	bool  SupportMultiRes) const
 {
 	FSceneRenderTargets& SceneContext = FSceneRenderTargets::Get(RHICmdList);
 
@@ -1014,13 +1041,88 @@ void FViewInfo::CreateUniformBuffer(
 	}
 
 	ViewUniformShaderParameters.ReflectionCubemapMaxMip = FMath::FloorLog2(UReflectionCaptureComponent::GetReflectionCaptureSize_RenderThread());
+	extern int32 GDistanceFieldAOSpecularOcclusionMode;
+
 
 	ViewUniformShaderParameters.ShowDecalsMask = Family->EngineShowFlags.Decals ? 1.0f : 0.0f;
 
-	extern int32 GDistanceFieldAOSpecularOcclusionMode;
-	ViewUniformShaderParameters.DistanceFieldAOSpecularOcclusionMode = GDistanceFieldAOSpecularOcclusionMode;
+	ViewUniformShaderParameters.RenderTargetToViewRectUVScaleBias = FVector4(
+		FVector2D(BufferSize) / FVector2D(ViewRect.Size()),
+		-FVector2D(ViewRect.Min) / FVector2D(ViewRect.Size()));
+	ViewUniformShaderParameters.ViewRectToRenderTargetUVScaleBias = FVector4(
+		FVector2D(ViewRect.Size()) / FVector2D(BufferSize),
+		FVector2D(ViewRect.Min) / FVector2D(BufferSize));
+		
+	if (bVRProjectEnabled && SupportMultiRes)
+	{
+		FVRProjection::FastGSCBData GSCBData;
+		FVRProjection::FastGSCBData StereoGSCBData;
+		FVRProjection::RemapCBData RemapCBData;
+		if (VRProjMode == FSceneView::EVRProjectMode::MultiRes)
+		{
+			FMultiRes::CalculateFastGSCBData(&MultiResConf, &GSCBData);
+			FMultiRes::CalculateFastGSCBData(&MultiResStereoConf, &StereoGSCBData);
+			FMultiRes::CalculateRemapCBData(&MultiResConf, &MultiResViewports, &RemapCBData);
+		}
+		else if (VRProjMode == FSceneView::EVRProjectMode::LensMatched)
+		{
+			FLensMatchedShading::CalculateFastGSCBData(&LensMatchedShadingConf, &GSCBData);
+			FLensMatchedShading::CalculateFastGSCBData(&LensMatchedShadingStereoConf, &StereoGSCBData);
+			FLensMatchedShading::CalculateRemapCBData(&LensMatchedShadingConf, &LensMatchedViewports, &RemapCBData);
+		}
+
+		ViewUniformShaderParameters.VRProjectToLinearSplitsX = RemapCBData.VRProjectToLinearSplitsX;
+		ViewUniformShaderParameters.VRProjectToLinearSplitsY = RemapCBData.VRProjectToLinearSplitsY;
+		ViewUniformShaderParameters.VRProjectToLinearX0 = RemapCBData.VRProjectToLinearX[0];
+		ViewUniformShaderParameters.VRProjectToLinearX1 = RemapCBData.VRProjectToLinearX[1];
+		ViewUniformShaderParameters.VRProjectToLinearX2 = RemapCBData.VRProjectToLinearX[2];
+		ViewUniformShaderParameters.VRProjectToLinearY0 = RemapCBData.VRProjectToLinearY[0];
+		ViewUniformShaderParameters.VRProjectToLinearY1 = RemapCBData.VRProjectToLinearY[1];
+		ViewUniformShaderParameters.VRProjectToLinearY2 = RemapCBData.VRProjectToLinearY[2];
+
+		ViewUniformShaderParameters.LinearToVRProjectSplitsX = RemapCBData.LinearToVRProjectSplitsX;
+		ViewUniformShaderParameters.LinearToVRProjectSplitsY = RemapCBData.LinearToVRProjectSplitsY;
+		ViewUniformShaderParameters.LinearToVRProjectX0 = RemapCBData.LinearToVRProjectX[0];
+		ViewUniformShaderParameters.LinearToVRProjectX1 = RemapCBData.LinearToVRProjectX[1];
+		ViewUniformShaderParameters.LinearToVRProjectX2 = RemapCBData.LinearToVRProjectX[2];
+		ViewUniformShaderParameters.LinearToVRProjectY0 = RemapCBData.LinearToVRProjectY[0];
+		ViewUniformShaderParameters.LinearToVRProjectY1 = RemapCBData.LinearToVRProjectY[1];
+		ViewUniformShaderParameters.LinearToVRProjectY2 = RemapCBData.LinearToVRProjectY[2];
+
+		ViewUniformShaderParameters.NDCSplitsX = GSCBData.NDCSplitsX;
+		ViewUniformShaderParameters.NDCSplitsY = GSCBData.NDCSplitsY;
+
+		ViewUniformShaderParameters.StereoNDCSplitsX = StereoGSCBData.NDCSplitsX;
+		ViewUniformShaderParameters.StereoNDCSplitsY = StereoGSCBData.NDCSplitsY;
+
+		ViewUniformShaderParameters.BoundingRectSize = RemapCBData.BoundingRectSize;
+		ViewUniformShaderParameters.BoundingRectSizeInv = RemapCBData.BoundingRectSizeInv;
+
+		if (VRProjMode == FSceneView::EVRProjectMode::MultiRes)
+		{
+			ViewUniformShaderParameters.VRProjectionMode = 1;
+		}
+		else if (VRProjMode == FSceneView::EVRProjectMode::LensMatched)
+		{
+			ViewUniformShaderParameters.VRProjectionMode = 2;
+		}
+
+		//Need to account for scaling factors introduced by vr projection
+		if ((Family != nullptr) && (StereoPass == eSSP_LEFT_EYE) && (Family->Views.Num() > 1))
+		{
+			check(Family->Views.Num() == 2);
+			const float EyePaddingSize = static_cast<float>(Family->Views[1]->ViewRect.Min.X - ViewRect.Max.X) / MultiResStereoConf.DensityScaleX[2];
+			const float FamilySizeX = static_cast<float>(NonVRProjectViewRect.Max.X - NonVRProjectViewRect.Min.X)*2.0f + EyePaddingSize;
+			ViewUniformShaderParameters.HMDEyePaddingOffset = (FamilySizeX - EyePaddingSize) / FamilySizeX;
+		}
+	}
+	else
+	{
+		ViewUniformShaderParameters.VRProjectionMode = 0;
+	}
 
 	ViewUniformShaderParameters.StereoPassIndex = (StereoPass != eSSP_RIGHT_EYE) ? 0 : 1;
+	ViewUniformShaderParameters.bIsSinglePassStereo = bAllowSinglePassStereo ? 1 : 0;
 
 	OutViewUniformBuffer = TUniformBufferRef<FViewUniformShaderParameters>::CreateUniformBufferImmediate(ViewUniformShaderParameters, UniformBuffer_SingleFrame);
 }
@@ -1039,7 +1141,8 @@ void FViewInfo::InitRHIResources()
 		TranslatedViewMatrix,
 		InvViewMatrix * FTranslationMatrix(ViewMatrices.PreViewTranslation),
 		VolumeBounds,
-		TVC_MAX);
+		TVC_MAX,
+		true);
 
 	for (int32 CascadeIndex = 0; CascadeIndex < TVC_MAX; CascadeIndex++)
 	{
@@ -1321,6 +1424,7 @@ FSceneRenderer::FSceneRenderer(const FSceneViewFamily* InViewFamily,FHitProxyCon
 	}
 
 	ViewFamily.ComputeFamilySize();
+	ViewFamily.SetupVRProjectionInstancedStereo();
 
 	// copy off the requests
 	// (I apologize for the const_cast, but didn't seem worth refactoring just for the freezerendering command)
@@ -1422,6 +1526,7 @@ void FSceneRenderer::RenderFinish(FRHICommandListImmediate& RHICmdList)
 		for(int32 ViewIndex = 0;ViewIndex < Views.Num();ViewIndex++)
 		{	
 			FViewInfo& View = Views[ViewIndex];
+			RHICmdList.SetGPUMask(View.StereoPass);
 			if (!View.bIsReflectionCapture && !View.bIsSceneCapture )
 			{
 				// display a message saying we're frozen
@@ -1519,6 +1624,7 @@ void FSceneRenderer::RenderFinish(FRHICommandListImmediate& RHICmdList)
 				}
 			}
 		}
+		RHICmdList.SetGPUMask(0);
 	}
 	
 #endif //!(UE_BUILD_SHIPPING || UE_BUILD_TEST)
@@ -1567,6 +1673,8 @@ void FSceneRenderer::RenderFinish(FRHICommandListImmediate& RHICmdList)
 		{
 			const FViewInfo& View = Views[ViewIndex];
 
+			RHICmdList.SetGPUMask(View.StereoPass);
+
 			if(!View.IsPerspectiveProjection())
 			{
 				continue;
@@ -1574,6 +1682,7 @@ void FSceneRenderer::RenderFinish(FRHICommandListImmediate& RHICmdList)
 
 			GRenderTargetPool.PresentContent(RHICmdList, View);
 		}
+		RHICmdList.SetGPUMask(0);
 	}
 #endif
 
@@ -1657,7 +1766,12 @@ void FSceneRenderer::RenderCustomDepthPass(FRHICommandListImmediate& RHICmdList)
 
 			FViewInfo& View = Views[ViewIndex];
 
-			RHICmdList.SetViewport(View.ViewRect.Min.X, View.ViewRect.Min.Y, 0.0f, View.ViewRect.Max.X, View.ViewRect.Max.Y, 1.0f);
+			RHICmdList.SetGPUMask(View.StereoPass);
+
+			if (View.bVRProjectEnabled)
+				View.BeginVRProjectionStates(RHICmdList);
+			else
+				RHICmdList.SetViewport(View.ViewRect.Min.X, View.ViewRect.Min.Y, 0.0f, View.ViewRect.Max.X, View.ViewRect.Max.Y, 1.0f);
 			
 			// seems this is set each draw call anyway
 			RHICmdList.SetRasterizerState(TStaticRasterizerState<>::GetRHI());
@@ -1671,7 +1785,13 @@ void FSceneRenderer::RenderCustomDepthPass(FRHICommandListImmediate& RHICmdList)
 			}
 
 			View.CustomDepthSet.DrawPrims(RHICmdList, View, bWriteCustomStencilValues);
+
+			if (View.bVRProjectEnabled)
+			{
+				View.EndVRProjectionStates(RHICmdList);
+			}
 		}
+		RHICmdList.SetGPUMask(0);
 
 		// resolve using the current ResolveParams 
 		SceneContext.FinishRenderingCustomDepth(RHICmdList);
@@ -2082,7 +2202,6 @@ void FRendererModule::RenderOverlayExtensions(const FSceneView& View, FRHIComman
 	RenderParameters.Uid=(void*)(&View);
 	OverlayRenderDelegate.ExecuteIfBound(RenderParameters);
 }
-
 
 #if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
 

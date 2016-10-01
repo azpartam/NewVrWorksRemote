@@ -123,7 +123,7 @@ which can be configured via defines for various temporal AA passes.
 	#define AA_DYNAMIC_ANTIGHOST 0
 #endif
 
-	float2 ScreenPos = ( UV * PostprocessInput0Size.xy - 0.5 - ScreenPosToPixel.zw ) / ScreenPosToPixel.xy;
+	float2 ScreenPos = VRProjMapNDCVRProjToLinear((UV * PostprocessInput0Size.xy - 0.5 - ScreenPosToPixel.zw ) / ScreenPosToPixel.xy);
 
 	// FIND MOTION OF PIXEL AND NEAREST IN NEIGHBORHOOD
     // ------------------------------------------------
@@ -215,6 +215,10 @@ which can be configured via defines for various temporal AA passes.
 	// This clamps to be a pixel inside the viewport.
 	BackN.x = clamp(BackN.x, -1.0 + ViewportSize.z, 1.0 - ViewportSize.z);
 	BackN.y = clamp(BackN.y, -1.0 + ViewportSize.w, 1.0 - ViewportSize.w);
+
+	// account for multires, BackN is presently in lineaer space
+	BackN = VRProjMapNDCLinearToVRProj(BackN);
+
 	// Convert from [-1 to 1] to view rectangle which is somewhere in [0 to 1].
 	// The extra +0.5 factor is because ScreenPosToPixel.zw is incorrectly computed
 	// as the upper left of the pixel instead of the center of the pixel.

@@ -28,3 +28,6 @@ void Main(
 		OutPosition = float4(InPosition.xyz, 1);
 	#endif
 }
+
+struct PositionOnly { float4 Position : SV_POSITION; };
+VRPROJECT_CREATE_FASTGS(VRProjectFastGS, PositionOnly, Position)

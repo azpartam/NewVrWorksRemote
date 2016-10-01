@@ -1140,6 +1140,21 @@ void FSteamVRHMD::CalculateRenderTargetSize(const class FViewport& Viewport, uin
 	{
 		static const auto CVar = IConsoleManager::Get().FindTConsoleVariableDataFloat(TEXT("r.ScreenPercentage"));
 		float value = CVar->GetValueOnGameThread();
+
+		static const auto CVarLensMatchedShading = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("vr.LensMatchedShading"));
+		static const auto CVarLensMatchedShadingRendering = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("vr.LensMatchedShadingRendering"));
+		bool bLensMatchedShadeEnabled = GSupportsFastGeometryShader && GSupportsModifiedW &&
+			CVarLensMatchedShading && CVarLensMatchedShading->GetValueOnGameThread() && CVarLensMatchedShadingRendering->GetValueOnGameThread() > 0;
+
+		if (bLensMatchedShadeEnabled)
+		{
+			static const auto CVarLensMatchedShadingResScale = IConsoleManager::Get().FindTConsoleVariableDataFloat(TEXT("vr.LensMatchedShadingResolutionScaling"));
+			float LensMatchedShadeResScale = CVarLensMatchedShadingResScale->GetValueOnGameThread();
+
+			value *= LensMatchedShadeResScale;
+			value *= 1.5f; // Enlarge the buffer by 150% to keep the upsampled view center sharp
+		}
+
 		if (value > 0.0f)
 		{
 			InOutSizeX = FMath::CeilToInt(InOutSizeX * value / 100.f);

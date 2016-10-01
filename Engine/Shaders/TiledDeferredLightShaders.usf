@@ -51,11 +51,18 @@ void TiledDeferredLightingMain(
 	uint3 DispatchThreadId : SV_DispatchThreadID,
     uint3 GroupThreadId : SV_GroupThreadID) 
 {
+	// if thread groups are not visible in final image due to Lens-Matched Shading, there's no need to run them
+	if (ShouldKillThreadGroupModifiedWBoundaryMask(GroupId, uint2(THREADGROUP_SIZEX, THREADGROUP_SIZEY), ViewDimensions))
+	{
+		return;
+	}
+
     uint ThreadIndex = GroupThreadId.y * THREADGROUP_SIZEX + GroupThreadId.x;
     
 	uint2 PixelPos = DispatchThreadId.xy + ViewDimensions.xy;
 	float2 ScreenUV = (float2(DispatchThreadId.xy) + .5f) / (ViewDimensions.zw - ViewDimensions.xy);
-	float2 ScreenPosition = float2(2.0f, -2.0f) * ScreenUV + float2(-1.0f, 1.0f);
+	float2 LinearScreenUV = VRProjMapVRProjToLinear( ScreenUV);
+	float2 ScreenPosition = float2(2.0f, -2.0f) * LinearScreenUV + float2(-1.0f, 1.0f);
 	float SceneDepth = CalcSceneDepth(PixelPos);
 
 #if ATOMIC_REDUCTION
@@ -145,7 +152,24 @@ void TiledDeferredLightingMain(
 
 	// Setup tile frustum planes
 	float2 TileScale = float2(ViewDimensions.zw - ViewDimensions.xy) * rcp(2 * float2(THREADGROUP_SIZEX, THREADGROUP_SIZEY));
-    float2 TileBias = TileScale - GroupId.xy;
+	float2 TileBias = TileScale - GroupId.xy;
+
+	if (VRProjectionIsActive())
+	{
+		// Logic:
+		//  frustum is [-1,1], the tile frustum is also [-1,1]
+		//  to convert, the original frustum needs to be scaled, then shifted
+
+		// first compute the corners in NDC space
+		float2 Pos0 = VRProjMapVRProjToLinear((GroupId.xy * float2(THREADGROUP_SIZEX, THREADGROUP_SIZEY) / float2(ViewDimensions.zw - ViewDimensions.xy)));
+		float2 Pos1 = VRProjMapVRProjToLinear(((GroupId.xy + 1) * float2(THREADGROUP_SIZEX, THREADGROUP_SIZEY) / float2(ViewDimensions.zw - ViewDimensions.xy)));
+
+		// scale is 1/tile size
+		TileScale = 0.5 / (Pos1 - Pos0);
+
+		// compute bias
+		TileBias = (-2.0*Pos0 + 1.0) * TileScale;
+	}
 
     float4 C1 = float4(View.ViewToClip._11 * TileScale.x,	0.0f,								View.ViewToClip._31 * TileScale.x + TileBias.x,	0.0f);
     float4 C2 = float4(0.0f,								-View.ViewToClip._22 * TileScale.y, View.ViewToClip._32 * TileScale.y + TileBias.y,	0.0f);

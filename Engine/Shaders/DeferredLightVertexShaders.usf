@@ -20,7 +20,7 @@ void DirectionalVertexMain(
 	out float4 OutPosition : SV_POSITION
 	)
 {	
-	DrawRectangle(float4(InPosition.xy, 0, 1), InUV, OutPosition, OutTexCoord);
+	DrawRectangle(float4(InPosition.xy, 1, 1), InUV, OutPosition, OutTexCoord);
 	OutScreenVector = mul(float4(OutPosition.xy, 1, 0), View.ScreenToTranslatedWorld).xyz;
 }
 
@@ -93,3 +93,11 @@ void RadialVertexMain(
 	OutScreenPosition = OutPosition = mul(float4(WorldPosition, 1), View.TranslatedWorldToClip);
 }
 #endif
+
+// Multi-res FastGS for point/spot lights (FastGS is not used for directional lights)
+struct FRadialVertexVSToPS
+{
+	float4 ScreenPosition : TEXCOORD0;
+	float4 Position : SV_POSITION;
+};
+VRPROJECT_CREATE_FASTGS(VRProjectFastGS, FRadialVertexVSToPS, Position)

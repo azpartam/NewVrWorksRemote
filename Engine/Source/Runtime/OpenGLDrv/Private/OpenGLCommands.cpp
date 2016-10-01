@@ -397,6 +397,26 @@ void FOpenGLDynamicRHI::RHISetScissorRect(bool bEnable,uint32 MinX,uint32 MinY,u
 	PendingState.Scissor.Max.Y = MaxY;
 }
 
+void FOpenGLDynamicRHI::RHISetMultipleScissorRects(bool bEnable, uint32 Num, const FIntRect* Rects)
+{
+	UE_LOG(LogRHI, Fatal, TEXT("OpenGL RHI does not support multiple scissor rects!"));
+}
+
+void FOpenGLDynamicRHI::RHISetModifiedWMode(const FLensMatchedShading::Configuration& Conf, const bool bWarpForward, const bool bEnable)
+{
+	UE_LOG(LogRHI, Fatal, TEXT("OpenGL RHI does not support w-warp!"));
+}
+
+void FOpenGLDynamicRHI::RHISetModifiedWModeStereo(const FLensMatchedShading::StereoConfiguration& Conf, const bool bWarpForward, const bool bEnable)
+{
+	UE_LOG(LogRHI, Fatal, TEXT("OpenGL RHI does not support w-warp!"));
+}
+
+void FOpenGLDynamicRHI::RHISetGPUMask(uint32 Mask)
+{
+	UE_LOG(LogRHI, Fatal, TEXT("OpenGL Render path does not support GPU mask!"));
+}
+
 inline void FOpenGLDynamicRHI::UpdateScissorRectInOpenGLContext( FOpenGLContextState& ContextState )
 {
 	VERIFY_GL_SCOPE();
@@ -3632,6 +3652,11 @@ void FOpenGLDynamicRHI::RHIEnableDepthBoundsTest(bool bEnable,float MinDepth,flo
 		}
 		FOpenGL::DepthBounds(MinDepth,MaxDepth);
 	}
+}
+
+void FOpenGLDynamicRHI::RHISetSinglePassStereoParameters(bool bEnable, uint32 RenderTargetIndexOffset, uint8 IndependentViewportMaskEnable)
+{
+	UE_LOG(LogRHI, Fatal, TEXT("%s not implemented yet"), ANSI_TO_TCHAR(__FUNCTION__));
 }
 
 void FOpenGLDynamicRHI::RHISubmitCommandsHint()

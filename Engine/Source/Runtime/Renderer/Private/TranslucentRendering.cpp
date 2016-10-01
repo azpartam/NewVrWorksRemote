@@ -280,6 +280,7 @@ void FTranslucencyDrawingPolicyFactory::CopySceneColor(FRHICommandList& RHICmdLi
 
 	SceneContext.BeginRenderingLightAttenuation(RHICmdList);
 	RHICmdList.SetViewport(View.ViewRect.Min.X, View.ViewRect.Min.Y, 0.0f, View.ViewRect.Max.X, View.ViewRect.Max.Y, 1.0f);
+	RHICmdList.SetScissorRect(false, 0, 0, 0, 0);
 
 	TShaderMapRef<FScreenVS> ScreenVertexShader(View.ShaderMap);
 	TShaderMapRef<FCopySceneColorPS> PixelShader(View.ShaderMap);
@@ -387,7 +388,7 @@ public:
 			Parameters.bAllowFog,
 			false,
 			false);
-		RHICmdList.BuildAndSetLocalBoundShaderState(DrawingPolicy.GetBoundShaderStateInput(View.GetFeatureLevel()));
+		RHICmdList.BuildAndSetLocalBoundShaderState(DrawingPolicy.GetBoundShaderStateInput(View.GetFeatureLevel(), View.bVRProjectEnabled));
 		DrawingPolicy.SetSharedState(RHICmdList, &View, typename TBasePassDrawingPolicy<LightMapPolicyType>::ContextDataType(), DownsampleFactorFromSceneBufferSize);
 
 		int32 BatchElementIndex = 0;
@@ -977,6 +978,11 @@ public:
 	virtual ~FTranslucencyPassParallelCommandListSet()
 	{
 		Dispatch();
+		if (View.bVRProjectEnabled)
+		{
+			// Reset viewport and scissor after rendering to vr projection view
+			View.EndVRProjectionStates(ParentCmdList);
+		}
 	}
 
 	virtual void SetStateOnCommandList(FRHICommandList& CmdList) override
@@ -1015,6 +1021,9 @@ void FDeferredShadingSceneRenderer::RenderTranslucencyParallel(FRHICommandListIm
 		SCOPED_CONDITIONAL_DRAW_EVENTF(RHICmdList, EventView, Views.Num() > 1, TEXT("View%d"), ViewIndex);
 
 		const FViewInfo& View = Views[ViewIndex];
+
+		RHICmdList.SetGPUMask(View.StereoPass);
+
 		{
 			if (SceneContext.IsSeparateTranslucencyActive(View))
 			{
@@ -1157,6 +1166,8 @@ void FDeferredShadingSceneRenderer::RenderTranslucencyParallel(FRHICommandListIm
 			EndTimingSeparateTranslucencyPass(RHICmdList, View);
 		}
 	}
+
+	RHICmdList.SetGPUMask(0);
 }
 
 static TAutoConsoleVariable<int32> CVarParallelTranslucency(
@@ -1197,6 +1208,8 @@ void FDeferredShadingSceneRenderer::RenderTranslucency(FRHICommandListImmediate&
 
 			const FViewInfo& View = Views[ViewIndex];
 
+			RHICmdList.SetGPUMask(View.StereoPass);
+
 			// non separate translucency
 			{
 #if STATS
@@ -1206,7 +1219,7 @@ void FDeferredShadingSceneRenderer::RenderTranslucency(FRHICommandListImmediate&
 				}
 #endif
 
-				bool bFirstTimeThisFrame = (ViewIndex == 0);
+				bool bFirstTimeThisFrame = (ViewIndex == 0) || GRHISupportsMultipleGPUStereo;
 				SetTranslucentRenderTargetAndState(RHICmdList, View, ETranslucencyPass::TPT_NonSeparateTransluceny, bFirstTimeThisFrame);
 
 				DrawAllTranslucencyPasses(RHICmdList, View, ETranslucencyPass::TPT_NonSeparateTransluceny);
@@ -1250,7 +1263,7 @@ void FDeferredShadingSceneRenderer::RenderTranslucency(FRHICommandListImmediate&
 
 					BeginTimingSeparateTranslucencyPass(RHICmdList, View);
 
-					bool bFirstTimeThisFrame = (ViewIndex == 0);
+					bool bFirstTimeThisFrame = (ViewIndex == 0) || GRHISupportsMultipleGPUStereo;
 					bool bSetupTranslucency = SceneContext.BeginRenderingSeparateTranslucency(RHICmdList, View, bFirstTimeThisFrame);
 
 					const TIndirectArray<FMeshBatch>& WorldList = View.ViewMeshElements;
@@ -1275,5 +1288,6 @@ void FDeferredShadingSceneRenderer::RenderTranslucency(FRHICommandListImmediate&
 				}
 			}
 		}
+		RHICmdList.SetGPUMask(0);
 	}
 }

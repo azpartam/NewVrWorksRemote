@@ -14,6 +14,7 @@
 #include "RHIStaticStates.h"
 #include "GlobalDistanceFieldParameters.h"
 #include "DebugViewModeHelpers.h"
+#include "VRProjection.h"
 
 class FSceneViewStateInterface;
 class FViewUniformShaderParameters;
@@ -392,6 +393,31 @@ enum ETranslucencyVolumeCascade
 	VIEW_UNIFORM_BUFFER_MEMBER(FMatrix, PrevScreenToTranslatedWorld) \
 	VIEW_UNIFORM_BUFFER_MEMBER(FMatrix, ClipToPrevClip) \
 	VIEW_UNIFORM_BUFFER_MEMBER(FVector4, GlobalClippingPlane) \
+	VIEW_UNIFORM_BUFFER_MEMBER(FVector4, RenderTargetToViewRectUVScaleBias)	\
+	VIEW_UNIFORM_BUFFER_MEMBER(FVector4, ViewRectToRenderTargetUVScaleBias)	\
+	VIEW_UNIFORM_BUFFER_MEMBER(FVector4, NDCSplitsX) \
+	VIEW_UNIFORM_BUFFER_MEMBER(FVector4, NDCSplitsY) \
+	VIEW_UNIFORM_BUFFER_MEMBER(FVector4, StereoNDCSplitsX) \
+	VIEW_UNIFORM_BUFFER_MEMBER(FVector4, StereoNDCSplitsY) \
+	VIEW_UNIFORM_BUFFER_MEMBER(FVector2D, LinearToVRProjectSplitsX) \
+	VIEW_UNIFORM_BUFFER_MEMBER(FVector2D, LinearToVRProjectSplitsY) \
+	VIEW_UNIFORM_BUFFER_MEMBER(FVector2D, LinearToVRProjectX0) \
+	VIEW_UNIFORM_BUFFER_MEMBER(FVector2D, LinearToVRProjectX1) \
+	VIEW_UNIFORM_BUFFER_MEMBER(FVector2D, LinearToVRProjectX2) \
+	VIEW_UNIFORM_BUFFER_MEMBER(FVector2D, LinearToVRProjectY0) \
+	VIEW_UNIFORM_BUFFER_MEMBER(FVector2D, LinearToVRProjectY1) \
+	VIEW_UNIFORM_BUFFER_MEMBER(FVector2D, LinearToVRProjectY2) \
+	VIEW_UNIFORM_BUFFER_MEMBER(FVector2D, VRProjectToLinearSplitsX) \
+	VIEW_UNIFORM_BUFFER_MEMBER(FVector2D, VRProjectToLinearSplitsY) \
+	VIEW_UNIFORM_BUFFER_MEMBER(FVector2D, VRProjectToLinearX0) \
+	VIEW_UNIFORM_BUFFER_MEMBER(FVector2D, VRProjectToLinearX1) \
+	VIEW_UNIFORM_BUFFER_MEMBER(FVector2D, VRProjectToLinearX2) \
+	VIEW_UNIFORM_BUFFER_MEMBER(FVector2D, VRProjectToLinearY0) \
+	VIEW_UNIFORM_BUFFER_MEMBER(FVector2D, VRProjectToLinearY1) \
+	VIEW_UNIFORM_BUFFER_MEMBER(FVector2D, VRProjectToLinearY2) \
+	VIEW_UNIFORM_BUFFER_MEMBER(FVector2D, BoundingRectOrigin) \
+	VIEW_UNIFORM_BUFFER_MEMBER(FVector2D, BoundingRectSize) \
+	VIEW_UNIFORM_BUFFER_MEMBER(FVector2D, BoundingRectSizeInv) \
 	VIEW_UNIFORM_BUFFER_MEMBER(FVector2D, FieldOfViewWideAngles) \
 	VIEW_UNIFORM_BUFFER_MEMBER(FVector2D, PrevFieldOfViewWideAngles) \
 	VIEW_UNIFORM_BUFFER_MEMBER_EX(FVector4, ViewRectMin, EShaderPrecisionModifier::Half) \
@@ -460,6 +486,8 @@ enum ETranslucencyVolumeCascade
 	VIEW_UNIFORM_BUFFER_MEMBER(float, MobilePreviewMode) \
 	VIEW_UNIFORM_BUFFER_MEMBER(float, HMDEyePaddingOffset) \
 	VIEW_UNIFORM_BUFFER_MEMBER_EX(float, ReflectionCubemapMaxMip, EShaderPrecisionModifier::Half) \
+	VIEW_UNIFORM_BUFFER_MEMBER(uint32, VRProjectionMode) \
+	VIEW_UNIFORM_BUFFER_MEMBER(uint32, bIsSinglePassStereo) \
 	VIEW_UNIFORM_BUFFER_MEMBER(float, ShowDecalsMask) \
 	VIEW_UNIFORM_BUFFER_MEMBER(uint32, DistanceFieldAOSpecularOcclusionMode) \
 	VIEW_UNIFORM_BUFFER_MEMBER(uint32, StereoPassIndex) \
@@ -764,6 +792,38 @@ public:
 	/** Feature level for this scene */
 	ERHIFeatureLevel::Type FeatureLevel;
 
+	/** multi-res settings for this view */
+	enum class EVRProjectMode
+	{
+		Planar, MultiRes, LensMatched
+	};
+
+	EVRProjectMode VRProjMode;
+	bool bVRProjectEnabled;
+	FIntRect NonVRProjectViewRect;	// View rect without vr projection scaling (but with any adjustments for ScreenPercentage, HMD rendering, etc.)
+
+	FMultiRes::Configuration MultiResConf;
+	mutable FMultiRes::StereoConfiguration MultiResStereoConf;
+	FMultiRes::Viewports MultiResViewports;
+
+	FLensMatchedShading::Configuration LensMatchedShadingConf;
+	mutable FLensMatchedShading::StereoConfiguration LensMatchedShadingStereoConf;
+	FLensMatchedShading::Viewports LensMatchedViewports;
+
+	// These are the viewport and scissor tied to this view
+	mutable TArray<FViewportBounds> VRProjViewportArray;
+	mutable TArray<FIntRect> VRProjScissorArray;
+
+	// These arrays contain the versions that may change for instanced stereo rendering
+	// In this case, the viewport is shared by two views
+	mutable FMultiRes::StereoViewports MultiResStereoViewports;
+	mutable FLensMatchedShading::StereoViewports LensMatchedStereoViewports;
+
+	mutable TArray<FViewportBounds> StereoVRProjectViewportArray;
+	mutable TArray<FIntRect> StereoVRProjectScissorArray;
+
+	bool bAllowSinglePassStereo;
+
 	/** Initialization constructor. */
 	FSceneView(const FSceneViewInitOptions& InitOptions);
 
@@ -895,7 +955,18 @@ public:
 	EShaderPlatform GetShaderPlatform() const;
 
 	/** True if the view should render as an instanced stereo pass */
-	bool IsInstancedStereoPass() const { return bIsInstancedStereoEnabled && StereoPass == eSSP_LEFT_EYE; }
+	bool IsInstancedStereoPass() const { return bIsInstancedStereoEnabled && StereoPass == eSSP_LEFT_EYE && !bAllowSinglePassStereo; }
+
+	/** Apply vr projection to current ViewRect; sets up NonVRProjectViewRect and MultiResViewports or LensMatchedViewports */
+	void SetupVRProjection(int32 ViewportGap = 0);
+
+	/** Setup the viewports, scissors and modified w state required by vr projection */
+	void BeginVRProjectionStates(FRHICommandList& RHICmdList) const;
+	void EndVRProjectionStates(FRHICommandList& RHICmdList) const;
+
+	bool IsSinglePassStereoAllowed() const { return bAllowSinglePassStereo && StereoPass == eSSP_LEFT_EYE; }
+	void SetupSinglePassStereo();
+	void CheckSinglePassStereo();
 };
 
 //////////////////////////////////////////////////////////////////////////
@@ -1031,7 +1102,13 @@ public:
 
 	/** The height in screen pixels of the view family being rendered (maximum y of all viewports). */
 	uint32 FamilySizeY;
+	
+	/** The width in screen pixels of the view family without vr projection. */
+	uint32 FamilyLinearSizeX;
 
+	/** The height in screen pixels of the view family without vr projection. */
+	uint32 FamilyLinearSizeY;
+	
 	/** 
 		The width in pixels of the stereo view family being rendered. This may be different than FamilySizeX if
 		we're using adaptive resolution stereo rendering. In that case, FamilySizeX represents the maximum size of 
@@ -1096,6 +1173,10 @@ public:
     /** Extensions that can modify view parameters on the render thread. */
     TArray<TSharedPtr<class ISceneViewExtension, ESPMode::ThreadSafe> > ViewExtensions;
 
+	// These are the viewports and scissors used for single pass stereo
+	mutable TArray<FViewportBounds> SPSViewportArray;
+	mutable TArray<FIntRect> SPSScissorArray;
+
 	// for r.DisplayInternals (allows for easy passing down data from main to render thread)
 	FDisplayInternalsData DisplayInternalsData;
 
@@ -1140,6 +1221,9 @@ public:
 
 	/** Returns the appropriate view for a given eye in a stereo pair. */
 	const FSceneView& GetStereoEyeView(const EStereoscopicPass Eye) const;
+
+	/** Setup StereoVRProjectViewportArray and StereoVRProjectScissorArray. */
+	void SetupVRProjectionInstancedStereo();
 };
 
 /**

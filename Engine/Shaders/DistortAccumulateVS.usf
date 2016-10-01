@@ -109,3 +109,5 @@ void Main(
 }
 
 #endif // VERTEXSHADER
+
+VRPROJECT_CREATE_FASTGS(VRProjectFastGS, FDistortAccumulateVSToPS, Position)

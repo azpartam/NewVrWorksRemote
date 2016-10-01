@@ -58,7 +58,11 @@ float4 ComputeControlPoint(float4 PositionA, float4 PositionB, float4 NormalA)
 		#else
 			ResolvedView = ResolveView();
 		#endif
-		
+
+		#if SINGLE_PASS_STEREO
+			ResolvedViewRight = ResolveView(1);
+		#endif
+
 #if DISABLE_TESSELLATION_OVERRIDE
 		O.TessFactor[0] = 1.0f; // 1->2 edge
 		O.TessFactor[1] = 1.0f; // 2->0 edge
@@ -186,6 +190,10 @@ float4 ComputeControlPoint(float4 PositionA, float4 PositionB, float4 NormalA)
 			ResolvedView = ResolveView();
 		#endif
 
+		#if SINGLE_PASS_STEREO
+			ResolvedViewRight = ResolveView(1);
+		#endif
+
 		// Get the barycentric coords
 		float U = BarycentricCoords.x;
 		float V = BarycentricCoords.y;
@@ -282,7 +290,7 @@ float4 ComputeControlPoint(float4 PositionA, float4 PositionB, float4 NormalA)
 
 		#if INSTANCED_STEREO && !MULTI_VIEW
 		BRANCH
-		if (IsInstancedStereo(I[0].PassSpecificData.FactoryInterpolants.InterpolantsVSToPS.PackedEyeIndex))
+		if (IsInstancedStereo(I[0].PassSpecificData.FactoryInterpolants.InterpolantsVSToPS.PackedEyeIndex) && !LensMatchedShadingIsActive())
 		{
 			const uint EyeIndex = GetEyeIndex(I[0].PassSpecificData.FactoryInterpolants.InterpolantsVSToPS.PackedEyeIndex);
 

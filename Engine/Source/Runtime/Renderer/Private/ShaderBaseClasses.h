@@ -7,6 +7,7 @@
 #pragma once
 
 #include "MeshMaterialShader.h"
+#include "ShaderParameterUtils.h"
 
 /** The uniform shader parameters associated with a LOD fade. */
 // This was moved out of ScenePrivate.h to workaround MSVC vs clang template issue (it's used in this header file, so needs to be declared earlier)
@@ -95,18 +96,43 @@ public:
 	FBaseDS(const ShaderMetaType::CompiledShaderInitializerType& Initializer):
 		FMeshMaterialShader(Initializer)
 	{
+		NeedsInstancedStereoBiasParameter.Bind(Initializer.ParameterMap, TEXT("bNeedsInstancedStereoBias"));
+		IsSinglePassStereoParameter.Bind(Initializer.ParameterMap, TEXT("bIsSinglePassStereo"));
 	}
 
 	FBaseDS() {}
 
-	void SetParameters(FRHICommandList& RHICmdList, const FMaterialRenderProxy* MaterialRenderProxy,const FSceneView& View)
+	virtual bool Serialize(FArchive& Ar) override
+	{
+		const bool result = FMeshMaterialShader::Serialize(Ar);
+		Ar << NeedsInstancedStereoBiasParameter;
+		Ar << IsSinglePassStereoParameter;
+		return result;
+	}
+
+	void SetParameters(FRHICommandList& RHICmdList, const FMaterialRenderProxy* MaterialRenderProxy,const FSceneView& View,
+													const bool bNeedsInstancedStereoBias = false, const bool bIsSinglePassStereo = false)
 	{
 		FMeshMaterialShader::SetParameters(RHICmdList, (FDomainShaderRHIParamRef)GetDomainShader(), MaterialRenderProxy, *MaterialRenderProxy->GetMaterial(View.GetFeatureLevel()), View, ESceneRenderTargetsMode::SetTextures);
+
+		if (NeedsInstancedStereoBiasParameter.IsBound())
+		{
+			SetShaderValue(RHICmdList, (FDomainShaderRHIParamRef)GetDomainShader(), NeedsInstancedStereoBiasParameter, bNeedsInstancedStereoBias);
+		}
+
+		if (IsSinglePassStereoParameter.IsBound())
+		{
+			SetShaderValue(RHICmdList, (FDomainShaderRHIParamRef)GetDomainShader(), IsSinglePassStereoParameter, bIsSinglePassStereo);
+		}
 	}
 
 	void SetMesh(FRHICommandList& RHICmdList, const FVertexFactory* VertexFactory,const FSceneView& View,const FPrimitiveSceneProxy* Proxy,const FMeshBatchElement& BatchElement, const FMeshDrawingRenderState& DrawRenderState)
 	{
 		FMeshMaterialShader::SetMesh(RHICmdList, (FDomainShaderRHIParamRef)GetDomainShader(),VertexFactory,View,Proxy,BatchElement,DrawRenderState);
 	}
+
+private:
+	FShaderParameter NeedsInstancedStereoBiasParameter;
+	FShaderParameter IsSinglePassStereoParameter;
 };
 

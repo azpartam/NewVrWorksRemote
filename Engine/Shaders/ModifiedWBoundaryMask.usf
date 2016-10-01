@@ -1,0 +1,46 @@
+// Copyright 1998-2016 Epic Games, Inc. All Rights Reserved.
+
+/*=============================================================================
+	ModifiedWBoundaryMask.usf: VS and GS for drawing ModifiedW boundary mask
+=============================================================================*/
+
+// BOUNDARY defines the boundary of the mask. If <1.0, it will be visible on the final render (useful for debugging)
+#define BOUNDARY 1.f
+
+// We generate the vertices in the VS rather than passing in through a vertex buffer
+static const float2 MaskVerts[4] = {
+	{ -BOUNDARY, BOUNDARY },
+	{ BOUNDARY, BOUNDARY },
+	{ BOUNDARY, -BOUNDARY },
+	{ -BOUNDARY, -BOUNDARY },
+};
+
+// The mask itself is composed of two triangles forming a fullscreen quad, which will turn into an octagon once going through the ModifiedW pipeline
+static const int MaskInds[6] = {
+	0, 2, 1,
+	0, 3, 2
+};
+
+// The draw call itself will be two triangles, so simply look up values in the vertex/index constant arrays
+void VSMain(in uint InVertexId : SV_VertexID,
+	out float4 OutPosition : SV_Position)
+{
+	float2 CurrentVertex = MaskVerts[MaskInds[InVertexId]];
+	OutPosition = float4(CurrentVertex.xy, 0, 1); // depth=0 maps to near plane
+}
+
+// Simple FastGS to just broadcast to all viewports
+struct FFastGSOutput
+{
+	float4		Position : SV_Position;
+	uint		ViewportMask : SV_ViewportArrayIndex;
+};
+
+[maxvertexcount(1)]
+void FGSMain(triangle float4 InVertices[3] : SV_Position, inout TriangleStream<FFastGSOutput> OutTriStream)
+{
+	FFastGSOutput Output;
+	Output.Position = InVertices[0];
+	Output.ViewportMask = 0xF; // we assume that Lens Matched Shading uses four viewports
+	OutTriStream.Append(Output);
+}

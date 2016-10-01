@@ -7,18 +7,18 @@ public class NVAPI : ModuleRules
 	{
 		Type = ModuleType.External;
 
-        string nvApiPath = UEBuildConfiguration.UEThirdPartySourceDirectory + "NVIDIA/nvapi/";
+        string nvApiPath = UEBuildConfiguration.UEThirdPartySourceDirectory + "NVIDIA/nvapi";
         PublicSystemIncludePaths.Add(nvApiPath);
 
 		if (Target.Platform == UnrealTargetPlatform.Win64)
 		{
-            string nvApiLibPath = nvApiPath + "amd64/";
+            string nvApiLibPath = nvApiPath + "/amd64/";
             PublicLibraryPaths.Add(nvApiLibPath);
             PublicAdditionalLibraries.Add("nvapi64.lib");
 		}
 		else if (Target.Platform == UnrealTargetPlatform.Win32)
 		{
-            string nvApiLibPath = nvApiPath + "x86/";
+            string nvApiLibPath = nvApiPath + "/x86/";
             PublicLibraryPaths.Add(nvApiLibPath);
             PublicAdditionalLibraries.Add("nvapi.lib");
 		}

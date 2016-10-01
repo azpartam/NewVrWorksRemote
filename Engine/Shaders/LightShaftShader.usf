@@ -173,8 +173,9 @@ void BlurLightShaftsMain(
 	)
 {
 	float3 BlurredValues = 0;
+	float2 LinearUV = VRProjMapRenderTargetVRProjToLinear(InUV);
 	// Scale the UVs so that the blur will be the same pixel distance in x and y
-	float2 AspectCorrectedUV = InUV * AspectRatioAndInvAspectRatio.zw;
+	float2 AspectCorrectedUV = LinearUV * AspectRatioAndInvAspectRatio.zw;
 	// Increase the blur distance exponentially in each pass
 	float PassScale = pow(.4f * NUM_SAMPLES, RadialBlurParameters.z);
 	float2 AspectCorrectedBlurVector = (TextureSpaceBlurOrigin.xy - AspectCorrectedUV)
@@ -189,6 +190,7 @@ void BlurLightShaftsMain(
 		float2 SampleUVs = (AspectCorrectedUV + AspectCorrectedBlurVector * SampleIndex / (float)NUM_SAMPLES) * AspectRatioAndInvAspectRatio.xy;
 		// Needed because sometimes the source texture is larger than the part we are reading from
 		float2 ClampedUVs = clamp(SampleUVs, UVMinMax.xy, UVMinMax.zw);
+		ClampedUVs = VRProjMapRenderTargetLinearToVRProj(ClampedUVs);
 		float3 SampleValue = Texture2DSample(SourceTexture, SourceTextureSampler, ClampedUVs).xyz;
 		BlurredValues += SampleValue;
 	}

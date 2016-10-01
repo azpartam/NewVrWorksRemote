@@ -236,6 +236,8 @@ float4 SSSSBlurPS(float2 GBufferUV, float2 ViewportUV, float2 dir, bool initSten
 	colorInvDiv += GetKernel(SSSS_N_KERNELWEIGHTOFFSET, SubsurfaceProfileInt).rgb;
 	colorAccum = colorM.rgb * GetKernel(SSSS_N_KERNELWEIGHTOFFSET, SubsurfaceProfileInt).rgb;
 
+	float2 LinearViewportUV = VRProjMapVRProjToLinear(ViewportUV);
+
 	// Accumulate the other samples:
     SSSS_UNROLL
 	for (int i = 1; i < SSSS_N_KERNELWEIGHTCOUNT; i++) 
@@ -253,7 +255,8 @@ float4 SSSSBlurPS(float2 GBufferUV, float2 ViewportUV, float2 dir, bool initSten
 		for (int Side = -1; Side <= 1; Side += 2)
 		{
 			// Fetch color and depth for current sample:
-			float4 color = SSSSSampleSceneColor(ViewportUV + UVOffset * Side);
+			float2 SampleUV = VRProjMapLinearToVRProj(LinearViewportUV + UVOffset * Side);
+			float4 color = SSSSSampleSceneColor(SampleUV);
 
 			float LocalDepth = color.a;
 			

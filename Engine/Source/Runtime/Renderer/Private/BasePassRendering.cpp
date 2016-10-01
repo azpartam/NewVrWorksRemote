@@ -86,6 +86,8 @@ bool GVisualizeMipLevels = false;
 #define IMPLEMENT_BASEPASS_VERTEXSHADER_TYPE(LightMapPolicyType,LightMapPolicyName) \
 	typedef TBasePassVS< LightMapPolicyType, false > TBasePassVS##LightMapPolicyName ; \
 	IMPLEMENT_MATERIAL_SHADER_TYPE(template<>,TBasePassVS##LightMapPolicyName,TEXT("BasePassVertexShader"),TEXT("Main"),SF_Vertex); \
+	typedef TBasePassFastGS< LightMapPolicyType > TBasePassGS##LightMapPolicyName; \
+	IMPLEMENT_MATERIAL_SHADER_TYPE(template<>,TBasePassGS##LightMapPolicyName,TEXT("BasePassVertexShader"),TEXT("VRProjectFastGS"),SF_Geometry); \
 	typedef TBasePassHS< LightMapPolicyType > TBasePassHS##LightMapPolicyName; \
 	IMPLEMENT_MATERIAL_SHADER_TYPE(template<>,TBasePassHS##LightMapPolicyName,TEXT("BasePassTessellationShaders"),TEXT("MainHull"),SF_Hull); \
 	typedef TBasePassDS< LightMapPolicyType > TBasePassDS##LightMapPolicyName; \
@@ -494,8 +496,8 @@ public:
 			Parameters.bEditorCompositeDepthTest,
 			/* bInEnableReceiveDecalOutput = */ Scene != nullptr
 			);
-		RHICmdList.BuildAndSetLocalBoundShaderState(DrawingPolicy.GetBoundShaderStateInput(View.GetFeatureLevel()));
-		DrawingPolicy.SetSharedState(RHICmdList, &View, typename TBasePassDrawingPolicy<LightMapPolicyType>::ContextDataType(Parameters.bIsInstancedStereo));
+		RHICmdList.BuildAndSetLocalBoundShaderState(DrawingPolicy.GetBoundShaderStateInput(View.GetFeatureLevel(), View.bVRProjectEnabled || Parameters.bIsSinglePassStereo));
+		DrawingPolicy.SetSharedState(RHICmdList, &View, typename TBasePassDrawingPolicy<LightMapPolicyType>::ContextDataType(Parameters.bIsInstancedStereo, Parameters.bIsSinglePassStereo));
 		const FMeshDrawingRenderState DrawRenderState(DitheredLODTransitionAlpha);
 
 		for( int32 BatchElementIndex = 0, Num = Parameters.Mesh.Elements.Num(); BatchElementIndex < Num; BatchElementIndex++ )
@@ -543,7 +545,8 @@ bool FBasePassOpaqueDrawingPolicyFactory::DrawDynamicMesh(
 	bool bPreFog,
 	const FPrimitiveSceneProxy* PrimitiveSceneProxy,
 	FHitProxyId HitProxyId, 
-	const bool bIsInstancedStereo
+	const bool bIsInstancedStereo,
+	const bool bIsSinglePassStereo
 	)
 {
 	// Determine the mesh's material and blend mode.
@@ -563,7 +566,8 @@ bool FBasePassOpaqueDrawingPolicyFactory::DrawDynamicMesh(
 				DrawingContext.bEditorCompositeDepthTest,
 				DrawingContext.TextureMode,
 				View.GetFeatureLevel(), 
-				bIsInstancedStereo
+				bIsInstancedStereo,
+				bIsSinglePassStereo
 				),
 			FDrawBasePassDynamicMeshAction(
 				View,
@@ -632,6 +636,7 @@ void GetUniformBasePassShaders(
 	bool bEnableSkyLight,
 	FBaseHS*& HullShader,
 	FBaseDS*& DomainShader,
+	TBasePassFastGeometryShaderPolicyParamType<FUniformLightMapPolicyShaderParametersType>*& FastGeometryShader,
 	TBasePassVertexShaderPolicyParamType<FUniformLightMapPolicyShaderParametersType>*& VertexShader,
 	TBasePassPixelShaderPolicyParamType<FUniformLightMapPolicyShaderParametersType>*& PixelShader
 	)
@@ -641,6 +646,8 @@ void GetUniformBasePassShaders(
 		HullShader = Material.GetShader<TBasePassHS<TUniformLightMapPolicy<Policy> > >(VertexFactoryType);
 		DomainShader = Material.GetShader<TBasePassDS<TUniformLightMapPolicy<Policy> > >(VertexFactoryType);
 	}
+
+	FastGeometryShader = Material.GetShader<TBasePassFastGS<TUniformLightMapPolicy<Policy> > >(VertexFactoryType);
 
 	if (bEnableAtmosphericFog)
 	{
@@ -670,6 +677,7 @@ void GetBasePassShaders<FUniformLightMapPolicy>(
 	bool bEnableSkyLight,
 	FBaseHS*& HullShader,
 	FBaseDS*& DomainShader,
+	TBasePassFastGeometryShaderPolicyParamType<FUniformLightMapPolicyShaderParametersType>*& FastGeometryShader,
 	TBasePassVertexShaderPolicyParamType<FUniformLightMapPolicyShaderParametersType>*& VertexShader,
 	TBasePassPixelShaderPolicyParamType<FUniformLightMapPolicyShaderParametersType>*& PixelShader
 	)
@@ -677,47 +685,62 @@ void GetBasePassShaders<FUniformLightMapPolicy>(
 	switch (LightMapPolicy.GetIndirectPolicy())
 	{
 	case LMP_CACHED_VOLUME_INDIRECT_LIGHTING:
-		GetUniformBasePassShaders<LMP_CACHED_VOLUME_INDIRECT_LIGHTING>(Material, VertexFactoryType, bNeedsHSDS, bEnableAtmosphericFog, bEnableSkyLight, HullShader, DomainShader, VertexShader, PixelShader);
+		GetUniformBasePassShaders<LMP_CACHED_VOLUME_INDIRECT_LIGHTING>(Material, VertexFactoryType, bNeedsHSDS, bEnableAtmosphericFog, bEnableSkyLight, HullShader, DomainShader, FastGeometryShader, VertexShader, PixelShader);
 		break;
 	case LMP_CACHED_POINT_INDIRECT_LIGHTING:
-		GetUniformBasePassShaders<LMP_CACHED_POINT_INDIRECT_LIGHTING>(Material, VertexFactoryType, bNeedsHSDS, bEnableAtmosphericFog, bEnableSkyLight, HullShader, DomainShader, VertexShader, PixelShader);
+		GetUniformBasePassShaders<LMP_CACHED_POINT_INDIRECT_LIGHTING>(Material, VertexFactoryType, bNeedsHSDS, bEnableAtmosphericFog, bEnableSkyLight, HullShader, DomainShader, FastGeometryShader, VertexShader, PixelShader);
 		break;
 	case LMP_SIMPLE_DIRECTIONAL_LIGHT_LIGHTING:
-		GetUniformBasePassShaders<LMP_SIMPLE_DIRECTIONAL_LIGHT_LIGHTING>(Material, VertexFactoryType, bNeedsHSDS, bEnableAtmosphericFog, bEnableSkyLight, HullShader, DomainShader, VertexShader, PixelShader);
+		GetUniformBasePassShaders<LMP_SIMPLE_DIRECTIONAL_LIGHT_LIGHTING>(Material, VertexFactoryType, bNeedsHSDS, bEnableAtmosphericFog, bEnableSkyLight, HullShader, DomainShader, FastGeometryShader, VertexShader, PixelShader);
 		break;
 	case LMP_SIMPLE_NO_LIGHTMAP:
-		GetUniformBasePassShaders<LMP_SIMPLE_NO_LIGHTMAP>(Material, VertexFactoryType, bNeedsHSDS, bEnableAtmosphericFog, bEnableSkyLight, HullShader, DomainShader, VertexShader, PixelShader);
+		GetUniformBasePassShaders<LMP_SIMPLE_NO_LIGHTMAP>(Material, VertexFactoryType, bNeedsHSDS, bEnableAtmosphericFog, bEnableSkyLight, HullShader, DomainShader, FastGeometryShader, VertexShader, PixelShader);
 		break;
 	case LMP_SIMPLE_LIGHTMAP_ONLY_LIGHTING:
-		GetUniformBasePassShaders<LMP_SIMPLE_LIGHTMAP_ONLY_LIGHTING>(Material, VertexFactoryType, bNeedsHSDS, bEnableAtmosphericFog, bEnableSkyLight, HullShader, DomainShader, VertexShader, PixelShader);
+		GetUniformBasePassShaders<LMP_SIMPLE_LIGHTMAP_ONLY_LIGHTING>(Material, VertexFactoryType, bNeedsHSDS, bEnableAtmosphericFog, bEnableSkyLight, HullShader, DomainShader, FastGeometryShader, VertexShader, PixelShader);
 		break;
 	case LMP_SIMPLE_STATIONARY_PRECOMPUTED_SHADOW_LIGHTING:
-		GetUniformBasePassShaders<LMP_SIMPLE_STATIONARY_PRECOMPUTED_SHADOW_LIGHTING>(Material, VertexFactoryType, bNeedsHSDS, bEnableAtmosphericFog, bEnableSkyLight, HullShader, DomainShader, VertexShader, PixelShader);
+		GetUniformBasePassShaders<LMP_SIMPLE_STATIONARY_PRECOMPUTED_SHADOW_LIGHTING>(Material, VertexFactoryType, bNeedsHSDS, bEnableAtmosphericFog, bEnableSkyLight, HullShader, DomainShader, FastGeometryShader, VertexShader, PixelShader);
 		break;
 	case LMP_SIMPLE_STATIONARY_SINGLESAMPLE_SHADOW_LIGHTING:
-		GetUniformBasePassShaders<LMP_SIMPLE_STATIONARY_SINGLESAMPLE_SHADOW_LIGHTING>(Material, VertexFactoryType, bNeedsHSDS, bEnableAtmosphericFog, bEnableSkyLight, HullShader, DomainShader, VertexShader, PixelShader);
+		GetUniformBasePassShaders<LMP_SIMPLE_STATIONARY_SINGLESAMPLE_SHADOW_LIGHTING>(Material, VertexFactoryType, bNeedsHSDS, bEnableAtmosphericFog, bEnableSkyLight, HullShader, DomainShader, FastGeometryShader, VertexShader, PixelShader);
 		break;
 	case LMP_LQ_LIGHTMAP:
-		GetUniformBasePassShaders<LMP_LQ_LIGHTMAP>(Material, VertexFactoryType, bNeedsHSDS, bEnableAtmosphericFog, bEnableSkyLight, HullShader, DomainShader, VertexShader, PixelShader);
+		GetUniformBasePassShaders<LMP_LQ_LIGHTMAP>(Material, VertexFactoryType, bNeedsHSDS, bEnableAtmosphericFog, bEnableSkyLight, HullShader, DomainShader, FastGeometryShader, VertexShader, PixelShader);
 		break;
 	case LMP_HQ_LIGHTMAP:
-		GetUniformBasePassShaders<LMP_HQ_LIGHTMAP>(Material, VertexFactoryType, bNeedsHSDS, bEnableAtmosphericFog, bEnableSkyLight, HullShader, DomainShader, VertexShader, PixelShader);
+		GetUniformBasePassShaders<LMP_HQ_LIGHTMAP>(Material, VertexFactoryType, bNeedsHSDS, bEnableAtmosphericFog, bEnableSkyLight, HullShader, DomainShader, FastGeometryShader, VertexShader, PixelShader);
 		break;
 	case LMP_DISTANCE_FIELD_SHADOWS_AND_HQ_LIGHTMAP:
-		GetUniformBasePassShaders<LMP_DISTANCE_FIELD_SHADOWS_AND_HQ_LIGHTMAP>(Material, VertexFactoryType, bNeedsHSDS, bEnableAtmosphericFog, bEnableSkyLight, HullShader, DomainShader, VertexShader, PixelShader);
+		GetUniformBasePassShaders<LMP_DISTANCE_FIELD_SHADOWS_AND_HQ_LIGHTMAP>(Material, VertexFactoryType, bNeedsHSDS, bEnableAtmosphericFog, bEnableSkyLight, HullShader, DomainShader, FastGeometryShader, VertexShader, PixelShader);
 		break;
 	default:										
 		check(false);
 	case LMP_NO_LIGHTMAP:
-		GetUniformBasePassShaders<LMP_NO_LIGHTMAP>(Material, VertexFactoryType, bNeedsHSDS, bEnableAtmosphericFog, bEnableSkyLight, HullShader, DomainShader, VertexShader, PixelShader);
+		GetUniformBasePassShaders<LMP_NO_LIGHTMAP>(Material, VertexFactoryType, bNeedsHSDS, bEnableAtmosphericFog, bEnableSkyLight, HullShader, DomainShader, FastGeometryShader, VertexShader, PixelShader);
 		break;
 	}
 }
 
+static void SetupPassViewScissorAndMaskBasePass(FRHICommandListImmediate& RHICmdList, const FViewInfo& View)
+{
+	if (GRHISupportsMultipleGPUStereo && View.StereoPass != eSSP_FULL)
+	{
+		// note: we need to be sure the scissor rect is not enabled downstream. 
+		RHICmdList.SetGPUMask(View.StereoPass);
+		RHICmdList.SetScissorRect(true, View.ViewRect.Min.X, View.ViewRect.Min.Y, View.ViewRect.Max.X, View.ViewRect.Max.Y);
+		RHICmdList.SetGPUMask(0);
+	}
+	else
+	{
+		RHICmdList.SetScissorRect(false, 0, 0, 0, 0);
+	}
+}
+
 /**
- * Renders the scene's base pass 
- * @return true if anything was rendered
- */
+* Renders the scene's base pass
+* @return true if anything was rendered
+*/
 bool FDeferredShadingSceneRenderer::RenderBasePass(FRHICommandListImmediate& RHICmdList)
 {
 	bool bDirty = false;
@@ -731,7 +754,7 @@ bool FDeferredShadingSceneRenderer::RenderBasePass(FRHICommandListImmediate& RHI
 	{
 		SCOPED_DRAW_EVENT(RHICmdList, BasePass);
 		SCOPE_CYCLE_COUNTER(STAT_BasePassDrawTime);
-		SCOPED_GPU_STAT(RHICmdList, Stat_GPU_Basepass );
+		SCOPED_GPU_STAT(RHICmdList, Stat_GPU_Basepass);
 
 		if (GRHICommandList.UseParallelAlgorithms() && CVarParallelBasePass.GetValueOnRenderThread())
 		{
@@ -740,6 +763,8 @@ bool FDeferredShadingSceneRenderer::RenderBasePass(FRHICommandListImmediate& RHI
 			{
 				SCOPED_CONDITIONAL_DRAW_EVENTF(RHICmdList, EventView, Views.Num() > 1, TEXT("View%d"), ViewIndex);
 				FViewInfo& View = Views[ViewIndex];
+				SetupPassViewScissorAndMaskBasePass(RHICmdList, View);
+
 				if (View.ShouldRenderView())
 				{
 					RenderBasePassViewParallel(View, RHICmdList);
@@ -756,6 +781,8 @@ bool FDeferredShadingSceneRenderer::RenderBasePass(FRHICommandListImmediate& RHI
 			{
 				SCOPED_CONDITIONAL_DRAW_EVENTF(RHICmdList, EventView, Views.Num() > 1, TEXT("View%d"), ViewIndex);
 				FViewInfo& View = Views[ViewIndex];
+				SetupPassViewScissorAndMaskBasePass(RHICmdList, View);
+
 				if (View.ShouldRenderView())
 				{
 					bDirty |= RenderBasePassView(RHICmdList, View);
@@ -763,7 +790,7 @@ bool FDeferredShadingSceneRenderer::RenderBasePass(FRHICommandListImmediate& RHI
 
 				RenderEditorPrimitives(RHICmdList, View, bDirty);
 			}
-		}	
+		}
 	}
 
 	return bDirty;
@@ -775,29 +802,48 @@ bool FDeferredShadingSceneRenderer::RenderBasePassStaticDataType(FRHICommandList
 
 	bool bDirty = false;
 
-	if (!View.IsInstancedStereoPass())
+	if (!View.IsInstancedStereoPass() && !View.IsSinglePassStereoAllowed())
 	{
 		bDirty |= Scene->BasePassUniformLightMapPolicyDrawList[DrawType].DrawVisible(RHICmdList, View, View.StaticMeshVisibilityMap, View.StaticMeshBatchVisibility);
 	}
 	else
 	{
 		const StereoPair StereoView(Views[0], Views[1], Views[0].StaticMeshVisibilityMap, Views[1].StaticMeshVisibilityMap, Views[0].StaticMeshBatchVisibility, Views[1].StaticMeshBatchVisibility);
-		bDirty |= Scene->BasePassUniformLightMapPolicyDrawList[DrawType].DrawVisibleInstancedStereo(RHICmdList, StereoView);
+
+		if (View.IsSinglePassStereoAllowed())
+		{
+			SCOPED_DRAW_EVENT(RHICmdList, StaticOpaque);
+			bDirty |= Scene->BasePassUniformLightMapPolicyDrawList[DrawType].DrawVisibleSinglePassStereo(RHICmdList, StereoView);
+		}
+		else
+		{
+			SCOPED_DRAW_EVENT(RHICmdList, StaticOpaque);
+			bDirty |= Scene->BasePassUniformLightMapPolicyDrawList[DrawType].DrawVisibleInstancedStereo(RHICmdList, StereoView);
+		}
 	}
 
 	return bDirty;
 }
 
+
 void FDeferredShadingSceneRenderer::RenderBasePassStaticDataTypeParallel(FParallelCommandListSet& ParallelCommandListSet, const EBasePassDrawListType DrawType)
 {
-	if (!ParallelCommandListSet.View.IsInstancedStereoPass())
+	if (!ParallelCommandListSet.View.IsInstancedStereoPass() && !ParallelCommandListSet.View.IsSinglePassStereoAllowed())
 	{
 		Scene->BasePassUniformLightMapPolicyDrawList[DrawType].DrawVisibleParallel(ParallelCommandListSet.View.StaticMeshVisibilityMap, ParallelCommandListSet.View.StaticMeshBatchVisibility, ParallelCommandListSet);
 	}
 	else
 	{
 		const StereoPair StereoView(Views[0], Views[1], Views[0].StaticMeshVisibilityMap, Views[1].StaticMeshVisibilityMap, Views[0].StaticMeshBatchVisibility, Views[1].StaticMeshBatchVisibility);
-		Scene->BasePassUniformLightMapPolicyDrawList[DrawType].DrawVisibleParallelInstancedStereo(StereoView, ParallelCommandListSet);
+
+		if (ParallelCommandListSet.View.IsSinglePassStereoAllowed())
+		{
+			Scene->BasePassUniformLightMapPolicyDrawList[DrawType].DrawVisibleParallelSinglePassStereo(StereoView, ParallelCommandListSet);
+		}
+		else
+		{
+			Scene->BasePassUniformLightMapPolicyDrawList[DrawType].DrawVisibleParallelInstancedStereo(StereoView, ParallelCommandListSet);
+		}
 	}
 }
 
@@ -944,7 +990,7 @@ void FDeferredShadingSceneRenderer::RenderBasePassDynamicData(FRHICommandList& R
 			&& MeshBatchAndRelevance.GetRenderInMainPass())
 		{
 			const FMeshBatch& MeshBatch = *MeshBatchAndRelevance.Mesh;
-			FBasePassOpaqueDrawingPolicyFactory::DrawDynamicMesh(RHICmdList, View, Context, MeshBatch, false, true, MeshBatchAndRelevance.PrimitiveSceneProxy, MeshBatch.BatchHitProxyId, View.IsInstancedStereoPass());
+			FBasePassOpaqueDrawingPolicyFactory::DrawDynamicMesh(RHICmdList, View, Context, MeshBatch, false, true, MeshBatchAndRelevance.PrimitiveSceneProxy, MeshBatch.BatchHitProxyId, View.IsInstancedStereoPass(), View.IsSinglePassStereoAllowed());
 		}
 	}
 
@@ -1022,10 +1068,36 @@ static void SetupBasePassView(FRHICommandList& RHICmdList, const FViewInfo& View
 		RHICmdList.SetDepthStencilState(TStaticDepthStencilState<true,CF_DepthNearOrEqual>::GetRHI());
 	}
 	RHICmdList.SetScissorRect(false, 0, 0, 0, 0);
+	
+	bool bIsSinglePassStereo = View.IsSinglePassStereoAllowed() && !bIsEditorPrimitivePass;
+	if (View.bVRProjectEnabled && !bIsSinglePassStereo)
+	{
+		// Set the true viewports, but leave Context.ViewPortRect alone
+		RHICmdList.SetMultipleViewports(View.StereoVRProjectViewportArray.Num(), View.StereoVRProjectViewportArray.GetData());
+		RHICmdList.SetMultipleScissorRects(true, View.StereoVRProjectScissorArray.Num(), View.StereoVRProjectScissorArray.GetData());
 
-	if (!View.IsInstancedStereoPass())
+		if (View.VRProjMode == FSceneView::EVRProjectMode::LensMatched)
+		{
+			if (View.IsInstancedStereoPass())
+				RHICmdList.SetModifiedWModeStereo(View.LensMatchedShadingStereoConf, true, true);
+			else
+				RHICmdList.SetModifiedWMode(View.LensMatchedShadingConf, true, true);
+		}
+	}
+	else if (bIsSinglePassStereo)
+	{
+		RHICmdList.SetSinglePassStereoParameters(true, 0, true);
+		RHICmdList.SetMultipleViewports(View.Family->SPSViewportArray.Num(), View.Family->SPSViewportArray.GetData());
+		RHICmdList.SetMultipleScissorRects(true, View.Family->SPSScissorArray.Num(), View.Family->SPSScissorArray.GetData());
+		if (View.bVRProjectEnabled && View.VRProjMode == FSceneView::EVRProjectMode::LensMatched)
+		{
+			RHICmdList.SetModifiedWModeStereo(View.LensMatchedShadingStereoConf, true, true);
+		}
+	}
+	else if (!View.IsInstancedStereoPass())
 	{
 		RHICmdList.SetViewport(View.ViewRect.Min.X, View.ViewRect.Min.Y, 0.0f, View.ViewRect.Max.X, View.ViewRect.Max.Y, 1.0f);
+		RHICmdList.SetGPUMask(View.StereoPass);
 	}
 	else
 	{
@@ -1063,6 +1135,17 @@ public:
 	virtual ~FBasePassParallelCommandListSet()
 	{
 		Dispatch();
+
+		if (View.bVRProjectEnabled)
+		{
+			View.EndVRProjectionStates(ParentCmdList);
+		}
+
+		if (View.IsSinglePassStereoAllowed())
+		{
+			ParentCmdList.SetSinglePassStereoParameters(false, 0, true);
+			ParentCmdList.SetScissorRect(false, 0, 0, 0, 0);
+		}
 	}
 
 	virtual void SetStateOnCommandList(FRHICommandList& CmdList) override
@@ -1112,6 +1195,12 @@ void FDeferredShadingSceneRenderer::RenderEditorPrimitives(FRHICommandList& RHIC
 	{
 		bOutDirty = true;
 	}
+
+	if (View.bVRProjectEnabled)
+	{
+		// Reset viewport and scissor after rendering to vr projection view
+		View.EndVRProjectionStates(RHICmdList);
+	}
 }
 
 bool FDeferredShadingSceneRenderer::RenderBasePassView(FRHICommandListImmediate& RHICmdList, FViewInfo& View)
@@ -1120,6 +1209,20 @@ bool FDeferredShadingSceneRenderer::RenderBasePassView(FRHICommandListImmediate&
 	SetupBasePassView(RHICmdList, View, ViewFamily.EngineShowFlags.ShaderComplexity);
 	bDirty |= RenderBasePassStaticData(RHICmdList, View);
 	RenderBasePassDynamicData(RHICmdList, View, bDirty);
+	
+	if (View.bVRProjectEnabled)
+	{
+		// Reset viewport and scissor after rendering to vr projection view
+		View.EndVRProjectionStates(RHICmdList);
+	}
+
+	if (View.IsSinglePassStereoAllowed())
+	{
+		RHICmdList.SetSinglePassStereoParameters(false, 0, true);
+	}
+
+	RHICmdList.SetGPUMask(0);
+	RHICmdList.SetScissorRect(false, 0, 0, 0, 0);
 
 	return bDirty;
 }

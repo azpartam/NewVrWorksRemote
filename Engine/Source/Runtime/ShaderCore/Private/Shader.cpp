@@ -118,7 +118,8 @@ FShaderType::FShaderType(
 	const TCHAR* InFunctionName,
 	uint32 InFrequency,
 	ConstructSerializedType InConstructSerializedRef,
-	GetStreamOutElementsType InGetStreamOutElementsRef
+	GetStreamOutElementsType InGetStreamOutElementsRef,
+	bool InIsFastGeometryShader
 	):
 	ShaderTypeForDynamicCast(InShaderTypeForDynamicCast),
 	Name(InName),
@@ -126,6 +127,7 @@ FShaderType::FShaderType(
 	SourceFilename(InSourceFilename),
 	FunctionName(InFunctionName),
 	Frequency(InFrequency),
+	IsFastGeometryShader(InIsFastGeometryShader),
 	ConstructSerializedRef(InConstructSerializedRef),
 	GetStreamOutElementsRef(InGetStreamOutElementsRef),
 	GlobalListLink(this)
@@ -610,7 +612,12 @@ void FShaderResource::InitRHI()
 	}
 	else if(Target.Frequency == SF_Geometry)
 	{
-		if (SpecificType)
+		if (Target.IsFastGeometryShader)
+		{
+			//@todo - not using the cache
+			GeometryShader = RHICreateFastGeometryShader_2(Code, 0);
+		}
+		else if(SpecificType)
 		{
 			FStreamOutElementList ElementList;
 			TArray<uint32> StreamStrides;
@@ -1672,6 +1679,22 @@ void ShaderMapAppendKeyString(EShaderPlatform Platform, FString& KeyString)
 			{
 				KeyString += TEXT("_MVIEW");
 			}
+		}
+	}
+
+		{
+			static const auto CVar = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("vr.MultiRes"));
+			if ((Platform == EShaderPlatform::SP_PCD3D_SM5) && (CVar && CVar->GetValueOnGameThread() != 0))
+			{
+				KeyString += TEXT("_MRES");
+			}
+		}
+
+	{
+		static const auto CVar = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("vr.SinglePassStereo"));
+		if ((Platform == EShaderPlatform::SP_PCD3D_SM5) && (CVar && CVar->GetValueOnGameThread() != 0))
+		{
+			KeyString += TEXT("_VRSPS");
 		}
 	}
 

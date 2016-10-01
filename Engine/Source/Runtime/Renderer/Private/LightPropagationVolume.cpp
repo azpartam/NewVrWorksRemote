@@ -1559,18 +1559,19 @@ void FDeferredShadingSceneRenderer::ClearLPVs(FRHICommandListImmediate& RHICmdLi
 	{
 		SCOPED_DRAW_EVENT(RHICmdList, ClearLPVs);
 
-		for(int32 ViewIndex = 0; ViewIndex < Views.Num(); ViewIndex++)
+		for (int32 ViewIndex = 0; ViewIndex < Views.Num(); ViewIndex++)
 		{
 			SCOPED_CONDITIONAL_DRAW_EVENTF(RHICmdList, EventView, Views.Num() > 1, TEXT("View%d"), ViewIndex);
 
 			FViewInfo& View = Views[ViewIndex];
+			RHICmdList.SetGPUMask(View.StereoPass);
 
 			FSceneViewState* ViewState = (FSceneViewState*)Views[ViewIndex].State;
-			if(ViewState)
+			if (ViewState)
 			{
 				FLightPropagationVolume* LightPropagationVolume = ViewState->GetLightPropagationVolume(View.GetFeatureLevel());
 
-				if(LightPropagationVolume)
+				if (LightPropagationVolume)
 				{
 					SCOPED_GPU_STAT(RHICmdList, Stat_GPU_LPV);
 					LightPropagationVolume->InitSettings(RHICmdList, Views[ViewIndex]);
@@ -1579,32 +1580,38 @@ void FDeferredShadingSceneRenderer::ClearLPVs(FRHICommandListImmediate& RHICmdLi
 			}
 		}
 	}
+	RHICmdList.SetGPUMask(0);
 }
+
 
 void FDeferredShadingSceneRenderer::UpdateLPVs(FRHICommandListImmediate& RHICmdList)
 {
 	SCOPED_DRAW_EVENT(RHICmdList, UpdateLPVs);
 	SCOPE_CYCLE_COUNTER(STAT_UpdateLPVs);
 
-	for(int32 ViewIndex = 0; ViewIndex < Views.Num(); ViewIndex++)
+	for (int32 ViewIndex = 0; ViewIndex < Views.Num(); ViewIndex++)
 	{
 		SCOPED_CONDITIONAL_DRAW_EVENTF(RHICmdList, EventView, Views.Num() > 1, TEXT("View%d"), ViewIndex);
 
 		FViewInfo& View = Views[ViewIndex];
+
+		RHICmdList.SetGPUMask(View.StereoPass);
+
 		FSceneViewState* ViewState = (FSceneViewState*)Views[ViewIndex].State;
 
-		if(ViewState)
+		if (ViewState)
 		{
 			FLightPropagationVolume* LightPropagationVolume = ViewState->GetLightPropagationVolume(View.GetFeatureLevel());
 
-			if(LightPropagationVolume)
+			if (LightPropagationVolume)
 			{
-//				SCOPED_DRAW_EVENT(RHICmdList, UpdateLPVs);
-//				SCOPE_CYCLE_COUNTER(STAT_UpdateLPVs);
+				//				SCOPED_DRAW_EVENT(RHICmdList, UpdateLPVs);
+				//				SCOPE_CYCLE_COUNTER(STAT_UpdateLPVs);
 				SCOPED_GPU_STAT(RHICmdList, Stat_GPU_LPV);
 
 				LightPropagationVolume->Update(RHICmdList, View);
 			}
 		}
 	}
+	RHICmdList.SetGPUMask(0);
 }

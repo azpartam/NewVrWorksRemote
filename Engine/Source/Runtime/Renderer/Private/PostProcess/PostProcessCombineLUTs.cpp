@@ -727,7 +727,8 @@ void FRCPassPostProcessCombineLUTs::Process(FRenderingCompositePassContext& Cont
 			FIntPoint(GLUTSize * GLUTSize, GLUTSize),	// TargetSize
 			FIntPoint(GLUTSize * GLUTSize, GLUTSize),	// TextureSize
 			*VertexShader,
-			EDRF_UseTriangleOptimization);
+			EDRF_UseTriangleOptimization,
+			true);
 	}
 
 	Context.RHICmdList.CopyToResolveTarget(DestRenderTarget.TargetableTexture, DestRenderTarget.ShaderResourceTexture, false, FResolveParams());

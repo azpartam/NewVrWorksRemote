@@ -20,6 +20,7 @@ public:
 	// @param Quality only used if ePId_Input1 is not set, 0:one filtered sample, 1:four filtered samples
 	FRCPassPostProcessDownsample(EPixelFormat InOverrideFormat = PF_Unknown,
 			uint32 InQuality = 1,
+			bool InUseLinear = false,
 			const TCHAR *InDebugName = TEXT("Downsample"));
 
 	// interface FRenderingCompositePass ---------
@@ -36,5 +37,7 @@ private:
 	uint32 Quality;
 	// must be a valid pointer
 	const TCHAR* DebugName;
+	// Whether this is relative to the warped or linear version of the framebuffer
+	bool UseLinear;
 	bool IsDepthInputAvailable() const;
 };
