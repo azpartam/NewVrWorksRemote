@@ -58,6 +58,7 @@
 #define OGL_SINGLE_BACKDEPTH_BUFFER_STRING         L"Unified back/depth buffer"
 #define OGL_SLI_MULTICAST_STRING                   L"Enable NV_gpu_multicast extension"
 #define OGL_THREAD_CONTROL_STRING                  L"Threaded optimization"
+#define OGL_TMON_LEVEL_STRING                      L"Event Log Tmon Severity Threshold"
 #define OGL_TRIPLE_BUFFER_STRING                   L"Triple buffering"
 #define AA_BEHAVIOR_FLAGS_STRING                   L"Antialiasing - Behavior Flags"
 #define AA_MODE_ALPHATOCOVERAGE_STRING             L"Antialiasing - Transparency Multisampling"
@@ -70,8 +71,10 @@
 #define ANISO_MODE_SELECTOR_STRING                 L"Anisotropic filtering mode"
 #define ANSEL_ALLOW_STRING                         L"NVIDIA Predefined Ansel Usage"
 #define ANSEL_ENABLE_STRING                        L"Enable Ansel"
+#define ANSEL_WHITELISTED_STRING                   L"Ansel flags for enabled applications"
 #define APPLICATION_PROFILE_NOTIFICATION_TIMEOUT_STRING L"Application Profile Notification Popup Timeout"
 #define APPLICATION_STEAM_ID_STRING                L"Steam Application ID"
+#define BATTERY_BOOST_STRING                       L"Battery Boost"
 #define CPL_HIDDEN_PROFILE_STRING                  L"Do not display this profile in the Control Panel"
 #define CUDA_EXCLUDED_GPUS_STRING                  L"List of Universal GPU ids"
 #define D3DOGL_GPU_MAX_POWER_STRING                L"Maximum GPU Power"
@@ -156,6 +159,7 @@ enum ESetting {
     OGL_SINGLE_BACKDEPTH_BUFFER_ID                = 0x20A29055,
     OGL_SLI_MULTICAST_ID                          = 0x2092D3BE,
     OGL_THREAD_CONTROL_ID                         = 0x20C1221E,
+    OGL_TMON_LEVEL_ID                             = 0x202888C1,
     OGL_TRIPLE_BUFFER_ID                          = 0x20FDD1F9,
     AA_BEHAVIOR_FLAGS_ID                          = 0x10ECDB82,
     AA_MODE_ALPHATOCOVERAGE_ID                    = 0x10FC2D9C,
@@ -168,8 +172,10 @@ enum ESetting {
     ANISO_MODE_SELECTOR_ID                        = 0x10D2BB16,
     ANSEL_ALLOW_ID                                = 0x1035DB89,
     ANSEL_ENABLE_ID                               = 0x1075D972,
+    ANSEL_WHITELISTED_ID                          = 0x1085DA8A,
     APPLICATION_PROFILE_NOTIFICATION_TIMEOUT_ID   = 0x104554B6,
     APPLICATION_STEAM_ID_ID                       = 0x107CDDBC,
+    BATTERY_BOOST_ID                              = 0x10115C89,
     CPL_HIDDEN_PROFILE_ID                         = 0x106D5CFF,
     CUDA_EXCLUDED_GPUS_ID                         = 0x10354FF8,
     D3DOGL_GPU_MAX_POWER_ID                       = 0x10D1EF29,
@@ -234,9 +240,9 @@ enum ESetting {
     SET_VAB_DATA_ID                               = 0x00AB8687,
     VSYNCMODE_ID                                  = 0x00A879CF,
     VSYNCTEARCONTROL_ID                           = 0x005A375C,
-    TOTAL_DWORD_SETTING_NUM = 92,
+    TOTAL_DWORD_SETTING_NUM = 95,
     TOTAL_WSTRING_SETTING_NUM = 4,
-    TOTAL_SETTING_NUM = 96,
+    TOTAL_SETTING_NUM = 99,
     INVALID_SETTING_ID = 0xFFFFFFFF
 };
 
@@ -373,6 +379,17 @@ enum EValues_OGL_THREAD_CONTROL {
     OGL_THREAD_CONTROL_DISABLE                           = 0x00000002,
     OGL_THREAD_CONTROL_NUM_VALUES = 2,
     OGL_THREAD_CONTROL_DEFAULT = 0
+};
+
+enum EValues_OGL_TMON_LEVEL {
+    OGL_TMON_LEVEL_DISABLE                               = 0,
+    OGL_TMON_LEVEL_CRITICAL                              = 1,
+    OGL_TMON_LEVEL_WARNING                               = 2,
+    OGL_TMON_LEVEL_INFORMATION                           = 3,
+    OGL_TMON_LEVEL_MOST                                  = 4,
+    OGL_TMON_LEVEL_VERBOSE                               = 5,
+    OGL_TMON_LEVEL_NUM_VALUES = 6,
+    OGL_TMON_LEVEL_DEFAULT = OGL_TMON_LEVEL_MOST
 };
 
 enum EValues_OGL_TRIPLE_BUFFER {
@@ -555,6 +572,13 @@ enum EValues_ANSEL_ENABLE {
     ANSEL_ENABLE_DEFAULT = ANSEL_ENABLE_OFF
 };
 
+enum EValues_ANSEL_WHITELISTED {
+    ANSEL_WHITELISTED_DISALLOWED                         = 0,
+    ANSEL_WHITELISTED_ALLOWED                            = 1,
+    ANSEL_WHITELISTED_NUM_VALUES = 2,
+    ANSEL_WHITELISTED_DEFAULT = ANSEL_WHITELISTED_DISALLOWED
+};
+
 enum EValues_APPLICATION_PROFILE_NOTIFICATION_TIMEOUT {
     APPLICATION_PROFILE_NOTIFICATION_TIMEOUT_DISABLED    = 0,
     APPLICATION_PROFILE_NOTIFICATION_TIMEOUT_NINE_SECONDS = 9,
@@ -564,6 +588,15 @@ enum EValues_APPLICATION_PROFILE_NOTIFICATION_TIMEOUT {
     APPLICATION_PROFILE_NOTIFICATION_TIMEOUT_TWO_MINUTES = 120,
     APPLICATION_PROFILE_NOTIFICATION_TIMEOUT_NUM_VALUES = 6,
     APPLICATION_PROFILE_NOTIFICATION_TIMEOUT_DEFAULT = APPLICATION_PROFILE_NOTIFICATION_TIMEOUT_DISABLED
+};
+
+enum EValues_BATTERY_BOOST {
+    BATTERY_BOOST_MIN                                    = 0x00000001,
+    BATTERY_BOOST_MAX                                    = 0x000000ff,
+    BATTERY_BOOST_ENABLED                                = 0x10000000,
+    BATTERY_BOOST_DISABLED                               = 0x00000000,
+    BATTERY_BOOST_NUM_VALUES = 4,
+    BATTERY_BOOST_DEFAULT = BATTERY_BOOST_DISABLED
 };
 
 enum EValues_CPL_HIDDEN_PROFILE {
@@ -688,12 +721,13 @@ enum EValues_PS_FRAMERATE_LIMITER_2_CONTROL {
     PS_FRAMERATE_LIMITER_2_CONTROL_DELAY_3D              = 0x00000001,
     PS_FRAMERATE_LIMITER_2_CONTROL_AVOID_NOOP            = 0x00000002,
     PS_FRAMERATE_LIMITER_2_CONTROL_DELAY_FLIP_BY_FLIPMETERING = 0x00000004,
+    PS_FRAMERATE_LIMITER_2_CONTROL_DELAY_CE_PRESENT_3D   = 0x00000008,
     PS_FRAMERATE_LIMITER_2_CONTROL_ALLOW_ALL_MAXWELL     = 0x00000010,
     PS_FRAMERATE_LIMITER_2_CONTROL_ALLOW_ALL             = 0x00000020,
     PS_FRAMERATE_LIMITER_2_CONTROL_FORCE_OFF             = 0x00000040,
     PS_FRAMERATE_LIMITER_2_CONTROL_DEFAULT_FOR_GM10X     = 0x00000011,
-    PS_FRAMERATE_LIMITER_2_CONTROL_NUM_VALUES = 8,
-    PS_FRAMERATE_LIMITER_2_CONTROL_DEFAULT = PS_FRAMERATE_LIMITER_2_CONTROL_DELAY_CE
+    PS_FRAMERATE_LIMITER_2_CONTROL_NUM_VALUES = 9,
+    PS_FRAMERATE_LIMITER_2_CONTROL_DEFAULT = PS_FRAMERATE_LIMITER_2_CONTROL_DELAY_CE_PRESENT_3D
 };
 
 enum EValues_PS_FRAMERATE_LIMITER_GPS_CTRL {

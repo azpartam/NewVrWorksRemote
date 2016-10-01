@@ -127,8 +127,13 @@
 !/Engine/Binaries/ThirdParty/Mono/Mac/lib/mono/gac/System.Core/4.0.0.0__b77a5c561934e089/System.Core.dll
 !/Engine/Binaries/ThirdParty/Mono/Mac/lib/mono/gac/System.Xml/4.0.0.0__b77a5c561934e089/System.Xml.dll
 
+<<<<<<< HEAD
  # Add nvapi library update
  !/Engine/Source/ThirdParty/NVIDIA/nvapi/**
+=======
+# Add nvapi library update
+!/Engine/Source/ThirdParty/NVIDIA/nvapi/**
+>>>>>>> fc98026... nvapi update to r370
 
 # Ignore the automatically created mono symlink
 /Engine/Binaries/ThirdParty/Mono/Mac/bin/mono
