@@ -424,8 +424,10 @@ static uint32 PendingShadowMapSize;
 
 #endif 
 
+#if WITH_EDITOR
 /** If true, update the status when encoding light maps */
 bool FShadowMap2D::bUpdateStatus = true;
+#endif
 
 TRefCountPtr<FShadowMap2D> FShadowMap2D::AllocateShadowMap(
 	UObject* Outer, 
