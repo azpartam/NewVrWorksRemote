@@ -768,13 +768,16 @@ void FPixelShaderInOut_MainPS(
 
 	#if USE_WORLD_POSITION_EXCLUDING_SHADER_OFFSETS
 		{
-			float4 ScreenPosition = SvPositionToVRProjectResolvedScreenPosition(SvPosition);
+			float4 ScreenPosition = SvPositionToVRProjectResolvedScreenPosition(SVPositionForComputingPositions);
 			float3 TranslatedWorldPosition = SvPositionToResolvedTranslatedWorld(SVPositionForComputingPositions);
+			float3 ResolvedPixelPositionExcludingWPO = BasePassInterpolants.PixelPositionExcludingWPO;
 		#if SINGLE_PASS_STEREO
 			if (InEyeIndex != 0)
+			{
 				ResolvedPixelPositionExcludingWPO = BasePassInterpolants.PixelPositionExcludingWPORight;
+			}
 		#endif
-			CalcMaterialParametersEx(MaterialParameters, PixelMaterialInputs, SvPosition, ScreenPosition, bIsFrontFace, SvPositionToResolvedTranslatedWorld(SvPosition), BasePassInterpolants.PixelPositionExcludingWPO);
+			CalcMaterialParametersEx(MaterialParameters, PixelMaterialInputs, In.SvPosition, ScreenPosition, In.bIsFrontFace, TranslatedWorldPosition, ResolvedPixelPositionExcludingWPO);
 		}
 	#else
 		{
