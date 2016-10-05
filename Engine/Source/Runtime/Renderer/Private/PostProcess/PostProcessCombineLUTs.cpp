@@ -728,6 +728,7 @@ void FRCPassPostProcessCombineLUTs::Process(FRenderingCompositePassContext& Cont
 			FIntPoint(GLUTSize * GLUTSize, GLUTSize),	// TextureSize
 			*VertexShader,
 			EDRF_UseTriangleOptimization,
+			1,
 			true);
 	}
 

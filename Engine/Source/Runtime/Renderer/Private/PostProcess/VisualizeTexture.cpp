@@ -225,6 +225,7 @@ template<uint32 TextureType> void VisualizeTextureForTextureType(FRHICommandList
 		FIntPoint(1, 1),
 		*VertexShader,
 		bLensMatchedShadeEnabled ? EDRF_Default : EDRF_UseTriangleOptimization,
+		1,
 		true);
 }
 
@@ -557,6 +558,7 @@ void FVisualizeTexture::PresentContent(FRHICommandListImmediate& RHICmdList, con
 			VisualizeTextureRect.Size(),
 			*VertexShader,
 			View.VRProjMode == FSceneView::EVRProjectMode::LensMatched ? EDRF_Default : EDRF_UseTriangleOptimization,
+			1,
 			true);
 	}
 

@@ -891,6 +891,7 @@ void FRCPassPostProcessWeightedSampleSum::DrawQuad(FRHICommandListImmediate& RHI
 		SrcSize,
 		VertexShader,
 		EDRF_UseTriangleOptimization,
+		1,
 		true);
 }
 

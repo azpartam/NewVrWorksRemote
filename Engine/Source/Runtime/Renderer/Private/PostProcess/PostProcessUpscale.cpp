@@ -391,6 +391,7 @@ void FRCPassPostProcessUpscale::Process(FRenderingCompositePassContext& Context)
 		SrcSize,
 		VertexShader,
 		bTessellatedQuad ? EDRF_UseTesselatedIndexBuffer : EDRF_UseTriangleOptimization,
+		1,
 		true);
 
 	Context.RHICmdList.CopyToResolveTarget(DestRenderTarget.TargetableTexture, DestRenderTarget.ShaderResourceTexture, false, FResolveParams());
