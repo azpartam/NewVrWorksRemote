@@ -742,43 +742,59 @@ static void SetVelocitiesState(FRHICommandList& RHICmdList, const FViewInfo& Vie
 	const FIntPoint BufferSize = FSceneRenderTargets::Get(RHICmdList).GetBufferSizeXY();
 	const FIntPoint VelocityBufferSize = BufferSize;		// full resolution so we can reuse the existing full res z buffer
 
-	if (!View.IsInstancedStereoPass())
+	bool bIsSinglePassStereo = View.IsSinglePassStereoAllowed();
+	if (View.bVRProjectEnabled && !bIsSinglePassStereo)
 	{
-		if (View.bVRProjectEnabled)
+		// Set the true viewports, but leave Context.ViewPortRect alone
+		RHICmdList.SetMultipleViewports(View.StereoVRProjectViewportArray.Num(), View.StereoVRProjectViewportArray.GetData());
+		RHICmdList.SetMultipleScissorRects(true, View.StereoVRProjectScissorArray.Num(), View.StereoVRProjectScissorArray.GetData());
+
+		if (View.VRProjMode == FSceneView::EVRProjectMode::LensMatched)
 		{
-			View.BeginVRProjectionStates(RHICmdList);
+			if (View.IsInstancedStereoPass())
+			{
+				RHICmdList.SetModifiedWModeStereo(View.LensMatchedShadingStereoConf, true, true);
+			}
+			else
+			{
+				RHICmdList.SetModifiedWMode(View.LensMatchedShadingConf, true, true);
+			}
 		}
-		else
+	}
+	else if (bIsSinglePassStereo)
+	{
+		RHICmdList.SetSinglePassStereoParameters(true, 0, true);
+		RHICmdList.SetMultipleViewports(View.Family->SPSViewportArray.Num(), View.Family->SPSViewportArray.GetData());
+		RHICmdList.SetMultipleScissorRects(true, View.Family->SPSScissorArray.Num(), View.Family->SPSScissorArray.GetData());
+		if (View.bVRProjectEnabled && View.VRProjMode == FSceneView::EVRProjectMode::LensMatched)
 		{
-			const uint32 MinX = View.ViewRect.Min.X * VelocityBufferSize.X / BufferSize.X;
-			const uint32 MinY = View.ViewRect.Min.Y * VelocityBufferSize.Y / BufferSize.Y;
-			const uint32 MaxX = View.ViewRect.Max.X * VelocityBufferSize.X / BufferSize.X;
-			const uint32 MaxY = View.ViewRect.Max.Y * VelocityBufferSize.Y / BufferSize.Y;
-			RHICmdList.SetViewport(MinX, MinY, 0.0f, MaxX, MaxY, 1.0f);
+			RHICmdList.SetModifiedWModeStereo(View.LensMatchedShadingStereoConf, true, true);
 		}
+	}
+	else if (!View.IsInstancedStereoPass())
+	{
+		const uint32 MinX = View.ViewRect.Min.X * VelocityBufferSize.X / BufferSize.X;
+		const uint32 MinY = View.ViewRect.Min.Y * VelocityBufferSize.Y / BufferSize.Y;
+		const uint32 MaxX = View.ViewRect.Max.X * VelocityBufferSize.X / BufferSize.X;
+		const uint32 MaxY = View.ViewRect.Max.Y * VelocityBufferSize.Y / BufferSize.Y;
+		RHICmdList.SetViewport(MinX, MinY, 0.0f, MaxX, MaxY, 1.0f);
+	}
+	else if (View.bIsMultiViewEnabled)
+	{
+		const uint32 MaxY = View.ViewRect.Max.Y * VelocityBufferSize.Y / BufferSize.Y;
+
+		const uint32 LeftMinX = View.Family->Views[0]->ViewRect.Min.X;
+		const uint32 LeftMaxX = View.Family->Views[0]->ViewRect.Max.X;
+		const uint32 RightMinX = View.Family->Views[1]->ViewRect.Min.X;
+		const uint32 RightMaxX = View.Family->Views[1]->ViewRect.Max.X;
+
+		RHICmdList.SetStereoViewport(LeftMinX, RightMinX, 0, 0.0f, LeftMaxX, RightMaxX, MaxY, 1.0f);
 	}
 	else
 	{
 		const uint32 MaxY = View.ViewRect.Max.Y * VelocityBufferSize.Y / BufferSize.Y;
-
-		if (View.bVRProjectEnabled)
-		{
-			View.BeginVRProjectionStates(RHICmdList);
-		}
-		else if (View.bIsMultiViewEnabled)
-		{
-			const uint32 LeftMinX = View.Family->Views[0]->ViewRect.Min.X;
-			const uint32 LeftMaxX = View.Family->Views[0]->ViewRect.Max.X;
-			const uint32 RightMinX = View.Family->Views[1]->ViewRect.Min.X;
-			const uint32 RightMaxX = View.Family->Views[1]->ViewRect.Max.X;
-			
-			RHICmdList.SetStereoViewport(LeftMinX, RightMinX, 0, 0.0f, LeftMaxX, RightMaxX, MaxY, 1.0f);
-		}
-		else
-		{
-			const uint32 MaxX = View.Family->InstancedStereoWidth * VelocityBufferSize.X / BufferSize.X;
-			RHICmdList.SetViewport(0, 0, 0.0f, MaxX, MaxY, 1.0f);
-		}
+		const uint32 MaxX = View.Family->InstancedStereoWidth * VelocityBufferSize.X / BufferSize.X;
+		RHICmdList.SetViewport(0, 0, 0.0f, MaxX, MaxY, 1.0f);
 	}
 
 	RHICmdList.SetBlendState(TStaticBlendState<CW_RGBA>::GetRHI());
