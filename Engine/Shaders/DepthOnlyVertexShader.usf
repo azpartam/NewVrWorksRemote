@@ -81,9 +81,6 @@ struct FDepthOnlyVSToPS
 			{
 				O.NvXRight = 0;
 			}
-
-			// Bias the depth
-			O.Position.z += InstancedStereoDepthBias * O.Position.w * (float)bNeedsInstancedStereoBias;
 			#endif
 		}
 			
