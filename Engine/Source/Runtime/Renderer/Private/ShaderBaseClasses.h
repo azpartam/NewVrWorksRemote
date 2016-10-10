@@ -115,6 +115,11 @@ public:
 	{
 		FMeshMaterialShader::SetParameters(RHICmdList, (FDomainShaderRHIParamRef)GetDomainShader(), MaterialRenderProxy, *MaterialRenderProxy->GetMaterial(View.GetFeatureLevel()), View, ESceneRenderTargetsMode::SetTextures);
 
+		SetSPSParameters(RHICmdList, bNeedsInstancedStereoBias, bIsSinglePassStereo);
+	}
+
+	void SetSPSParameters(FRHICommandList& RHICmdList, const bool bNeedsInstancedStereoBias, const bool bIsSinglePassStereo)
+	{
 		if (NeedsInstancedStereoBiasParameter.IsBound())
 		{
 			SetShaderValue(RHICmdList, (FDomainShaderRHIParamRef)GetDomainShader(), NeedsInstancedStereoBiasParameter, bNeedsInstancedStereoBias);

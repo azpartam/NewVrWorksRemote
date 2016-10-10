@@ -82,7 +82,8 @@ public:
 		bool bPreFog,
 		const FPrimitiveSceneProxy* PrimitiveSceneProxy,
 		FHitProxyId HitProxyId, 
-		const bool bIsInstancedStereo = false
+		const bool bIsInstancedStereo = false,
+		const bool bIsSinglePassStereo = false
 		);
 };
 

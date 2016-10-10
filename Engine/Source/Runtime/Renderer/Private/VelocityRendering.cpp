@@ -44,7 +44,7 @@ class FVelocityVS : public FMeshMaterialShader
 
 public:
 
-	void SetParameters(FRHICommandList& RHICmdList, const FVertexFactory* VertexFactory, const FMaterialRenderProxy* MaterialRenderProxy, const FViewInfo& View, const bool bIsInstancedStereo)
+	void SetParameters(FRHICommandList& RHICmdList, const FVertexFactory* VertexFactory, const FMaterialRenderProxy* MaterialRenderProxy, const FViewInfo& View, const bool bIsInstancedStereo, const bool bIsSinglePassStereo)
 	{
 		if (IsInstancedStereoParameter.IsBound())
 		{
@@ -54,6 +54,11 @@ public:
 		if (InstancedEyeIndexParameter.IsBound())
 		{
 			SetShaderValue(RHICmdList, GetVertexShader(), InstancedEyeIndexParameter, 0);
+		}
+
+		if (IsSinglePassStereoParameter.IsBound())
+		{
+			SetShaderValue(RHICmdList, GetVertexShader(), IsSinglePassStereoParameter, bIsSinglePassStereo);
 		}
 
 		FMeshMaterialShader::SetParameters(RHICmdList, GetVertexShader(), MaterialRenderProxy, *MaterialRenderProxy->GetMaterial(View.GetFeatureLevel()), View, ESceneRenderTargetsMode::DontSet);
@@ -106,6 +111,7 @@ protected:
 		PrevTransformBuffer.Bind(Initializer.ParameterMap, TEXT("PrevTransformBuffer"));
 		InstancedEyeIndexParameter.Bind(Initializer.ParameterMap, TEXT("InstancedEyeIndex"));
 		IsInstancedStereoParameter.Bind(Initializer.ParameterMap, TEXT("bIsInstancedStereo"));
+		IsSinglePassStereoParameter.Bind(Initializer.ParameterMap, TEXT("bIsSinglePassStereo"));
 	}
 
 	FVelocityVS() {}
@@ -122,6 +128,7 @@ protected:
 		Ar << PrevTransformBuffer;
 		Ar << InstancedEyeIndexParameter;
 		Ar << IsInstancedStereoParameter;
+		Ar << IsSinglePassStereoParameter;
 
 		return bShaderHasOutdatedParameters;
 	}
@@ -135,6 +142,7 @@ private:
 	FShaderResourceParameter PrevTransformBuffer;
 	FShaderParameter InstancedEyeIndexParameter;
 	FShaderParameter IsInstancedStereoParameter;
+	FShaderParameter IsSinglePassStereoParameter;
 };
 
 
@@ -166,9 +174,11 @@ class FVelocityDS : public FBaseDS
 
 public:
 
-	void SetParameters(FRHICommandList& RHICmdList, const FMaterialRenderProxy* MaterialRenderProxy,const FViewInfo& View)
+	void SetParameters(FRHICommandList& RHICmdList, const FMaterialRenderProxy* MaterialRenderProxy,const FViewInfo& View, const bool bIsSinglePassStereo)
 	{
 		FMeshMaterialShader::SetParameters(RHICmdList, (FDomainShaderRHIParamRef)GetDomainShader(), MaterialRenderProxy, *MaterialRenderProxy->GetMaterial(View.GetFeatureLevel()), View, ESceneRenderTargetsMode::DontSet);
+
+		SetSPSParameters(RHICmdList, false, bIsSinglePassStereo);
 	}
 
 protected:
@@ -359,10 +369,10 @@ void FVelocityDrawingPolicy::SetSharedState(FRHICommandList& RHICmdList, const F
 	// NOTE: Assuming this cast is always safe!
 	FViewInfo* View = (FViewInfo*)SceneView;
 
-	VertexShader->SetParameters(RHICmdList, VertexFactory, MaterialRenderProxy, *View, PolicyContext.bIsInstancedStereo);
+	VertexShader->SetParameters(RHICmdList, VertexFactory, MaterialRenderProxy, *View, PolicyContext.bIsInstancedStereo, PolicyContext.bIsSinglePassStereo);
 	PixelShader->SetParameters(RHICmdList, VertexFactory, MaterialRenderProxy, *View);
 
-	if (View->bVRProjectEnabled)
+	if (View->bVRProjectEnabled || PolicyContext.bIsSinglePassStereo)
 	{
 		check(FastGeometryShader);
 		FastGeometryShader->SetParameters(RHICmdList, VertexFactory, MaterialRenderProxy, *View);
@@ -371,7 +381,7 @@ void FVelocityDrawingPolicy::SetSharedState(FRHICommandList& RHICmdList, const F
 	if(HullShader && DomainShader)
 	{
 		HullShader->SetParameters(RHICmdList, MaterialRenderProxy, *View);
-		DomainShader->SetParameters(RHICmdList, MaterialRenderProxy, *View);
+		DomainShader->SetParameters(RHICmdList, MaterialRenderProxy, *View, PolicyContext.bIsSinglePassStereo);
 	}
 
 	// Set the shared mesh resources.
@@ -579,7 +589,8 @@ bool FVelocityDrawingPolicyFactory::DrawDynamicMesh(
 	bool bPreFog,
 	const FPrimitiveSceneProxy* PrimitiveSceneProxy,
 	FHitProxyId HitProxyId, 
-	const bool bIsInstancedStereo
+	const bool bIsInstancedStereo,
+	const bool bIsSinglePassStereo
 	)
 {
 	// Only draw opaque materials in the depth pass.
@@ -601,8 +612,8 @@ bool FVelocityDrawingPolicyFactory::DrawDynamicMesh(
 		FVelocityDrawingPolicy DrawingPolicy(Mesh.VertexFactory, MaterialRenderProxy, *MaterialRenderProxy->GetMaterial(FeatureLevel), FeatureLevel);
 		if(DrawingPolicy.SupportsVelocity())
 		{			
-			RHICmdList.BuildAndSetLocalBoundShaderState(DrawingPolicy.GetBoundShaderStateInput(FeatureLevel, View.bVRProjectEnabled));
-			DrawingPolicy.SetSharedState(RHICmdList, &View, FVelocityDrawingPolicy::ContextDataType(bIsInstancedStereo, false));  //NV_CEM YYANG, thoughts on the "false" parameter?
+			RHICmdList.BuildAndSetLocalBoundShaderState(DrawingPolicy.GetBoundShaderStateInput(FeatureLevel, View.bVRProjectEnabled || bIsSinglePassStereo));
+			DrawingPolicy.SetSharedState(RHICmdList, &View, FVelocityDrawingPolicy::ContextDataType(bIsInstancedStereo, bIsSinglePassStereo));  //NV_CEM YYANG, thoughts on the "false" parameter?
 			const FMeshDrawingRenderState DrawRenderState(Mesh.DitheredLODTransitionAlpha);
 			for (int32 BatchElementIndex = 0, BatchElementCount = Mesh.Elements.Num(); BatchElementIndex < BatchElementCount; ++BatchElementIndex)
 			{
@@ -669,7 +680,7 @@ void FDeferredShadingSceneRenderer::RenderDynamicVelocitiesMeshElementsInner(FRH
 			&& MeshBatchAndRelevance.PrimitiveSceneProxy->GetPrimitiveSceneInfo()->ShouldRenderVelocity(View))
 		{
 			const FMeshBatch& MeshBatch = *MeshBatchAndRelevance.Mesh;
-			FVelocityDrawingPolicyFactory::DrawDynamicMesh(RHICmdList, View, Context, MeshBatch, false, true, MeshBatchAndRelevance.PrimitiveSceneProxy, MeshBatch.BatchHitProxyId, View.IsInstancedStereoPass());
+			FVelocityDrawingPolicyFactory::DrawDynamicMesh(RHICmdList, View, Context, MeshBatch, false, true, MeshBatchAndRelevance.PrimitiveSceneProxy, MeshBatch.BatchHitProxyId, View.IsInstancedStereoPass(), View.IsSinglePassStereoAllowed());
 		}
 	}
 }
@@ -824,6 +835,11 @@ public:
 			// Reset viewport and scissor after rendering to vr projection view
 			View.EndVRProjectionStates(ParentCmdList);
 		}
+		if (View.IsSinglePassStereoAllowed())
+		{
+			ParentCmdList.SetSinglePassStereoParameters(false, 0, true);
+			ParentCmdList.SetScissorRect(false, 0, 0, 0, 0);
+		}
 	}	
 
 	virtual void SetStateOnCommandList(FRHICommandList& CmdList) override
@@ -857,14 +873,21 @@ void FDeferredShadingSceneRenderer::RenderVelocitiesInnerParallel(FRHICommandLis
 				CVarRHICmdFlushRenderThreadTasksVelocityPass.GetValueOnRenderThread() == 0 && CVarRHICmdFlushRenderThreadTasks.GetValueOnRenderThread() == 0,
 				VelocityRT);
 
-			if (!View.IsInstancedStereoPass())
+			if (!View.IsInstancedStereoPass() && !View.IsSinglePassStereoAllowed())
 			{
 				Scene->VelocityDrawList.DrawVisibleParallel(View.StaticMeshVelocityMap, View.StaticMeshBatchVisibility, ParallelCommandListSet);
 			}
 			else
 			{
 				const StereoPair StereoView(Views[0], Views[1], Views[0].StaticMeshVelocityMap, Views[1].StaticMeshVelocityMap, Views[0].StaticMeshBatchVisibility, Views[1].StaticMeshBatchVisibility);
-				Scene->VelocityDrawList.DrawVisibleParallelInstancedStereo(StereoView, ParallelCommandListSet);
+				if (View.IsSinglePassStereoAllowed())
+				{
+					Scene->MaskedDepthDrawList.DrawVisibleParallelSinglePassStereo(StereoView, ParallelCommandListSet);
+				}
+				else
+				{
+					Scene->VelocityDrawList.DrawVisibleParallelInstancedStereo(StereoView, ParallelCommandListSet);
+				}
 			}
 			
 			int32 NumPrims = View.DynamicMeshElements.Num();
@@ -911,7 +934,7 @@ void FDeferredShadingSceneRenderer::RenderVelocitiesInner(FRHICommandListImmedia
 			SetVelocitiesState(RHICmdList, View, VelocityRT);
 
 			// Draw velocities for movable static meshes.
-			if (!View.IsInstancedStereoPass())
+			if (!View.IsInstancedStereoPass() && !View.IsSinglePassStereoAllowed())
 			{
 
 				Scene->VelocityDrawList.DrawVisible(RHICmdList, View, View.StaticMeshVelocityMap, View.StaticMeshBatchVisibility);
@@ -919,7 +942,14 @@ void FDeferredShadingSceneRenderer::RenderVelocitiesInner(FRHICommandListImmedia
 			else
 			{
 				const StereoPair StereoView(Views[0], Views[1], Views[0].StaticMeshVelocityMap, Views[1].StaticMeshVelocityMap, Views[0].StaticMeshBatchVisibility, Views[1].StaticMeshBatchVisibility);
-				Scene->VelocityDrawList.DrawVisibleInstancedStereo(RHICmdList, StereoView);
+				if (View.IsSinglePassStereoAllowed())
+				{
+					Scene->VelocityDrawList.DrawVisibleSinglePassStereo(RHICmdList, StereoView);
+				}
+				else
+				{
+					Scene->VelocityDrawList.DrawVisibleInstancedStereo(RHICmdList, StereoView);
+				}
 			}
 
 			RenderDynamicVelocitiesMeshElementsInner(RHICmdList, View, 0, View.DynamicMeshElements.Num() - 1);
@@ -935,6 +965,11 @@ void FDeferredShadingSceneRenderer::RenderVelocitiesInner(FRHICommandListImmedia
 				{
 					RHICmdList.SetModifiedWMode(View.LensMatchedShadingConf, true, false);
 				}
+			}
+			if (View.IsSinglePassStereoAllowed())
+			{
+				RHICmdList.SetSinglePassStereoParameters(false, 0, true);
+				RHICmdList.SetScissorRect(false, 0, 0, 0, 0);
 			}
 		}
 	}
