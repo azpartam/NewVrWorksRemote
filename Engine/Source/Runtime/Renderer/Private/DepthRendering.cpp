@@ -64,6 +64,7 @@ protected:
 		IsInstancedStereoParameter.Bind(Initializer.ParameterMap, TEXT("bIsInstancedStereo"));
 		IsInstancedStereoEmulatedParameter.Bind(Initializer.ParameterMap, TEXT("bIsInstancedStereoEmulated"));
 		IsSinglePassStereoParameter.Bind(Initializer.ParameterMap, TEXT("bIsSinglePassStereo"));
+		NeedsSinglePassStereoBiasParameter.Bind(Initializer.ParameterMap, TEXT("bNeedsSinglePassStereoBias"));
 	}
 
 private:
@@ -72,6 +73,7 @@ private:
 	FShaderParameter IsInstancedStereoParameter;
 	FShaderParameter IsInstancedStereoEmulatedParameter;
 	FShaderParameter IsSinglePassStereoParameter;
+	FShaderParameter NeedsSinglePassStereoBiasParameter;
 
 public:
 
@@ -94,6 +96,7 @@ public:
 		Ar << IsInstancedStereoParameter;
 		Ar << IsInstancedStereoEmulatedParameter;
 		Ar << IsSinglePassStereoParameter;
+		Ar << NeedsSinglePassStereoBiasParameter;
 		return result;
 	}
 
@@ -104,7 +107,8 @@ public:
 		const FSceneView& View, 
 		const bool bIsInstancedStereo, 
 		const bool bIsInstancedStereoEmulated,
-		const bool bIsSinglePassStereo
+		const bool bIsSinglePassStereo,
+		const bool bNeedsSinglePassStereoBias
 		)
 	{
 		FMeshMaterialShader::SetParameters(RHICmdList, GetVertexShader(),MaterialRenderProxy,MaterialResource,View,ESceneRenderTargetsMode::DontSet);
@@ -127,6 +131,11 @@ public:
 		if (IsSinglePassStereoParameter.IsBound())
 		{
 			SetShaderValue(RHICmdList, GetVertexShader(), IsSinglePassStereoParameter, bIsSinglePassStereo);
+		}
+
+		if (NeedsSinglePassStereoBiasParameter.IsBound())
+		{
+			SetShaderValue(RHICmdList, GetVertexShader(), NeedsSinglePassStereoBiasParameter, bNeedsSinglePassStereoBias);
 		}
 	}
 
@@ -357,12 +366,12 @@ void FDepthDrawingPolicy::SetInstancedEyeIndex(FRHICommandList& RHICmdList, cons
 void FDepthDrawingPolicy::SetSharedState(FRHICommandList& RHICmdList, const FSceneView* View, const FDepthDrawingPolicy::ContextDataType PolicyContext) const
 {
 	// Set the depth-only shader parameters for the material.
-	VertexShader->SetParameters(RHICmdList, MaterialRenderProxy, *MaterialResource, *View, PolicyContext.bIsInstancedStereo, PolicyContext.bIsInstancedStereoEmulated, PolicyContext.bIsSinglePassStereo);
+	VertexShader->SetParameters(RHICmdList, MaterialRenderProxy, *MaterialResource, *View, PolicyContext.bIsInstancedStereo, PolicyContext.bIsInstancedStereoEmulated, PolicyContext.bIsSinglePassStereo, PolicyContext.bNeedsSinglePassStereoBias);
 
 	if(HullShader && DomainShader)
 	{
 		HullShader->SetParameters(RHICmdList, MaterialRenderProxy,*View);
-		DomainShader->SetParameters(RHICmdList, MaterialRenderProxy,*View, PolicyContext.bIsInstancedStereoEmulated, PolicyContext.bIsSinglePassStereo);
+		DomainShader->SetParameters(RHICmdList, MaterialRenderProxy,*View, PolicyContext.bNeedsSinglePassStereoBias, PolicyContext.bIsSinglePassStereo);
 	}
 
 	if (bNeedsPixelShader)
@@ -498,7 +507,7 @@ FPositionOnlyDepthDrawingPolicy::FPositionOnlyDepthDrawingPolicy(
 void FPositionOnlyDepthDrawingPolicy::SetSharedState(FRHICommandList& RHICmdList, const FSceneView* View, const FPositionOnlyDepthDrawingPolicy::ContextDataType PolicyContext) const
 {
 	// Set the depth-only shader parameters for the material.
-	VertexShader->SetParameters(RHICmdList, MaterialRenderProxy, *MaterialResource, *View, PolicyContext.bIsInstancedStereo, PolicyContext.bIsInstancedStereoEmulated, PolicyContext.bIsSinglePassStereo);
+	VertexShader->SetParameters(RHICmdList, MaterialRenderProxy, *MaterialResource, *View, PolicyContext.bIsInstancedStereo, PolicyContext.bIsInstancedStereoEmulated, PolicyContext.bIsSinglePassStereo, PolicyContext.bNeedsSinglePassStereoBias);
 
 	// Set the shared mesh resources.
 	VertexFactory->SetPositionStream(RHICmdList);
@@ -648,7 +657,8 @@ bool FDepthDrawingPolicyFactory::DrawMesh(
 	FHitProxyId HitProxyId, 
 	const bool bIsInstancedStereo, 
 	const bool bIsInstancedStereoEmulated,
-	const bool bIsSinglePassStereo
+	const bool bIsSinglePassStereo,
+	const bool bNeedsSinglePassStereoBias
 	)
 {
 	bool bDirty = false;
@@ -675,7 +685,7 @@ bool FDepthDrawingPolicyFactory::DrawMesh(
 			const FMaterialRenderProxy* DefaultProxy = UMaterial::GetDefaultMaterial(MD_Surface)->GetRenderProxy(false);
 			FPositionOnlyDepthDrawingPolicy DrawingPolicy(Mesh.VertexFactory, DefaultProxy, *DefaultProxy->GetMaterial(View.GetFeatureLevel()), Material->IsTwoSided(), Material->IsWireframe());
 			RHICmdList.BuildAndSetLocalBoundShaderState(DrawingPolicy.GetBoundShaderStateInput(View.GetFeatureLevel(), View.bVRProjectEnabled || bIsSinglePassStereo));
-			DrawingPolicy.SetSharedState(RHICmdList, &View, FPositionOnlyDepthDrawingPolicy::ContextDataType(bIsInstancedStereo, bIsInstancedStereoEmulated, bIsSinglePassStereo));
+			DrawingPolicy.SetSharedState(RHICmdList, &View, FPositionOnlyDepthDrawingPolicy::ContextDataType(bIsInstancedStereo, bIsSinglePassStereo, bIsInstancedStereoEmulated, bNeedsSinglePassStereoBias));
 
 			int32 BatchElementIndex = 0;
 			uint64 Mask = BatchElementMask;
@@ -732,7 +742,7 @@ bool FDepthDrawingPolicyFactory::DrawMesh(
 
 				FDepthDrawingPolicy DrawingPolicy(Mesh.VertexFactory, MaterialRenderProxy, *MaterialRenderProxy->GetMaterial(View.GetFeatureLevel()), Material->IsTwoSided(), View.GetFeatureLevel());
 				RHICmdList.BuildAndSetLocalBoundShaderState(DrawingPolicy.GetBoundShaderStateInput(View.GetFeatureLevel(), View.bVRProjectEnabled || bIsSinglePassStereo));
-				DrawingPolicy.SetSharedState(RHICmdList, &View, FDepthDrawingPolicy::ContextDataType(bIsInstancedStereo, bIsInstancedStereoEmulated, bIsSinglePassStereo));
+				DrawingPolicy.SetSharedState(RHICmdList, &View, FDepthDrawingPolicy::ContextDataType(bIsInstancedStereo, bIsSinglePassStereo, bIsInstancedStereoEmulated, bNeedsSinglePassStereoBias));
 
 				int32 BatchElementIndex = 0;
 				uint64 Mask = BatchElementMask;
@@ -777,7 +787,8 @@ bool FDepthDrawingPolicyFactory::DrawDynamicMesh(
 	FHitProxyId HitProxyId, 
 	const bool bIsInstancedStereo, 
 	const bool bIsInstancedStereoEmulated,
-	const bool bIsSinglePassStereo
+	const bool bIsSinglePassStereo,
+	const bool bNeedsSinglePassStereoBias
 	)
 {
 	return DrawMesh(
@@ -793,7 +804,8 @@ bool FDepthDrawingPolicyFactory::DrawDynamicMesh(
 		HitProxyId, 
 		bIsInstancedStereo, 
 		bIsInstancedStereoEmulated,
-		bIsSinglePassStereo
+		bIsSinglePassStereo,
+		bNeedsSinglePassStereoBias
 		);
 }
 
@@ -808,7 +820,8 @@ bool FDepthDrawingPolicyFactory::DrawStaticMesh(
 	const FPrimitiveSceneProxy* PrimitiveSceneProxy,
 	FHitProxyId HitProxyId, 
 	const bool bIsInstancedStereo,
-	const bool bIsInstancedStereoEmulated
+	const bool bIsInstancedStereoEmulated,
+	const bool bNeedsSinglePassStereoBias
 	)
 {
 	bool bDirty = false;
@@ -828,7 +841,8 @@ bool FDepthDrawingPolicyFactory::DrawStaticMesh(
 		HitProxyId, 
 		bIsInstancedStereo, 
 		bIsInstancedStereoEmulated,
-		false
+		false,
+		bNeedsSinglePassStereoBias
 		);
 
 	return bDirty;

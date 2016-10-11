@@ -96,7 +96,7 @@ public:
 	FBaseDS(const ShaderMetaType::CompiledShaderInitializerType& Initializer):
 		FMeshMaterialShader(Initializer)
 	{
-		NeedsInstancedStereoBiasParameter.Bind(Initializer.ParameterMap, TEXT("bNeedsInstancedStereoBias"));
+		NeedsSinglePassStereoBiasParameter.Bind(Initializer.ParameterMap, TEXT("bNeedsSinglePassStereoBias"));
 		IsSinglePassStereoParameter.Bind(Initializer.ParameterMap, TEXT("bIsSinglePassStereo"));
 	}
 
@@ -105,24 +105,24 @@ public:
 	virtual bool Serialize(FArchive& Ar) override
 	{
 		const bool result = FMeshMaterialShader::Serialize(Ar);
-		Ar << NeedsInstancedStereoBiasParameter;
+		Ar << NeedsSinglePassStereoBiasParameter;
 		Ar << IsSinglePassStereoParameter;
 		return result;
 	}
 
 	void SetParameters(FRHICommandList& RHICmdList, const FMaterialRenderProxy* MaterialRenderProxy,const FSceneView& View,
-													const bool bNeedsInstancedStereoBias = false, const bool bIsSinglePassStereo = false)
+													const bool bNeedsSinglePassStereoBias = false, const bool bIsSinglePassStereo = false)
 	{
 		FMeshMaterialShader::SetParameters(RHICmdList, (FDomainShaderRHIParamRef)GetDomainShader(), MaterialRenderProxy, *MaterialRenderProxy->GetMaterial(View.GetFeatureLevel()), View, ESceneRenderTargetsMode::SetTextures);
 
-		SetSPSParameters(RHICmdList, bNeedsInstancedStereoBias, bIsSinglePassStereo);
+		SetSPSParameters(RHICmdList, bNeedsSinglePassStereoBias, bIsSinglePassStereo);
 	}
 
-	void SetSPSParameters(FRHICommandList& RHICmdList, const bool bNeedsInstancedStereoBias, const bool bIsSinglePassStereo)
+	void SetSPSParameters(FRHICommandList& RHICmdList, const bool bNeedsSinglePassStereoBias, const bool bIsSinglePassStereo)
 	{
-		if (NeedsInstancedStereoBiasParameter.IsBound())
+		if (NeedsSinglePassStereoBiasParameter.IsBound())
 		{
-			SetShaderValue(RHICmdList, (FDomainShaderRHIParamRef)GetDomainShader(), NeedsInstancedStereoBiasParameter, bNeedsInstancedStereoBias);
+			SetShaderValue(RHICmdList, (FDomainShaderRHIParamRef)GetDomainShader(), NeedsSinglePassStereoBiasParameter, bNeedsSinglePassStereoBias);
 		}
 
 		if (IsSinglePassStereoParameter.IsBound())
@@ -137,7 +137,7 @@ public:
 	}
 
 private:
-	FShaderParameter NeedsInstancedStereoBiasParameter;
+	FShaderParameter NeedsSinglePassStereoBiasParameter;
 	FShaderParameter IsSinglePassStereoParameter;
 };
 

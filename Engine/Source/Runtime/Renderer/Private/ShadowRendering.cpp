@@ -554,11 +554,13 @@ void FProjectedShadowInfo::RenderProjection(FRHICommandListImmediate& RHICmdList
 		SCOPED_DRAW_EVENTF(RHICmdList, EventMaskSubjects, TEXT("Stencil Mask Subjects"));
 
 		// If instanced stereo is enabled, we need to render each view of the stereo pair using the instanced stereo transform to avoid bias issues.
-		const bool bIsInstancedStereoEmulated = View->bIsInstancedStereoEnabled && !View->bIsMultiViewEnabled && View->StereoPass != eSSP_FULL;
+		const bool bIsInstancedStereoEmulated = View->bIsInstancedStereoEnabled && !View->bIsMultiViewEnabled && View->StereoPass != eSSP_FULL && !View->bAllowSinglePassStereo;
 		if (bIsInstancedStereoEmulated)
 		{
 			RHICmdList.SetViewport(0, 0, 0, View->Family->InstancedStereoWidth, View->ViewRect.Max.Y, 1);
 		}
+
+		const bool bNeedsSinglePassStereoBias = bPreShadow && View->bAllowSinglePassStereo && View->StereoPass == eSSP_RIGHT_EYE;
 
 		// Set stencil to one.
 		RHICmdList.SetDepthStencilState(TStaticDepthStencilState<
@@ -578,7 +580,7 @@ void FProjectedShadowInfo::RenderProjection(FRHICommandListImmediate& RHICmdList
 		{
 			const FMeshBatchAndRelevance& MeshBatchAndRelevance = DynamicMeshElements[MeshBatchIndex];
 			const FMeshBatch& MeshBatch = *MeshBatchAndRelevance.Mesh;
-			FDepthDrawingPolicyFactory::DrawDynamicMesh(RHICmdList, *View, Context, MeshBatch, false, true, MeshBatchAndRelevance.PrimitiveSceneProxy, MeshBatch.BatchHitProxyId, false, bIsInstancedStereoEmulated);
+			FDepthDrawingPolicyFactory::DrawDynamicMesh(RHICmdList, *View, Context, MeshBatch, false, true, MeshBatchAndRelevance.PrimitiveSceneProxy, MeshBatch.BatchHitProxyId, false, bIsInstancedStereoEmulated, false, bNeedsSinglePassStereoBias);
 		}
 
 		// Pre-shadows mask by receiver elements, self-shadow mask by subject elements.
@@ -613,7 +615,8 @@ void FProjectedShadowInfo::RenderProjection(FRHICommandListImmediate& RHICmdList
 								ReceiverPrimitiveSceneInfo->Proxy,
 								StaticMesh.BatchHitProxyId, 
 								false, 
-								bIsInstancedStereoEmulated
+								bIsInstancedStereoEmulated,
+								bNeedsSinglePassStereoBias
 								);
 						}
 					}
@@ -638,7 +641,8 @@ void FProjectedShadowInfo::RenderProjection(FRHICommandListImmediate& RHICmdList
 					StaticMesh.PrimitiveSceneInfo->Proxy,
 					StaticMesh.BatchHitProxyId, 
 					false, 
-					bIsInstancedStereoEmulated
+					bIsInstancedStereoEmulated,
+					bNeedsSinglePassStereoBias
 					);
 			}
 		}

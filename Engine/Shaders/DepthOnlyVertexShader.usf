@@ -12,6 +12,10 @@
 bool bIsInstancedStereoEmulated;
 #endif
 
+#if SINGLE_PASS_STEREO
+bool bNeedsSinglePassStereoBias;
+#endif
+
 #define IOSZBIASWORKAROUND IOS && (ES2_PROFILE || ES3_1_PROFILE)
 
 struct FDepthOnlyVSToPS
@@ -81,6 +85,7 @@ struct FDepthOnlyVSToPS
 			{
 				O.NvXRight = 0;
 			}
+			O.Position.z += SinglePassStereoDepthBias * O.Position.w * (float)bNeedsSinglePassStereoBias;
 			#endif
 		}
 			
@@ -176,6 +181,7 @@ void Main(
 		{
 			Output.NvXRight = 0;
 		}
+		Output.Position.z += SinglePassStereoDepthBias * Output.Position.w * (float)bNeedsSinglePassStereoBias;
 		#endif
 	}
 	#if INSTANCED_STEREO && !MULTI_VIEW

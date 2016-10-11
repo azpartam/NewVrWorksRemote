@@ -17,8 +17,12 @@ struct FPositionOnlyDepthVSToPS
 	nointerpolation uint PackedEyeIndex : PACKED_EYE_INDEX;
 };
 
-#if INSTANCED_STEREO || SINGLE_PASS_STEREO
+#if INSTANCED_STEREO
 bool bIsInstancedStereoEmulated;
+#endif
+
+#if SINGLE_PASS_STEREO
+bool bNeedsSinglePassStereoBias;
 #endif
 
 void Main(
@@ -82,6 +86,7 @@ void Main(
 		{
 			Output.NvXRight = 0;
 		}
+		Output.Position.z += SinglePassStereoDepthBias * Output.Position.w * (float)bNeedsSinglePassStereoBias;
 		#endif
 
 	#if INSTANCED_STEREO && !MULTI_VIEW

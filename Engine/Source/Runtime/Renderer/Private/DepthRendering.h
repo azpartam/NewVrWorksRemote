@@ -37,10 +37,11 @@ public:
 
 	struct ContextDataType : public FMeshDrawingPolicy::ContextDataType
 	{
-		explicit ContextDataType(const bool InbIsInstancedStereo, const bool InIsSinglePassStereo) : FMeshDrawingPolicy::ContextDataType(InbIsInstancedStereo, InIsSinglePassStereo), bIsInstancedStereoEmulated(false) {};
-		ContextDataType(const bool InbIsInstancedStereo, const bool InIsSinglePassStereo, const bool InbIsInstancedStereoEmulated) : FMeshDrawingPolicy::ContextDataType(InbIsInstancedStereo, InIsSinglePassStereo), bIsInstancedStereoEmulated(InbIsInstancedStereoEmulated) {};
-		ContextDataType() : bIsInstancedStereoEmulated(false) {};
+		explicit ContextDataType(const bool InbIsInstancedStereo, const bool InIsSinglePassStereo) : FMeshDrawingPolicy::ContextDataType(InbIsInstancedStereo, InIsSinglePassStereo), bIsInstancedStereoEmulated(false), bNeedsSinglePassStereoBias(false) {};
+		ContextDataType(const bool InbIsInstancedStereo, const bool InIsSinglePassStereo, const bool InbIsInstancedStereoEmulated, const bool InbNeedsSinglePassStereoBias) : FMeshDrawingPolicy::ContextDataType(InbIsInstancedStereo, InIsSinglePassStereo), bIsInstancedStereoEmulated(InbIsInstancedStereoEmulated), bNeedsSinglePassStereoBias(InbNeedsSinglePassStereoBias) {};
+		ContextDataType() : bIsInstancedStereoEmulated(false), bNeedsSinglePassStereoBias(false){};
 		bool bIsInstancedStereoEmulated;
+		bool bNeedsSinglePassStereoBias;
 	};
 
 	FDepthDrawingPolicy(
@@ -111,10 +112,11 @@ public:
 
 	struct ContextDataType : public FMeshDrawingPolicy::ContextDataType
 	{
-		explicit ContextDataType(const bool InbIsInstancedStereo, const bool InIsSinglePassStereo) : FMeshDrawingPolicy::ContextDataType(InbIsInstancedStereo, InIsSinglePassStereo), bIsInstancedStereoEmulated(false) {};
-		ContextDataType(const bool InbIsInstancedStereo, const bool InIsSinglePassStereo, const bool InbIsInstancedStereoEmulated) : FMeshDrawingPolicy::ContextDataType(InbIsInstancedStereo, InIsSinglePassStereo), bIsInstancedStereoEmulated(InbIsInstancedStereoEmulated) {};
-		ContextDataType() : bIsInstancedStereoEmulated(false) {};
+		explicit ContextDataType(const bool InbIsInstancedStereo, const bool InIsSinglePassStereo) : FMeshDrawingPolicy::ContextDataType(InbIsInstancedStereo, InIsSinglePassStereo), bIsInstancedStereoEmulated(false), bNeedsSinglePassStereoBias(false) {};
+		ContextDataType(const bool InbIsInstancedStereo, const bool InIsSinglePassStereo, const bool InbIsInstancedStereoEmulated, const bool InbNeedsSinglePassStereoBias) : FMeshDrawingPolicy::ContextDataType(InbIsInstancedStereo, InIsSinglePassStereo), bIsInstancedStereoEmulated(InbIsInstancedStereoEmulated), bNeedsSinglePassStereoBias(InbNeedsSinglePassStereoBias) {};
+		ContextDataType() : bIsInstancedStereoEmulated(false), bNeedsSinglePassStereoBias(false) {};
 		bool bIsInstancedStereoEmulated;
+		bool bNeedsSinglePassStereoBias;
 	};
 
 	FPositionOnlyDepthDrawingPolicy(
@@ -200,7 +202,8 @@ public:
 		FHitProxyId HitProxyId,
 		const bool bIsInstancedStereo = false,
 		const bool bIsInstancedStereoEmulated = false,
-		const bool bIsSinglePassStereo = false
+		const bool bIsSinglePassStereo = false,
+		const bool bNeedsSinglePassStereoBias = false
 		);
 
 	static bool DrawStaticMesh(
@@ -214,7 +217,8 @@ public:
 		const FPrimitiveSceneProxy* PrimitiveSceneProxy,
 		FHitProxyId HitProxyId, 
 		const bool bIsInstancedStereo = false,
-		const bool bIsInstancedStereoEmulated = false
+		const bool bIsInstancedStereoEmulated = false,
+		const bool bNeedsSinglePassStereoBias = false
 		);
 
 private:
@@ -223,7 +227,7 @@ private:
 	* @return true if the mesh rendered
 	*/
 	static bool DrawMesh(
-		FRHICommandList& RHICmdList, 
+		FRHICommandList& RHICmdList,
 		const FViewInfo& View,
 		ContextType DrawingContext,
 		const FMeshBatch& Mesh,
@@ -232,9 +236,10 @@ private:
 		const FMeshDrawingRenderState& DrawRenderState,
 		bool bPreFog,
 		const FPrimitiveSceneProxy* PrimitiveSceneProxy,
-		FHitProxyId HitProxyId, 
-		const bool bIsInstancedStereo = false, 
+		FHitProxyId HitProxyId,
+		const bool bIsInstancedStereo = false,
 		const bool bIsInstancedStereoEmulated = false,
-		const bool bIsSinglePassStereo = false
+		const bool bIsSinglePassStereo = false,
+		const bool bNeedsSinglePassStereoBias = false
 		);
 };
