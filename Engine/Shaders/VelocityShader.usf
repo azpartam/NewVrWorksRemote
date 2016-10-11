@@ -303,11 +303,11 @@ void MainVertexShader(
 }
 
 #if SINGLE_PASS_STEREO && INSTANCED_STEREO
-VRPROJECT_CREATE_FASTGS_SPS_INSTANCED_STEREO(VRProjectFastGS, FVelocityVSToPS, Position, NvXRight, FactoryInterpolants.PackedEyeIndex)
+VRPROJECT_CREATE_FASTGS_SPS_INSTANCED_STEREO(VRProjectFastGS, FVelocityVSToPS, Position, NvXRight, Interps.FactoryInterpolants.PackedEyeIndex)
 #elif SINGLE_PASS_STEREO
 VRPROJECT_CREATE_FASTGS_SPS(VRProjectFastGS, FVelocityVSToPS, Position, NvXRight)
 #elif INSTANCED_STEREO
-VRPROJECT_CREATE_FASTGS_INSTANCED_STEREO(VRProjectFastGS, FVelocityVSToPS, Position, FactoryInterpolants.PackedEyeIndex)
+VRPROJECT_CREATE_FASTGS_INSTANCED_STEREO(VRProjectFastGS, FVelocityVSToPS, Position, Interps.FactoryInterpolants.PackedEyeIndex)
 #else
 VRPROJECT_CREATE_FASTGS(VRProjectFastGS, FVelocityVSToPS, Position)
 #endif
@@ -331,7 +331,7 @@ void MainPixelShader(
 	)
 {
 #if INSTANCED_STEREO && SINGLE_PASS_STEREO
-	uint TmpEyeIndex = SinglePassStereoIsActive() ? GetEyeIndexFromViewportIndex(InViewportIndex) : GetEyeIndex(Interpolants.PackedEyeIndex);
+	uint TmpEyeIndex = SinglePassStereoIsActive() ? GetEyeIndexFromViewportIndex(InViewportIndex) : GetEyeIndex(Input.FactoryInterpolants.PackedEyeIndex);
 	ResolvedView = ResolveView(TmpEyeIndex);
 	uint InEyeIndex = SinglePassStereoIsActive() ? TmpEyeIndex : 0; // Only needed with SPS.
 #elif SINGLE_PASS_STEREO
