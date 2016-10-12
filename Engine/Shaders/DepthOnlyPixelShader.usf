@@ -13,12 +13,12 @@ bool bApplyDepthOffset;
 #endif
 
 void Main(
-#if SINGLE_PASS_STEREO
-	in uint InViewportIndex : SV_ViewportArrayIndex,
-#endif
 #if !MATERIALBLENDING_SOLID || OUTPUT_PIXEL_DEPTH_OFFSET
 	FVertexFactoryInterpolantsVSToPS FactoryInterpolants,
 	float4 PixelPosition : TEXCOORD6,
+#if SINGLE_PASS_STEREO
+	in uint InViewportIndex : SV_ViewportArrayIndex,
+#endif
 	in INPUT_POSITION_QUALIFIERS float4 SvPosition : SV_Position
 	OPTIONAL_IsFrontFace
 	OPTIONAL_OutDepthConservative,
