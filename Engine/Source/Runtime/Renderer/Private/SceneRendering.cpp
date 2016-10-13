@@ -1095,6 +1095,7 @@ void FViewInfo::CreateUniformBuffer(
 		ViewUniformShaderParameters.StereoNDCSplitsX = StereoGSCBData.NDCSplitsX;
 		ViewUniformShaderParameters.StereoNDCSplitsY = StereoGSCBData.NDCSplitsY;
 
+		ViewUniformShaderParameters.BoundingRectOrigin = RemapCBData.BoundingRectOrigin;
 		ViewUniformShaderParameters.BoundingRectSize = RemapCBData.BoundingRectSize;
 		ViewUniformShaderParameters.BoundingRectSizeInv = RemapCBData.BoundingRectSizeInv;
 
