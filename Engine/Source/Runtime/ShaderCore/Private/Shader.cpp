@@ -1682,13 +1682,21 @@ void ShaderMapAppendKeyString(EShaderPlatform Platform, FString& KeyString)
 		}
 	}
 
+	{
+		static const auto CVar = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("vr.MultiRes"));
+		if ((Platform == EShaderPlatform::SP_PCD3D_SM5) && (CVar && CVar->GetValueOnGameThread() != 0))
 		{
-			static const auto CVar = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("vr.MultiRes"));
-			if ((Platform == EShaderPlatform::SP_PCD3D_SM5) && (CVar && CVar->GetValueOnGameThread() != 0))
-			{
-				KeyString += TEXT("_MRES");
-			}
+			KeyString += TEXT("_MRES");
 		}
+	}
+
+	{
+		static const auto CVar = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("vr.LensMatchedShading"));
+		if ((Platform == EShaderPlatform::SP_PCD3D_SM5) && (CVar && CVar->GetValueOnGameThread() != 0))
+		{
+			KeyString += TEXT("_LMS");
+		}
+	}
 
 	{
 		static const auto CVar = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("vr.SinglePassStereo"));
