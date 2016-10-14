@@ -239,12 +239,15 @@ uint GetEyeIndexFromViewportIndex(uint ViewportIndex)
 #if MULTIRES || LENS_MATCHED
 
 #define VRSPS_SET_VIEWPORT_MASK(MainFunctionName, PassthroughStruct, PositionName, XRightName) \
-				OutputVertex.ViewportMask = 0x20001; \
 				if (LensMatchedShadingIsActive()) \
 				{ \
 					uint ViewportMaskLeft = VRProjectCalculateNormalViewportMask(Input[0].PositionName, Input[1].PositionName, Input[2].PositionName); \
 					uint ViewportMaskRight = VRProjectCalculateNormalViewportMask(float4(Input[0].XRightName.x, Input[0].PositionName.yzw), float4(Input[1].XRightName.x, Input[1].PositionName.yzw), float4(Input[2].XRightName.x, Input[2].PositionName.yzw)); \
 					OutputVertex.ViewportMask = ViewportMaskLeft | (ViewportMaskRight << 20); \
+				} \
+				else \
+				{ \
+					OutputVertex.ViewportMask = 0x20001; \
 				}
 
 #define VRPROJECT_CREATE_FASTGS_SPS(MainFunctionName, PassthroughStruct, PositionName, XRightName) \
