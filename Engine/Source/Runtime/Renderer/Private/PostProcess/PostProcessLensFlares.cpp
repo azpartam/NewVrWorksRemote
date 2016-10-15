@@ -189,7 +189,7 @@ void FRCPassPostProcessLensFlares::Process(FRenderingCompositePassContext& Conte
 			TexSize1,
 			*VertexShader,
 			EDRF_UseTriangleOptimization,
-			true);
+			1, true);
 	}
 
 	// additive blend
