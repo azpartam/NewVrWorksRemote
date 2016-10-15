@@ -1097,7 +1097,8 @@ void BuildHZB( FRHICommandListImmediate& RHICmdList, FViewInfo& View )
 			HZBSize,
 			FSceneRenderTargets::Get(RHICmdList).GetBufferSizeXY(),
 			*VertexShader,
-			EDRF_UseTriangleOptimization);
+			EDRF_UseTriangleOptimization,
+			1, true);
 
 		//Use RWBarrier since we don't transition individual subresources.  Basically treat the whole texture as R/W as we walk down the mip chain.
 		RHICmdList.TransitionResources(EResourceTransitionAccess::ERWSubResBarrier, &HZBRenderTargetRef, 1);
@@ -1139,7 +1140,8 @@ void BuildHZB( FRHICommandListImmediate& RHICmdList, FViewInfo& View )
 			DstSize,
 			SrcSize,
 			*VertexShader,
-			EDRF_UseTriangleOptimization);
+			EDRF_UseTriangleOptimization,
+			1, true);
 
 		SrcSize /= 2;
 		DstSize /= 2;
