@@ -126,7 +126,6 @@ void FRCPassPostProcessVRProjectWarp::Process(FRenderingCompositePassContext& Co
 		View.StereoPass,
 		Context.HasHmdMesh(),
 		EDRF_UseTriangleOptimization,
-		1,
 		true);
 
 	Context.RHICmdList.CopyToResolveTarget(DestRenderTarget.TargetableTexture, DestRenderTarget.ShaderResourceTexture, false, FResolveParams());
