@@ -458,6 +458,6 @@ void DrawPostProcessPass(
 	}
 	else
 	{
-		DrawRectangle(RHICmdList, X, Y, SizeX, SizeY, U, V, SizeU, SizeV, TargetSize, TextureSize, VertexShader, Flags, bForceNoRemap);
+		DrawRectangle(RHICmdList, X, Y, SizeX, SizeY, U, V, SizeU, SizeV, TargetSize, TextureSize, VertexShader, Flags, 1, bForceNoRemap);
 	}
 }
