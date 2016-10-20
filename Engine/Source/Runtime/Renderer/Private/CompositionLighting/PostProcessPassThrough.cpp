@@ -207,6 +207,7 @@ void CopyOverOtherViewportsIfNeeded(FRenderingCompositePassContext& Context, con
 					LocalView.StereoPass, 
 					Context.HasHmdMesh(),
 					EDRF_UseTriangleOptimization, true);
+				// NVIDIA : jukim - can't use octagon optimization because we're still in the current view, and so remap parameters use the Context's view's parameters rather than the LocalView's
 			}
 		}
 	}
