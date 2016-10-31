@@ -76,7 +76,10 @@ public:
 
 	static bool ShouldCache(EShaderPlatform Platform)
 	{
-		return true;
+		static const auto CVar = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("vr.MultiRes"));
+		static const bool bMultiResShaders = CVar->GetValueOnAnyThread() != 0;
+
+		return  RHISupportsFastGeometryShaders(Platform) && bMultiResShaders;
 	}
 
 	static const TCHAR* GetSourceFilename()

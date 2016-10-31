@@ -253,8 +253,11 @@ protected:
 
 	static bool ShouldCache(EShaderPlatform Platform, const FMaterial* Material, const FVertexFactoryType* VertexFactoryType)
 	{
+		static const auto CVar = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("vr.MultiRes"));
+		static const bool bMultiResShaders = CVar->GetValueOnAnyThread() != 0;
+
 		return IsFeatureLevelSupported(Platform, ERHIFeatureLevel::SM5)
-			&& DistortMeshPolicy::ShouldCache(Platform, Material, VertexFactoryType);
+			&& DistortMeshPolicy::ShouldCache(Platform, Material, VertexFactoryType) && RHISupportsFastGeometryShaders(Platform) && bMultiResShaders;
 	}
 
 	static const bool IsFastGeometryShader = true;

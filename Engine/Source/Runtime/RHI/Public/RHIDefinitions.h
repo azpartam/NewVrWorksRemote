@@ -814,6 +814,12 @@ inline bool RHISupportsGeometryShaders(const EShaderPlatform Platform)
 	return IsFeatureLevelSupported(Platform, ERHIFeatureLevel::SM4) && !IsMetalPlatform(Platform) && Platform != SP_VULKAN_PCES3_1 && Platform != SP_VULKAN_ES3_1_ANDROID;
 }
 
+inline bool RHISupportsFastGeometryShaders(const EShaderPlatform Platform)
+{
+	// Restrict support to PC D3D with SM5
+	return Platform == SP_PCD3D_SM5;
+}
+
 inline bool RHIHasTiledGPU(const EShaderPlatform Platform)
 {
 	return (Platform == SP_METAL_MRT) || Platform == SP_METAL || Platform == SP_OPENGL_ES2_IOS || Platform == SP_OPENGL_ES2_ANDROID || Platform == SP_OPENGL_ES3_1_ANDROID;

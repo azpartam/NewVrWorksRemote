@@ -210,8 +210,11 @@ public:
 
 	static bool ShouldCache(EShaderPlatform Platform, const FMaterial* Material, const FVertexFactoryType* VertexFactoryType)
 	{
+		static const auto CVar = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("vr.MultiRes"));
+		static const bool bMultiResShaders = CVar->GetValueOnAnyThread() != 0;
+
 		// Same rules as VS
-		return IsFeatureLevelSupported(Platform, ERHIFeatureLevel::SM5) && FVelocityVS::ShouldCache(Platform, Material, VertexFactoryType);
+		return IsFeatureLevelSupported(Platform, ERHIFeatureLevel::SM5) && FVelocityVS::ShouldCache(Platform, Material, VertexFactoryType) && RHISupportsFastGeometryShaders(Platform) && bMultiResShaders;
 	}
 
 	void SetParameters(FRHICommandList& RHICmdList, const FVertexFactory* VertexFactory, const FMaterialRenderProxy* MaterialRenderProxy, const FViewInfo& View)

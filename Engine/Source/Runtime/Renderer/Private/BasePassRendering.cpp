@@ -647,7 +647,18 @@ void GetUniformBasePassShaders(
 		DomainShader = Material.GetShader<TBasePassDS<TUniformLightMapPolicy<Policy> > >(VertexFactoryType);
 	}
 
-	FastGeometryShader = Material.GetShader<TBasePassFastGS<TUniformLightMapPolicy<Policy> > >(VertexFactoryType);
+	static const auto CVar = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("vr.MultiRes"));
+	static const bool bMultiResShaders = CVar->GetValueOnAnyThread() != 0;
+	const bool bNeedsMultiRes = RHISupportsFastGeometryShaders(GShaderPlatformForFeatureLevel[Material.GetFeatureLevel()]) && bMultiResShaders;
+
+	if (bNeedsMultiRes)
+	{
+		FastGeometryShader = Material.GetShader<TBasePassFastGS<TUniformLightMapPolicy<Policy> > >(VertexFactoryType);
+	}
+	else
+	{
+		FastGeometryShader = nullptr;
+	}
 
 	if (bEnableAtmosphericFog)
 	{

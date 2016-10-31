@@ -1218,11 +1218,11 @@ void FDeferredShadingSceneRenderer::BeginOcclusionTests(FRHICommandListImmediate
 				// Lookup the vertex shader.
 				TShaderMapRef<FOcclusionQueryVS> VertexShader(View.ShaderMap);
 
-				// EHartNV : ToDo - May need to refactor this for the case of running on platforms with no vr projection support
-				TShaderMapRef<FOcclusionQueryMultiResGS> GeometryShader(View.ShaderMap);
+				TOptionalShaderMapRef<FOcclusionQueryMultiResGS> GeometryShader(View.ShaderMap);
 
 				if (View.bVRProjectEnabled)
 				{
+					check(GeometryShader.IsValid());
 					SetGlobalBoundShaderState(RHICmdList, View.GetFeatureLevel(), OcclusionTestMultiResBoundShaderState, GetVertexDeclarationFVector3(), *VertexShader, NULL, *GeometryShader);
 					GeometryShader->SetParameters(RHICmdList, View);
 				}

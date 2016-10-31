@@ -64,7 +64,13 @@ class FOcclusionQueryMultiResGS : public FGlobalShader
 {
 	DECLARE_SHADER_TYPE(FOcclusionQueryMultiResGS, Global);
 public:
-	static bool ShouldCache(EShaderPlatform Platform) { return IsFeatureLevelSupported(Platform, ERHIFeatureLevel::SM5); }
+	static bool ShouldCache(EShaderPlatform Platform)
+	{
+		static const auto CVar = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("vr.MultiRes"));
+		static const bool bMultiResShaders = CVar->GetValueOnAnyThread() != 0;
+
+		return IsFeatureLevelSupported(Platform, ERHIFeatureLevel::SM5) && RHISupportsFastGeometryShaders(Platform) && bMultiResShaders;
+	}
 
 	FOcclusionQueryMultiResGS(const ShaderMetaType::CompiledShaderInitializerType& Initializer) :
 		FGlobalShader(Initializer)

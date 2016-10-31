@@ -1893,7 +1893,13 @@ class FShadowProjectionMultiResGS : public FGlobalShader
 {
 	DECLARE_SHADER_TYPE(FShadowProjectionMultiResGS, Global);
 public:
-	static bool ShouldCache(EShaderPlatform Platform) { return IsFeatureLevelSupported(Platform, ERHIFeatureLevel::SM5); }
+	static bool ShouldCache(EShaderPlatform Platform)
+	{
+		static const auto CVar = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("vr.MultiRes"));
+		static const bool bMultiResShaders = CVar->GetValueOnAnyThread() != 0;
+
+		return IsFeatureLevelSupported(Platform, ERHIFeatureLevel::SM5) && RHISupportsFastGeometryShaders(Platform) && bMultiResShaders;
+	}
 
 	FShadowProjectionMultiResGS(const ShaderMetaType::CompiledShaderInitializerType& Initializer) :
 		FGlobalShader(Initializer)
