@@ -497,8 +497,49 @@ void FDeferredShadingSceneRenderer::RenderLights(FRHICommandListImmediate& RHICm
 			}
 			else if (SimpleLights.InstanceData.Num() > 0)
 			{
-				SceneContext.BeginRenderingSceneColor(RHICmdList, ESimpleRenderTargetMode::EExistingColorAndDepth, FExclusiveDepthStencil::DepthRead_StencilWrite);
+				SceneContext.BeginRenderingSceneColor(RHICmdList, ESimpleRenderTargetMode::EExistingColorAndDepth, FExclusiveDepthStencil::DepthNop_StencilWrite);
 				RenderSimpleLightsStandardDeferred(RHICmdList, SimpleLights);
+			}
+
+			{
+				bool IsLMSEnabled = false;
+				for (int32 ViewIndex = 0; ViewIndex < Views.Num(); ++ViewIndex)
+				{
+					const FViewInfo& View = Views[ViewIndex];
+					IsLMSEnabled |= (View.bVRProjectEnabled && View.VRProjMode == FSceneView::EVRProjectMode::LensMatched);
+				}
+
+				if (IsLMSEnabled)
+				{
+					// render octagon stencil here
+					SceneContext.BeginRenderingStencilOnly(RHICmdList, true);
+
+					RHICmdList.SetDepthStencilState(TStaticDepthStencilState<
+						false, CF_DepthNearOrEqual,
+						true, CF_Always, SO_Keep, SO_Replace, SO_Replace,
+						false, CF_Always, SO_Replace, SO_Replace, SO_Replace,
+						0xff, 0xff
+					>::GetRHI(), 1);
+
+					RHICmdList.SetRasterizerState(TStaticRasterizerState<FM_Solid, CM_None>::GetRHI());
+
+					for (int32 ViewIndex = 0; ViewIndex < Views.Num(); ++ViewIndex)
+					{
+						const FViewInfo& View = Views[ViewIndex];
+						RHICmdList.SetGPUMask(View.StereoPass);
+
+						View.BeginVRProjectionStates(RHICmdList);
+						RenderModifiedWBoundaryMask(RHICmdList);
+						View.EndVRProjectionStates(RHICmdList);
+					}
+					RHICmdList.SetGPUMask(0);
+
+					// return viewport and scissor to normal after multires
+					RHICmdList.SetViewport(0.0f, 0.0f, 0.0f, SceneContext.GetBufferSizeXY().X, SceneContext.GetBufferSizeXY().Y, 1.0f);
+					RHICmdList.SetScissorRect(false, 0, 0, 0, 0);
+
+					SceneContext.FinishRenderingStencilOnly(RHICmdList);
+				}
 			}
 
 			{
@@ -776,11 +817,23 @@ void SetBoundingGeometryRasterizerAndDepthState(FRHICommandList& RHICmdList, con
 		RHICmdList.SetRasterizerState(View.bReverseCulling ? TStaticRasterizerState<FM_Solid, CM_CCW>::GetRHI() : TStaticRasterizerState<FM_Solid, CM_CW>::GetRHI());
 	}
 
-	RHICmdList.SetDepthStencilState(
-		bCameraInsideLightGeometry
-		? TStaticDepthStencilState<false,CF_Always>::GetRHI()
-		: TStaticDepthStencilState<false,CF_DepthNearOrEqual>::GetRHI()
+	if (View.bVRProjectEnabled && View.VRProjMode == FSceneView::EVRProjectMode::LensMatched)
+	{
+		RHICmdList.SetDepthStencilState(
+			bCameraInsideLightGeometry
+			? TStaticDepthStencilState<false, CF_Always, true, CF_Equal, SO_Keep, SO_Keep, SO_Keep, true, CF_Equal, SO_Keep, SO_Keep, SO_Keep, 0xFF, 0x0>::GetRHI()
+			: TStaticDepthStencilState<false, CF_DepthNearOrEqual>::GetRHI(),
+			1
 		);
+	}
+	else
+	{
+		RHICmdList.SetDepthStencilState(
+			bCameraInsideLightGeometry
+			? TStaticDepthStencilState<false, CF_Always>::GetRHI()
+			: TStaticDepthStencilState<false, CF_DepthNearOrEqual>::GetRHI()
+		);
+	}
 }
 
 template <bool bRadialAttenuation>

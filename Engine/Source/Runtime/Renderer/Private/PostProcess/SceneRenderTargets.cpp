@@ -1314,6 +1314,42 @@ void FSceneRenderTargets::FinishRenderingSeparateTranslucency(FRHICommandList& R
 	bSeparateTranslucencyPass = false;
 }
 
+void FSceneRenderTargets::BeginRenderingStencilOnly(FRHICommandList& RHICmdList, bool bPerformClear)
+{
+	SCOPED_DRAW_EVENT(RHICmdList, BeginRenderingStencilOnly);
+
+	FTextureRHIRef ColorTarget;
+	FTexture2DRHIRef DepthTarget = GetSceneDepthSurface();
+
+	if (bPerformClear)
+	{
+		FRHIRenderTargetView ColorView(ColorTarget, 0, -1, ERenderTargetLoadAction::ENoAction, ERenderTargetStoreAction::ENoAction);
+		FRHIDepthRenderTargetView DepthView(DepthTarget, ERenderTargetLoadAction::ENoAction, ERenderTargetStoreAction::ENoAction, ERenderTargetLoadAction::EClear, ERenderTargetStoreAction::EStore);
+
+		// Clear the depth buffer.
+		// Note, this is a reversed Z depth surface, so 0.0f is the far plane.
+		FRHISetRenderTargetsInfo Info(1, &ColorView, DepthView);
+
+		RHICmdList.SetRenderTargetsAndClear(Info);
+	}
+	else
+	{
+		// Set the scene depth surface and a DUMMY buffer as color buffer
+		// (as long as it's the same dimension as the depth buffer),	
+		FRHIRenderTargetView ColorView(ColorTarget, 0, -1, ERenderTargetLoadAction::ENoAction, ERenderTargetStoreAction::ENoAction);
+		FRHIDepthRenderTargetView DepthView(DepthTarget, ERenderTargetLoadAction::ENoAction, ERenderTargetStoreAction::ENoAction, ERenderTargetLoadAction::ELoad, ERenderTargetStoreAction::EStore);
+
+		RHICmdList.SetRenderTargets(1, &ColorView, &DepthView, 0, NULL);
+
+		RHICmdList.BindClearMRTValues(false, false, true);
+	}
+}
+
+void FSceneRenderTargets::FinishRenderingStencilOnly(FRHICommandList& RHICmdList)
+{
+	SCOPED_DRAW_EVENT(RHICmdList, FinishRenderingStencilOnly);
+}
+
 void FSceneRenderTargets::ResolveSceneDepthTexture(FRHICommandList& RHICmdList)
 {
 	SCOPED_DRAW_EVENT(RHICmdList, ResolveSceneDepthTexture);

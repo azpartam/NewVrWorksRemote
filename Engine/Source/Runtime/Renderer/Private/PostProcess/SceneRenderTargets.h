@@ -275,6 +275,9 @@ public:
 	void BeginRenderingLightAttenuation(FRHICommandList& RHICmdList, bool bClearToWhite = false);
 	void FinishRenderingLightAttenuation(FRHICommandList& RHICmdList);
 
+	void BeginRenderingStencilOnly(FRHICommandList& RHICmdList, bool bPerformClear);
+	void FinishRenderingStencilOnly(FRHICommandList& RHICmdList);
+
 	void GetSeparateTranslucencyDimensions(FIntPoint& OutScaledSize, float& OutScale)
 	{
 		OutScaledSize = SeparateTranslucencyBufferSize;
