@@ -1224,7 +1224,7 @@ void FPostProcessing::Process(FRHICommandListImmediate& RHICmdList, const FViewI
 		bool bDoScreenPercentage;
 		{
 			//
-			bool bHMDWantsUpscale = bStereoRenderingAndHMD && GEngine->HMDDevice->NeedsUpscalePostProcessPass() || View.bVRProjectEnabled;
+			bool bHMDWantsUpscale = (bStereoRenderingAndHMD && GEngine->HMDDevice->NeedsUpscalePostProcessPass()) || View.bVRProjectEnabled;
 			// Do not use upscale if SeparateRenderTarget is in use! (stereo rendering wants to control this)
 			bool bAllowScreenPercentage = bHMDWantsUpscale || !View.Family->EngineShowFlags.StereoRendering || (!View.Family->EngineShowFlags.HMDDistortion && !View.Family->bUseSeparateRenderTarget);
 			// is Upscale from a lower resolution needed and allowed

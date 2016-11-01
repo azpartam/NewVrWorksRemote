@@ -1974,9 +1974,9 @@ FSceneViewFamily::FSceneViewFamily( const ConstructionValues& CVS )
 	:
 	FamilySizeX(0),
 	FamilySizeY(0),
-	InstancedStereoWidth(0),
 	FamilyLinearSizeX(0),
 	FamilyLinearSizeY(0),
+	InstancedStereoWidth(0),
 	RenderTarget(CVS.RenderTarget),
 	bUseSeparateRenderTarget(false),
 	Scene(CVS.Scene),

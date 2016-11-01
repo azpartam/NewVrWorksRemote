@@ -3,6 +3,7 @@
 /*=============================================================================
 	ModifiedWBoundaryMask.usf: VS and GS for drawing ModifiedW boundary mask
 =============================================================================*/
+#include "common.usf"
 
 // BOUNDARY defines the boundary of the mask. If <1.0, it will be visible on the final render (useful for debugging)
 #define BOUNDARY 1.f
