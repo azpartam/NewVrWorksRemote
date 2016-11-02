@@ -358,7 +358,11 @@ FDepthDrawingPolicy::FDepthDrawingPolicy(
 	}
 
 	// EHartNV ToDo : Need to support shader pipelines?
-	FastGeometryShader = InMaterialResource.GetShader<TDepthOnlyFastGS<false> >(InVertexFactory->GetType());
+	static const auto CVar = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("vr.MultiRes"));
+	static const bool bMultiResShaders = CVar->GetValueOnAnyThread() != 0;
+
+	const bool bMultiRes = RHISupportsFastGeometryShaders(GShaderPlatformForFeatureLevel[InMaterialResource.GetFeatureLevel()]) && bMultiResShaders;
+	FastGeometryShader = bMultiRes ? InMaterialResource.GetShader<TDepthOnlyFastGS<false> >(InVertexFactory->GetType()) : nullptr;
 }
 
 void FDepthDrawingPolicy::SetInstancedEyeIndex(FRHICommandList& RHICmdList, const uint32 EyeIndex) const

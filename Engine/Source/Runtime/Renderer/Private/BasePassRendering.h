@@ -886,10 +886,11 @@ void GetBasePassShaders(
 		DomainShader = Material.GetShader<TBasePassDS<LightMapPolicyType> >(VertexFactoryType);
 	}
 
-	// EHartNV ToDo: Do we need a bNeedsFastGS flag here?
-	//   Presently, the flag is tied to the View struct which isn't around at construction
-	FastGeometryShader = Material.GetShader<TBasePassFastGS<LightMapPolicyType> >(VertexFactoryType);
+	static const auto CVar = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("vr.MultiRes"));
+	static const bool bMultiResShaders = CVar->GetValueOnAnyThread() != 0;
+	const bool bMultiRes = RHISupportsFastGeometryShaders(GShaderPlatformForFeatureLevel[Material.GetFeatureLevel()]) && bMultiResShaders;
 
+	FastGeometryShader = bMultiRes ? Material.GetShader<TBasePassFastGS<LightMapPolicyType> >(VertexFactoryType) : nullptr;
 
 	if (bEnableAtmosphericFog)
 	{

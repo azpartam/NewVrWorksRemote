@@ -700,10 +700,13 @@ void FProjectedShadowInfo::RenderProjection(FRHICommandListImmediate& RHICmdList
 
 			// Find the projection shaders.
 			TShaderMapRef<FShadowProjectionNoTransformVS> VertexShaderNoTransform(View->ShaderMap);
-			TShaderMapRef<FShadowProjectionMultiResGS> MultiResGeometryShader(View->ShaderMap);
+			static const auto CVar = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("vr.MultiRes"));
+			static const bool bMultiResShaders = CVar->GetValueOnAnyThread() != 0;
+			const bool bMultiRes = RHISupportsFastGeometryShaders(GShaderPlatformForFeatureLevel[View->GetFeatureLevel()]) && bMultiResShaders;
 
-			if (View->bVRProjectEnabled)
+			if (View->bVRProjectEnabled && bMultiRes)
 			{
+				TShaderMapRef<FShadowProjectionMultiResGS> MultiResGeometryShader(View->ShaderMap);
 				SetGlobalBoundShaderState(RHICmdList, View->GetFeatureLevel(), MaskBoundShaderState[0], GetVertexDeclarationFVector4(), *VertexShaderNoTransform, nullptr, *MultiResGeometryShader);
 				MultiResGeometryShader->SetParameters(RHICmdList, *View);
 			}
@@ -774,11 +777,15 @@ void FProjectedShadowInfo::RenderProjection(FRHICommandListImmediate& RHICmdList
 		
 		// Find the projection shaders.
 		TShaderMapRef<FShadowProjectionVS> VertexShader(View->ShaderMap);
-		TShaderMapRef<FShadowProjectionMultiResGS> MultiResGeometryShader(View->ShaderMap);
+
+		static const auto CVar = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("vr.MultiRes"));
+		static const bool bMultiResShaders = CVar->GetValueOnAnyThread() != 0;
+		const bool bMultiRes = RHISupportsFastGeometryShaders(GShaderPlatformForFeatureLevel[View->GetFeatureLevel()]) && bMultiResShaders;
 
 		// Cache the bound shader state
-		if (View->bVRProjectEnabled)
+		if (View->bVRProjectEnabled && bMultiRes)
 		{
+			TShaderMapRef<FShadowProjectionMultiResGS> MultiResGeometryShader(View->ShaderMap);
 			SetGlobalBoundShaderState(RHICmdList, View->GetFeatureLevel(), MaskBoundShaderState[2], GetVertexDeclarationFVector4(), *VertexShader, nullptr, *MultiResGeometryShader);
 			MultiResGeometryShader->SetParameters(RHICmdList, *View);
 		}
