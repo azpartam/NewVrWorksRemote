@@ -1275,7 +1275,7 @@ void FOculusRiftHMD::UseImplicitHmdPosition( bool bInImplicitHmdPosition )
 
 int32 FOculusRiftHMD::GetViewportGap() const
 {
-	return GetSettings()->GetTexturePaddingPerEye();
+	return FMath::RoundToInt(GetSettings()->GetTexturePaddingPerEye());
 }
 
 void FOculusRiftHMD::RecordAnalytics()
