@@ -319,8 +319,16 @@ void FRCPassPostProcessUpscale::Process(FRenderingCompositePassContext& Context)
 		{
 			if (View.StereoPass == eSSP_RIGHT_EYE)
 			{
-				DestRect.Min.X += 2 * ViewportGap * 1.5f;
-				DestRect.Max.X += 2 * ViewportGap * 1.5f;
+				if (View.VRProjMode == FSceneView::EVRProjectMode::LensMatched)
+				{
+					DestRect.Min.X += 2 * ViewportGap * 1.5f;
+					DestRect.Max.X += 2 * ViewportGap * 1.5f;
+				}
+				else
+				{
+					DestRect.Min.X += 2 * ViewportGap;
+					DestRect.Max.X += 2 * ViewportGap;
+				}
 			}
 		}
 	}
