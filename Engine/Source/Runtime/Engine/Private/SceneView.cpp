@@ -295,7 +295,17 @@ static TAutoConsoleVariable<float> CVarLensMatchedShadingResScaling(
 	TEXT("vr.LensMatchedShadingResolutionScaling"),
 	1.0f,
 	TEXT("Lens Matched Shading resolution scale:\n")
+	TEXT("This variable is deprecated now, please use vr.LensMatchedShadingRendering 1/2/3 to adjust LMS shading rate instead,\n")
+	TEXT("which're pre-calculated to better match the lens profile.\n")
 	TEXT("1.0f (default)\n"),
+	ECVF_Scalability | ECVF_RenderThreadSafe);
+
+static TAutoConsoleVariable<float> CVarLensMatchedShadingUnwarpScale(
+	TEXT("vr.LensMatchedShadingUnwarpScale"),
+	1.5f,
+	TEXT("Since Lens matched shading super samples the center region compared with the original resolution,\n")
+	TEXT("It's preferred to perform unwarp to a larger render target so the super sampled information is preserved.\n")
+	TEXT("The default value is 1.5. It's a conservative estimate of increased shading rate. The default value should be used for most of the times.\n"),
 	ECVF_Scalability | ECVF_RenderThreadSafe);
 
 static TAutoConsoleVariable<int32> CVarLensMatchedShadingDrawRectangleOptimization(

@@ -321,8 +321,11 @@ void FRCPassPostProcessUpscale::Process(FRenderingCompositePassContext& Context)
 			{
 				if (View.VRProjMode == FSceneView::EVRProjectMode::LensMatched)
 				{
-					DestRect.Min.X += 2 * ViewportGap * 1.5f;
-					DestRect.Max.X += 2 * ViewportGap * 1.5f;
+					static const auto CVarLensMatchedShadingUnwarpScale = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("vr.LensMatchedShadingUnwarpScale"));
+					float Scale = CVarLensMatchedShadingUnwarpScale->GetValueOnRenderThread();
+
+					DestRect.Min.X += 2 * ViewportGap * Scale;
+					DestRect.Max.X += 2 * ViewportGap * Scale;
 				}
 				else
 				{
