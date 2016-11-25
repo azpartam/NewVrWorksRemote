@@ -623,10 +623,15 @@ void FD3D11DynamicRHI::InitD3DDevice()
 		}
 
 		NV_MULTIGPU_CAPS MultiGPUCaps;
-		VERIFYD3D11RESULT(NvAPI_D3D11_MultiGPU_GetCaps(&MultiGPUCaps));
-		// Enable VR-SLI driver layer, before device is created
-		// Note this should eventually be a render property, since it is selecting an explicit MGPU model.
-		VERIFYD3D11RESULT(NvAPI_D3D11_MultiGPU_Init(true));
+#if PLATFORM_DESKTOP
+		if (IsRHIDeviceNVIDIA())
+		{
+			VERIFYD3D11RESULT(NvAPI_D3D11_MultiGPU_GetCaps(&MultiGPUCaps));
+			// Enable VR-SLI driver layer, before device is created
+			// Note this should eventually be a render property, since it is selecting an explicit MGPU model.
+			VERIFYD3D11RESULT(NvAPI_D3D11_MultiGPU_Init(true));
+		}
+#endif
 
 		D3D_FEATURE_LEVEL ActualFeatureLevel = (D3D_FEATURE_LEVEL)0;
 
