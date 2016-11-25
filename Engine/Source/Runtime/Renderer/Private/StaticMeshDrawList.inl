@@ -616,7 +616,7 @@ void TStaticMeshDrawList<DrawingPolicyType>::DrawVisibleParallelInternal(
 								{
 									++Count;
 								}
-								else if (!bIsInstancedStereo)
+								else if (!bIsInstancedStereo && !bIsSinglePassStereo)
 								{
 									Count += CountBits((*BatchVisibilityArray)[Element.Mesh->Id]);
 								}
