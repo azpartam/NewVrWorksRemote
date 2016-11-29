@@ -621,8 +621,9 @@ void FD3D11DynamicRHI::InitD3DDevice()
 		{
 			check(!"Internal error, EnumAdapters() failed but before it worked")
 		}
-
+		
 		NV_MULTIGPU_CAPS MultiGPUCaps;
+		ZeroMemory(&MultiGPUCaps, sizeof(MultiGPUCaps));
 #if PLATFORM_DESKTOP
 		if (IsRHIDeviceNVIDIA())
 		{
