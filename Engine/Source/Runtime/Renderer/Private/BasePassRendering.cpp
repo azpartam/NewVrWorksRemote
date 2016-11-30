@@ -650,8 +650,10 @@ void GetUniformBasePassShaders(
 	const FMeshMaterialShaderMap* MaterialMeshShaderMap = Material.GetRenderingThreadShaderMap()->GetMeshShaderMap(VertexFactoryType);
 	static const auto CVar = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("vr.MultiRes"));
 	static const bool bMultiResShaders = CVar->GetValueOnAnyThread() != 0;
+	static const auto CVarSPS = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("vr.SinglePassStereo"));
+	static const bool bSPSShaders = CVarSPS->GetValueOnAnyThread() != 0;
 	const bool bNeedsMultiRes = RHISupportsFastGeometryShaders(GShaderPlatformForFeatureLevel[Material.GetFeatureLevel()]) &&
-								bMultiResShaders &&
+								(bMultiResShaders || bSPSShaders) &&
 								MaterialMeshShaderMap->HasShader(&TBasePassFastGS<TUniformLightMapPolicy<Policy> >::StaticType);
 	if (bNeedsMultiRes)
 	{

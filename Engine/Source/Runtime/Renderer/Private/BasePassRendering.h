@@ -460,9 +460,11 @@ public:
 	{
 		static const auto CVar = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("vr.MultiRes"));
 		static const bool bMultiResShaders = CVar->GetValueOnAnyThread() != 0;
+		static const auto CVarSPS = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("vr.SinglePassStereo"));
+		static const bool bSPSShaders = CVarSPS->GetValueOnAnyThread() != 0;
 
 		// Re-use vertex shader gating
-		return IsFeatureLevelSupported(Platform, ERHIFeatureLevel::SM5) && TBasePassVS<LightMapPolicyType, false>::ShouldCache(Platform, Material, VertexFactoryType) && RHISupportsFastGeometryShaders(Platform) && bMultiResShaders;
+		return IsFeatureLevelSupported(Platform, ERHIFeatureLevel::SM5) && TBasePassVS<LightMapPolicyType, false>::ShouldCache(Platform, Material, VertexFactoryType) && RHISupportsFastGeometryShaders(Platform) && (bMultiResShaders || bSPSShaders);
 	}
 
 	static void ModifyCompilationEnvironment(EShaderPlatform Platform, const FMaterial* Material, FShaderCompilerEnvironment& OutEnvironment)
@@ -888,7 +890,9 @@ void GetBasePassShaders(
 
 	static const auto CVar = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("vr.MultiRes"));
 	static const bool bMultiResShaders = CVar->GetValueOnAnyThread() != 0;
-	const bool bMultiRes = RHISupportsFastGeometryShaders(GShaderPlatformForFeatureLevel[Material.GetFeatureLevel()]) && bMultiResShaders;
+	static const auto CVarSPS = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("vr.SinglePassStereo"));
+	static const bool bSPSShaders = CVarSPS->GetValueOnAnyThread() != 0;
+	const bool bMultiRes = RHISupportsFastGeometryShaders(GShaderPlatformForFeatureLevel[Material.GetFeatureLevel()]) && (bMultiResShaders || bSPSShaders);
 
 	FastGeometryShader = bMultiRes ? Material.GetShader<TBasePassFastGS<LightMapPolicyType> >(VertexFactoryType) : nullptr;
 
