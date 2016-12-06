@@ -169,12 +169,7 @@ public:
 
 	static bool ShouldCache(EShaderPlatform Platform, const FMaterial* Material, const FVertexFactoryType* VertexFactoryType)
 	{
-		static const auto CVar = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("vr.MultiRes"));
-		static const bool bMultiResShaders = CVar->GetValueOnAnyThread() != 0;
-		static const auto CVarSPS = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("vr.SinglePassStereo"));
-		static const bool bSPSShaders = CVarSPS->GetValueOnAnyThread() != 0;
-
-		return IsFeatureLevelSupported(Platform, ERHIFeatureLevel::SM5) && TDepthOnlyVS<bUsePositionOnlyStream>::ShouldCache(Platform, Material, VertexFactoryType) && RHISupportsFastGeometryShaders(Platform) && (bMultiResShaders || bSPSShaders);
+		return IsFeatureLevelSupported(Platform, ERHIFeatureLevel::SM5) && TDepthOnlyVS<bUsePositionOnlyStream>::ShouldCache(Platform, Material, VertexFactoryType) && RHISupportsFastGeometryShaders(Platform) && IsFastGSNeeded();
 	}
 
 	void SetParameters(FRHICommandList& RHICmdList, const FMaterialRenderProxy* MaterialRenderProxy, const FMaterial& MaterialResource, const FSceneView& View)
@@ -360,12 +355,7 @@ FDepthDrawingPolicy::FDepthDrawingPolicy(
 	}
 
 	// EHartNV ToDo : Need to support shader pipelines?
-	static const auto CVar = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("vr.MultiRes"));
-	static const bool bMultiResShaders = CVar->GetValueOnAnyThread() != 0;
-	static const auto CVarSPS = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("vr.SinglePassStereo"));
-	static const bool bSPSShaders = CVarSPS->GetValueOnAnyThread() != 0;
-
-	const bool bMultiRes = RHISupportsFastGeometryShaders(GShaderPlatformForFeatureLevel[InMaterialResource.GetFeatureLevel()]) && (bMultiResShaders || bSPSShaders);
+	const bool bMultiRes = RHISupportsFastGeometryShaders(GShaderPlatformForFeatureLevel[InMaterialResource.GetFeatureLevel()]) && IsFastGSNeeded();
 	FastGeometryShader = bMultiRes ? InMaterialResource.GetShader<TDepthOnlyFastGS<false> >(InVertexFactory->GetType()) : nullptr;
 }
 
@@ -512,12 +502,7 @@ FPositionOnlyDepthDrawingPolicy::FPositionOnlyDepthDrawingPolicy(
 		: InMaterialResource.GetShader<TDepthOnlyVS<true> >(InVertexFactory->GetType());
 	bUsePositionOnlyVS = true;
 
-	static const auto CVar = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("vr.MultiRes"));
-	static const bool bMultiResShaders = CVar->GetValueOnAnyThread() != 0;
-	static const auto CVarSPS = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("vr.SinglePassStereo"));
-	static const bool bSPSShaders = CVarSPS->GetValueOnAnyThread() != 0;
-
-	const bool bMultiRes = RHISupportsFastGeometryShaders(GShaderPlatformForFeatureLevel[InMaterialResource.GetFeatureLevel()]) && (bMultiResShaders || bSPSShaders);
+	const bool bMultiRes = RHISupportsFastGeometryShaders(GShaderPlatformForFeatureLevel[InMaterialResource.GetFeatureLevel()]) && IsFastGSNeeded();
 	FastGeometryShader = bMultiRes ? InMaterialResource.GetShader<TDepthOnlyFastGS<true> >(InVertexFactory->GetType()) : nullptr;
 }
 

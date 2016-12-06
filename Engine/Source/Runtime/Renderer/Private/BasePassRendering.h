@@ -458,13 +458,8 @@ protected:
 public:
 	static bool ShouldCache(EShaderPlatform Platform, const FMaterial* Material, const FVertexFactoryType* VertexFactoryType)
 	{
-		static const auto CVar = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("vr.MultiRes"));
-		static const bool bMultiResShaders = CVar->GetValueOnAnyThread() != 0;
-		static const auto CVarSPS = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("vr.SinglePassStereo"));
-		static const bool bSPSShaders = CVarSPS->GetValueOnAnyThread() != 0;
-
 		// Re-use vertex shader gating
-		return IsFeatureLevelSupported(Platform, ERHIFeatureLevel::SM5) && TBasePassVS<LightMapPolicyType, false>::ShouldCache(Platform, Material, VertexFactoryType) && RHISupportsFastGeometryShaders(Platform) && (bMultiResShaders || bSPSShaders);
+		return IsFeatureLevelSupported(Platform, ERHIFeatureLevel::SM5) && TBasePassVS<LightMapPolicyType, false>::ShouldCache(Platform, Material, VertexFactoryType) && RHISupportsFastGeometryShaders(Platform) && IsFastGSNeeded();
 	}
 
 	static void ModifyCompilationEnvironment(EShaderPlatform Platform, const FMaterial* Material, FShaderCompilerEnvironment& OutEnvironment)
@@ -887,12 +882,7 @@ void GetBasePassShaders(
 		HullShader = Material.GetShader<TBasePassHS<LightMapPolicyType> >(VertexFactoryType);
 		DomainShader = Material.GetShader<TBasePassDS<LightMapPolicyType> >(VertexFactoryType);
 	}
-
-	static const auto CVar = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("vr.MultiRes"));
-	static const bool bMultiResShaders = CVar->GetValueOnAnyThread() != 0;
-	static const auto CVarSPS = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("vr.SinglePassStereo"));
-	static const bool bSPSShaders = CVarSPS->GetValueOnAnyThread() != 0;
-	const bool bMultiRes = RHISupportsFastGeometryShaders(GShaderPlatformForFeatureLevel[Material.GetFeatureLevel()]) && (bMultiResShaders || bSPSShaders);
+	const bool bMultiRes = RHISupportsFastGeometryShaders(GShaderPlatformForFeatureLevel[Material.GetFeatureLevel()]) && IsFastGSNeeded();
 
 	FastGeometryShader = bMultiRes ? Material.GetShader<TBasePassFastGS<LightMapPolicyType> >(VertexFactoryType) : nullptr;
 

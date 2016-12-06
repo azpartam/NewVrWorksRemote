@@ -700,9 +700,7 @@ void FProjectedShadowInfo::RenderProjection(FRHICommandListImmediate& RHICmdList
 
 			// Find the projection shaders.
 			TShaderMapRef<FShadowProjectionNoTransformVS> VertexShaderNoTransform(View->ShaderMap);
-			static const auto CVar = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("vr.MultiRes"));
-			static const bool bMultiResShaders = CVar->GetValueOnAnyThread() != 0;
-			const bool bMultiRes = RHISupportsFastGeometryShaders(GShaderPlatformForFeatureLevel[View->GetFeatureLevel()]) && bMultiResShaders;
+			const bool bMultiRes = RHISupportsFastGeometryShaders(GShaderPlatformForFeatureLevel[View->GetFeatureLevel()]) && IsFastGSNeeded();
 
 			if (View->bVRProjectEnabled && bMultiRes)
 			{
@@ -778,9 +776,7 @@ void FProjectedShadowInfo::RenderProjection(FRHICommandListImmediate& RHICmdList
 		// Find the projection shaders.
 		TShaderMapRef<FShadowProjectionVS> VertexShader(View->ShaderMap);
 
-		static const auto CVar = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("vr.MultiRes"));
-		static const bool bMultiResShaders = CVar->GetValueOnAnyThread() != 0;
-		const bool bMultiRes = RHISupportsFastGeometryShaders(GShaderPlatformForFeatureLevel[View->GetFeatureLevel()]) && bMultiResShaders;
+		const bool bMultiRes = RHISupportsFastGeometryShaders(GShaderPlatformForFeatureLevel[View->GetFeatureLevel()]) && IsFastGSNeeded();
 
 		// Cache the bound shader state
 		if (View->bVRProjectEnabled && bMultiRes)

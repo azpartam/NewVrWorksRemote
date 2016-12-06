@@ -833,3 +833,15 @@ void FLensMatchedShading::CalculateRemapCBData(
 	RefCBData->BoundingRectSizeInv.X = 1.0f / float(Viewports->BoundingRect.Width());
 	RefCBData->BoundingRectSizeInv.Y = 1.0f / float(Viewports->BoundingRect.Height());
 }
+
+bool IsFastGSNeeded()
+{
+	static const auto CVar = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("vr.MultiRes"));
+	static const bool bMultiResShaders = CVar->GetValueOnAnyThread() != 0;
+	static const auto CVarSPS = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("vr.SinglePassStereo"));
+	static const bool bSPSShaders = CVarSPS->GetValueOnAnyThread() != 0;
+	static const auto CVarLMS = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("vr.LensMatchedShading"));
+	static const bool bLMSShaders = CVarLMS->GetValueOnAnyThread() != 0;
+	const bool bFastGS = (bMultiResShaders || bSPSShaders || bLMSShaders);
+	return bFastGS;
+}
