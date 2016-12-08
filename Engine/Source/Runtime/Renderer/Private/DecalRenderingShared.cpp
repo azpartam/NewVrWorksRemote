@@ -94,10 +94,7 @@ class FDeferredDecalFastGS : public FGlobalShader
 public:
 	static bool ShouldCache(EShaderPlatform Platform)
 	{
-		static const auto CVar = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("vr.MultiRes"));
-		static const bool bMultiResShaders = CVar->GetValueOnAnyThread() != 0;
-
-		return IsFeatureLevelSupported(Platform, ERHIFeatureLevel::SM5) && RHISupportsFastGeometryShaders(Platform) && bMultiResShaders;
+		return IsFeatureLevelSupported(Platform, ERHIFeatureLevel::SM5) && RHISupportsFastGeometryShaders(Platform) && IsFastGSNeeded();
 	}
 
 	FDeferredDecalFastGS() {}
@@ -336,7 +333,7 @@ void FDecalRendering::SetShader(FRHICommandList& RHICmdList, const FViewInfo& Vi
 	const FMaterialShaderMap* MaterialShaderMap = DecalData.MaterialResource->GetRenderingThreadShaderMap();
 	auto PixelShader = MaterialShaderMap->GetShader<FDeferredDecalPS>();
 	TShaderMapRef<FDeferredDecalVS> VertexShader(View.ShaderMap);
-	TShaderMapRef<FDeferredDecalFastGS> FastGeometryShader(View.ShaderMap);
+	TOptionalShaderMapRef<FDeferredDecalFastGS> FastGeometryShader(View.ShaderMap);
 
 	const EDebugViewShaderMode DebugViewShaderMode = View.Family->GetDebugViewShaderMode();
 	if (DebugViewShaderMode != DVSM_None)
@@ -403,7 +400,7 @@ void FDecalRendering::SetShader(FRHICommandList& RHICmdList, const FViewInfo& Vi
 void FDecalRendering::SetVertexShaderOnly(FRHICommandList& RHICmdList, const FViewInfo& View, const FMatrix& FrustumComponentToClip)
 {
 	TShaderMapRef<FDeferredDecalVS> VertexShader(View.ShaderMap);
-	TShaderMapRef<FDeferredDecalFastGS> FastGeometryShader(View.ShaderMap);
+	TOptionalShaderMapRef<FDeferredDecalFastGS> FastGeometryShader(View.ShaderMap);
 
 	if (View.bVRProjectEnabled)
 	{

@@ -923,7 +923,7 @@ template <uint32 Quality, bool bVRProjectEnabled>
 static void SetPointLightShaderTemplMultiRes(FRHICommandList& RHICmdList, int32 ViewIndex, const FViewInfo& View, const FProjectedShadowInfo* ShadowInfo)
 {
 	TShaderMapRef<FShadowProjectionVS> VertexShader(View.ShaderMap);
-	TShaderMapRef<FShadowProjectionMultiResGS> MultiResGS(View.ShaderMap);
+	TOptionalShaderMapRef<FShadowProjectionMultiResGS> MultiResGS(View.ShaderMap);
 	TShaderMapRef<TOnePassPointShadowProjectionPS<Quality> > PixelShader(View.ShaderMap);
 
 	static FGlobalBoundShaderState BoundShaderState;
