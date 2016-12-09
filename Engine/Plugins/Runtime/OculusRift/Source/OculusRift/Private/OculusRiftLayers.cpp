@@ -190,7 +190,7 @@ void FLayerManager::PreSubmitUpdate_RenderThread(FRHICommandListImmediate& RHICm
 
 				if (bLensMatchedShadeEnabled)
 				{
-					static const auto CVarLensMatchedShadingUnwarpScale = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("vr.LensMatchedShadingUnwarpScale"));
+					static const auto CVarLensMatchedShadingUnwarpScale = IConsoleManager::Get().FindTConsoleVariableDataFloat(TEXT("vr.LensMatchedShadingUnwarpScale"));
 					float Scale = CVarLensMatchedShadingUnwarpScale->GetValueOnRenderThread();
 
 					EyeLayer.EyeFov.Viewport[0] = ToOVRRecti(FrameSettings->EyeRenderViewport[0].Scale(Scale));

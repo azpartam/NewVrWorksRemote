@@ -1901,7 +1901,7 @@ void FSceneView::EndFinalPostprocessSettings(const FSceneViewInitOptions& ViewIn
 			else if (ViewInitOptions.ViewFamily)
 			{
 				uint32 LastViewIndex = ViewInitOptions.ViewFamily->Views.Num() - 2;
-				auto& LastView = ViewInitOptions.ViewFamily->Views[LastViewIndex]->ViewRect;
+				auto& LastView = ViewInitOptions.ViewFamily->Views[LastViewIndex]->NonVRProjectViewRect;
 				int32 X = LastView.Max.X;
 				int32 Y = ScreenPercentageAffectedViewRect.Min.Y;
 				InScaledViewRect = FIntRect(X, Y, X + ScreenPercentageAffectedViewRect.Width(), Y + ScreenPercentageAffectedViewRect.Height());

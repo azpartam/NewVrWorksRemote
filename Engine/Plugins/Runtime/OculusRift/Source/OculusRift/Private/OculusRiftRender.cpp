@@ -491,7 +491,7 @@ void FOculusRiftHMD::CalculateRenderTargetSize(const FViewport& Viewport, uint32
 	if (bLensMatchedShadeEnabled)
 	{
 		// Enlarge the buffer to keep the upsampled view center sharp
-		static const auto CVarLensMatchedShadingUnwarpScale = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("vr.LensMatchedShadingUnwarpScale"));
+		static const auto CVarLensMatchedShadingUnwarpScale = IConsoleManager::Get().FindTConsoleVariableDataFloat(TEXT("vr.LensMatchedShadingUnwarpScale"));
 		float Scale = CVarLensMatchedShadingUnwarpScale->GetValueOnGameThread();
 
 		InOutSizeX *= Scale;
