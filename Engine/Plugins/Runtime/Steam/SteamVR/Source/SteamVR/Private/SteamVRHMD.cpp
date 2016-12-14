@@ -1153,7 +1153,7 @@ void FSteamVRHMD::CalculateRenderTargetSize(const class FViewport& Viewport, uin
 
 			value *= LensMatchedShadeResScale;
 
-			static const auto CVarLensMatchedShadingUnwarpScale = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("vr.LensMatchedShadingUnwarpScale"));
+			static const auto CVarLensMatchedShadingUnwarpScale = IConsoleManager::Get().FindTConsoleVariableDataFloat(TEXT("vr.LensMatchedShadingUnwarpScale"));
 			float Scale = CVarLensMatchedShadingUnwarpScale->GetValueOnGameThread();
 
 			value *= Scale; // Enlarge the buffer to keep the upsampled view center sharp
