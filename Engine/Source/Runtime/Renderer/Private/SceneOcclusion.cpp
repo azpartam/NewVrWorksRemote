@@ -64,44 +64,6 @@ int32 FOcclusionQueryHelpers::GetNumBufferedFrames()
 IMPLEMENT_SHADER_TYPE(,FOcclusionQueryVS,TEXT("OcclusionQueryVertexShader"),TEXT("Main"),SF_Vertex);
 IMPLEMENT_SHADER_TYPE(,FOcclusionQueryMultiResGS, TEXT("OcclusionQueryVertexShader"), TEXT("VRProjectFastGS"), SF_Geometry);
 
-FRenderQueryPool::~FRenderQueryPool()
-{
-	Release();
-}
-
-void FRenderQueryPool::Release()
-{
-	Queries.Empty();
-}
-
-FRenderQueryRHIRef FRenderQueryPool::AllocateQuery()
-{
-	// Are we out of available render queries?
-	if ( Queries.Num() == 0 )
-	{
-		// Create a new render query.
-		return RHICreateRenderQuery(QueryType);
-	}
-
-	return Queries.Pop(/*bAllowShrinking=*/ false);
-}
-
-void FRenderQueryPool::ReleaseQuery(FRenderQueryRHIRef &Query)
-{
-	if ( IsValidRef(Query) )
-	{
-		// Is no one else keeping a refcount to the query?
-		if ( Query.GetRefCount() == 1 )
-		{
-			// Return it to the pool.
-			Queries.Add( Query );
-		}
-
-		// De-ref without deleting.
-		Query = NULL;
-	}
-}
-
 FGlobalBoundShaderState FDeferredShadingSceneRenderer::OcclusionTestBoundShaderState;
 FGlobalBoundShaderState FDeferredShadingSceneRenderer::OcclusionTestMultiResBoundShaderState;
 
@@ -138,10 +100,10 @@ const uint8* FSceneViewState::GetPrecomputedVisibilityData(FViewInfo& View, cons
 
 		// Calculate the bucket that ViewOrigin falls into
 		// Cells are hashed into buckets to reduce search time
-		const float FloatOffsetX = (View.ViewMatrices.ViewOrigin.X - Handler.PrecomputedVisibilityCellBucketOriginXY.X) / Handler.PrecomputedVisibilityCellSizeXY;
+		const float FloatOffsetX = (View.ViewMatrices.GetViewOrigin().X - Handler.PrecomputedVisibilityCellBucketOriginXY.X) / Handler.PrecomputedVisibilityCellSizeXY;
 		// FMath::TruncToInt rounds toward 0, we want to always round down
 		const int32 BucketIndexX = FMath::Abs((FMath::TruncToInt(FloatOffsetX) - (FloatOffsetX < 0.0f ? 1 : 0)) / Handler.PrecomputedVisibilityCellBucketSizeXY % Handler.PrecomputedVisibilityNumCellBuckets);
-		const float FloatOffsetY = (View.ViewMatrices.ViewOrigin.Y -Handler.PrecomputedVisibilityCellBucketOriginXY.Y) / Handler.PrecomputedVisibilityCellSizeXY;
+		const float FloatOffsetY = (View.ViewMatrices.GetViewOrigin().Y -Handler.PrecomputedVisibilityCellBucketOriginXY.Y) / Handler.PrecomputedVisibilityCellSizeXY;
 		const int32 BucketIndexY = FMath::Abs((FMath::TruncToInt(FloatOffsetY) - (FloatOffsetY < 0.0f ? 1 : 0)) / Handler.PrecomputedVisibilityCellBucketSizeXY % Handler.PrecomputedVisibilityNumCellBuckets);
 		const int32 PrecomputedVisibilityBucketIndex = BucketIndexY * Handler.PrecomputedVisibilityCellBucketSizeXY + BucketIndexX;
 
@@ -153,7 +115,7 @@ const uint8* FSceneViewState::GetPrecomputedVisibilityData(FViewInfo& View, cons
 			// Construct the cell's bounds
 			const FBox CellBounds(CurrentCell.Min, CurrentCell.Min + FVector(Handler.PrecomputedVisibilityCellSizeXY, Handler.PrecomputedVisibilityCellSizeXY, Handler.PrecomputedVisibilityCellSizeZ));
 			// Check if ViewOrigin is inside the current cell
-			if (CellBounds.IsInside(View.ViewMatrices.ViewOrigin))
+			if (CellBounds.IsInside(View.ViewMatrices.GetViewOrigin()))
 			{
 				// Reuse a cached decompressed chunk if possible
 				if (CachedVisibilityChunk
@@ -425,12 +387,12 @@ static void IssueProjectedShadowOcclusionQuery(FRHICommandListImmediate& RHICmdL
 
 	// The shadow transforms and view transforms are relative to different origins, so the world coordinates need to
 	// be translated.
-	const FVector4 PreShadowToPreViewTranslation(View.ViewMatrices.PreViewTranslation - ProjectedShadowInfo.PreShadowTranslation,0);
+	const FVector4 PreShadowToPreViewTranslation(View.ViewMatrices.GetPreViewTranslation() - ProjectedShadowInfo.PreShadowTranslation,0);
 
 	// If the shadow frustum is farther from the view origin than the near clipping plane,
 	// it can't intersect the near clipping plane.
 	const bool bIntersectsNearClippingPlane = ProjectedShadowInfo.ReceiverFrustum.IntersectSphere(
-		View.ViewMatrices.ViewOrigin + ProjectedShadowInfo.PreShadowTranslation,
+		View.ViewMatrices.GetViewOrigin() + ProjectedShadowInfo.PreShadowTranslation,
 		View.NearClippingDistance * FMath::Sqrt(3.0f)
 		);
 
@@ -505,7 +467,7 @@ static void IssuePlanarReflectionOcclusionQuery(FRHICommandListImmediate& RHICmd
 		{
 			// Transform parallel near plane
 			static_assert((int32)ERHIZBuffer::IsInverted != 0, "Check equation for culling!");
-			bAllowBoundsTest = View.WorldToScreen(OcclusionBounds.Origin).Z - View.ViewMatrices.ProjMatrix.M[2][2] * OcclusionBounds.SphereRadius < 1;
+			bAllowBoundsTest = View.WorldToScreen(OcclusionBounds.Origin).Z - View.ViewMatrices.GetProjectionMatrix().M[2][2] * OcclusionBounds.SphereRadius < 1;
 		}
 		else
 		{
@@ -534,8 +496,8 @@ static void IssuePlanarReflectionOcclusionQuery(FRHICommandListImmediate& RHICmd
 		float* Vertices = (float*)VerticesPtr;
 		uint16* Indices = (uint16*)IndicesPtr;
 
-		const FVector PrimitiveBoxMin = SceneProxy->WorldBounds.Min + View.ViewMatrices.PreViewTranslation;
-		const FVector PrimitiveBoxMax = SceneProxy->WorldBounds.Max + View.ViewMatrices.PreViewTranslation;
+		const FVector PrimitiveBoxMin = SceneProxy->WorldBounds.Min + View.ViewMatrices.GetPreViewTranslation();
+		const FVector PrimitiveBoxMax = SceneProxy->WorldBounds.Max + View.ViewMatrices.GetPreViewTranslation();
 		Vertices[0] = PrimitiveBoxMin.X; Vertices[1] = PrimitiveBoxMin.Y; Vertices[2] = PrimitiveBoxMin.Z;
 		Vertices[3] = PrimitiveBoxMin.X; Vertices[4] = PrimitiveBoxMin.Y; Vertices[5] = PrimitiveBoxMax.Z;
 		Vertices[6] = PrimitiveBoxMin.X; Vertices[7] = PrimitiveBoxMax.Y; Vertices[8] = PrimitiveBoxMin.Z;
@@ -1271,7 +1233,7 @@ void FDeferredShadingSceneRenderer::BeginOcclusionTests(FRHICommandListImmediate
 								// Query one pass point light shadows separately because they don't have a shadow frustum, they have a bounding sphere instead.
 								FSphere LightBounds = LightProxy.GetBoundingSphere();
 
-								const bool bCameraInsideLightGeometry = ((FVector)View.ViewMatrices.ViewOrigin - LightBounds.Center).SizeSquared() < FMath::Square(LightBounds.W * 1.05f + View.NearClippingDistance * 2.0f);
+								const bool bCameraInsideLightGeometry = ((FVector)View.ViewMatrices.GetViewOrigin() - LightBounds.Center).SizeSquared() < FMath::Square(LightBounds.W * 1.05f + View.NearClippingDistance * 2.0f);
 								if (!bCameraInsideLightGeometry)
 								{
 									const FRenderQueryRHIRef ShadowOcclusionQuery = ViewState->OcclusionQueryPool.AllocateQuery();

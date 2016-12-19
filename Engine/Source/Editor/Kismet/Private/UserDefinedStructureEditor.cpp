@@ -283,7 +283,8 @@ void FUserDefinedStructureEditor::InitEditor(const EToolkitMode::Type Mode, cons
 	const TSharedRef<FTabManager::FLayout> StandaloneDefaultLayout = FTabManager::NewLayout( "Standalone_UserDefinedStructureEditor_Layout_v1" )
 	->AddArea
 	(
-		FTabManager::NewPrimaryArea() ->SetOrientation(Orient_Vertical)
+		FTabManager::NewPrimaryArea() 
+		->SetOrientation(Orient_Vertical)
 		->Split
 		(
 			FTabManager::NewStack()
@@ -297,6 +298,7 @@ void FUserDefinedStructureEditor::InitEditor(const EToolkitMode::Type Mode, cons
 			->Split
 			(
 				FTabManager::NewStack()
+				->SetHideTabWell( true )
 				->AddTab( MemberVariablesTabId, ETabState::OpenedTab )
 			)
 		)
@@ -360,7 +362,10 @@ TSharedRef<SDockTab> FUserDefinedStructureEditor::SpawnStructureTab(const FSpawn
 		EditedStruct = Cast<UUserDefinedStruct>(EditingObjs[ 0 ]);
 	}
 
-	auto Box = SNew(SHorizontalBox);
+	TSharedRef<SSplitter> Splitter = SNew(SSplitter)
+		.Orientation(Orient_Vertical)
+		.PhysicalSplitterHandleSize(10.0f)
+		.ResizeMode(ESplitterResizeMode::Fixed);
 
 	{
 		// Create a property view
@@ -371,8 +376,8 @@ TSharedRef<SDockTab> FUserDefinedStructureEditor::SpawnStructureTab(const FSpawn
 		FOnGetDetailCustomizationInstance LayoutStructDetails = FOnGetDetailCustomizationInstance::CreateStatic(&FUserDefinedStructureDetails::MakeInstance);
 		PropertyView->RegisterInstancedCustomPropertyLayout(UUserDefinedStruct::StaticClass(), LayoutStructDetails);
 		PropertyView->SetObject(EditedStruct);
-		Box->AddSlot()
-		.VAlign(EVerticalAlignment::VAlign_Top)
+		Splitter->AddSlot()
+		.Value(0.25f)
 		[
 			PropertyView.ToSharedRef()
 		];
@@ -388,9 +393,7 @@ TSharedRef<SDockTab> FUserDefinedStructureEditor::SpawnStructureTab(const FSpawn
 		auto DefaultValueWidget = DefaultValueView->GetWidget();
 		if (DefaultValueWidget.IsValid())
 		{
-			Box->AddSlot()
-			.VAlign(EVerticalAlignment::VAlign_Top)
-			.Padding(2.0f, 0.0f, 0.0f, 0.0f)
+			Splitter->AddSlot()
 			[
 				DefaultValueWidget.ToSharedRef()
 			];
@@ -402,7 +405,7 @@ TSharedRef<SDockTab> FUserDefinedStructureEditor::SpawnStructureTab(const FSpawn
 		.Label( LOCTEXT("UserDefinedStructureEditor", "Structure") )
 		.TabColorScale( GetTabColorScale() )
 		[
-			Box
+			Splitter
 		];
 }
 

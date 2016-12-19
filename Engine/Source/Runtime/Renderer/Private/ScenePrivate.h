@@ -4,8 +4,7 @@
 	ScenePrivate.h: Private scene manager definitions.
 =============================================================================*/
 
-#ifndef __SCENEPRIVATE_H__
-#define __SCENEPRIVATE_H__
+#pragma once
 
 class SceneRenderingAllocator;
 class USceneCaptureComponent;
@@ -234,31 +233,6 @@ struct FPrimitiveOcclusionHistoryKeyFuncs : BaseKeyFuncs<FPrimitiveOcclusionHist
 	}
 };
 
-
-/**
- * A pool of render (e.g. occlusion/timer) queries which are allocated individually, and returned to the pool as a group.
- */
-class FRenderQueryPool
-{
-public:
-	FRenderQueryPool(ERenderQueryType InQueryType) :QueryType(InQueryType) { }
-	virtual ~FRenderQueryPool();
-
-	/** Releases all the render queries in the pool. */
-	void Release();
-
-	/** Allocates an render query from the pool. */
-	FRenderQueryRHIRef AllocateQuery();
-
-	/** De-reference an render query, returning it to the pool instead of deleting it when the refcount reaches 0. */
-	void ReleaseQuery(FRenderQueryRHIRef &Query);
-
-private:
-	/** Container for available render queries. */
-	TArray<FRenderQueryRHIRef> Queries;
-
-	ERenderQueryType QueryType;
-};
 
 class FIndividualOcclusionHistory
 {
@@ -1612,6 +1586,7 @@ public:
 	FLODSceneTree(FScene* InScene)
 		: Scene(InScene)
 		, TemporalLODSyncTime(0.0f)
+		, LastHLODDistanceScale(-1.0f)
 		, UpdateCount(0)
 	{
 		PrimitiveFadingLODMap.Empty();
@@ -1681,6 +1656,12 @@ public:
 	bool IsActive() const { return (SceneNodes.Num() > 0); }
 
 private:
+
+	void ResetHLODDistanceScaleApplication()
+	{
+		LastHLODDistanceScale = -1.0f;
+	}
+
 	/** Scene this Tree belong to */
 	FScene* Scene;
 
@@ -1691,6 +1672,7 @@ private:
 	TBitArray<> PrimitiveFadingLODMap;
 	TBitArray<>	PrimitiveFadingOutLODMap;
 	float		TemporalLODSyncTime;
+	float		LastHLODDistanceScale;
 
 	/**  Update Count. This is used to skip Child node that has been updated */
 	int32 UpdateCount;
@@ -1755,6 +1737,7 @@ public:
 		bool bEnableStationarySkylight;
 		bool bEnableAtmosphericFog;
 		bool bEnableLowQualityLightmaps;
+		bool bEnableVertexFoggingForOpaque;
 	};
 
 	/** An optional world associated with the scene. */
@@ -1808,6 +1791,10 @@ public:
 	template<typename LightMapPolicyType>
 	TStaticMeshDrawList<TMobileBasePassDrawingPolicy<LightMapPolicyType, 0> >& GetMobileBasePassCSMDrawList(EBasePassDrawListType DrawType);
 
+#if WITH_EDITOR
+	/** Draw list to use for selected static meshes in the editor only */
+	TStaticMeshDrawList<FEditorSelectionDrawingPolicy> EditorSelectionDrawList;
+#endif
 	/**
 	 * The following arrays are densely packed primitive data needed by various
 	 * rendering passes. PrimitiveSceneInfo->PackedIndex maintains the index
@@ -1835,9 +1822,6 @@ public:
 	 * Lights in this array cannot be in the Lights array.  They also are not fully set up, as AddLightSceneInfo_RenderThread is not called for them.
 	 */
 	TSparseArray<FLightSceneInfoCompact> InvisibleLights;
-
-	/** Map from light id to the cached shadowmap data for that light. */
-	TMap<int32, FCachedShadowMapData> CachedShadowMaps;
 
 	/** The mobile quality level for which static draw lists have been built. */
 	bool bStaticDrawListsMobileHDR;
@@ -1893,6 +1877,11 @@ public:
 
 	/** Distance field object scene data. */
 	FDistanceFieldSceneData DistanceFieldSceneData;
+	
+	/** Map from light id to the cached shadowmap data for that light. */
+	TMap<int32, FCachedShadowMapData> CachedShadowMaps;
+
+	TRefCountPtr<IPooledRenderTarget> PreShadowCacheDepthZ;
 
 	/** Preshadows that are currently cached in the PreshadowCache render target. */
 	TArray<TRefCountPtr<FProjectedShadowInfo> > CachedPreshadows;
@@ -1988,7 +1977,7 @@ public:
 	virtual void UpdateSceneCaptureContents(class USceneCaptureComponentCube* CaptureComponent) override;
 	virtual void UpdatePlanarReflectionContents(UPlanarReflectionComponent* CaptureComponent, FSceneRenderer& MainSceneRenderer) override;
 	virtual void AllocateReflectionCaptures(const TArray<UReflectionCaptureComponent*>& NewCaptures) override;
-	virtual void UpdateSkyCaptureContents(const USkyLightComponent* CaptureComponent, bool bCaptureEmissiveOnly, UTextureCube* SourceCubemap, FTexture* OutProcessedTexture, FSHVectorRGB3& OutIrradianceEnvironmentMap) override; 
+	virtual void UpdateSkyCaptureContents(const USkyLightComponent* CaptureComponent, bool bCaptureEmissiveOnly, UTextureCube* SourceCubemap, FTexture* OutProcessedTexture, float& OutAverageBrightness, FSHVectorRGB3& OutIrradianceEnvironmentMap) override; 
 	virtual void PreCullStaticMeshes(const TArray<UStaticMeshComponent*>& ComponentsToPreCull, const TArray<TArray<FPlane> >& CullVolumes) override;
 	virtual void AddPrecomputedLightVolume(const class FPrecomputedLightVolume* Volume) override;
 	virtual void RemovePrecomputedLightVolume(const class FPrecomputedLightVolume* Volume) override;
@@ -2109,7 +2098,7 @@ public:
 
 	virtual void ApplyWorldOffset(FVector InOffset) override;
 
-	virtual void OnLevelAddedToWorld(FName InLevelName) override;
+	virtual void OnLevelAddedToWorld(FName InLevelName, UWorld* InWorld, bool bIsLightingScenario) override;
 
 	virtual bool HasAnyLights() const override 
 	{ 
@@ -2256,4 +2245,3 @@ private:
 
 #include "BasePassRendering.inl"
 
-#endif // __SCENEPRIVATE_H__

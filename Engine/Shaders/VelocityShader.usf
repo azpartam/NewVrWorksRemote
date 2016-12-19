@@ -325,9 +325,10 @@ void MainPixelShader(
 #if SINGLE_PASS_STEREO
 	in uint InViewportIndex : SV_ViewportArrayIndex,
 #endif
-	in float4 SvPosition : SV_Position
-	OPTIONAL_IsFrontFace,
-	out float4 OutColor : SV_Target0
+	in INPUT_POSITION_QUALIFIERS float4 SvPosition : SV_Position
+	OPTIONAL_IsFrontFace
+	OPTIONAL_OutDepthConservative
+	,out float4 OutColor : SV_Target0
 	)
 {
 #if INSTANCED_STEREO && SINGLE_PASS_STEREO
@@ -347,7 +348,11 @@ void MainPixelShader(
 	FMaterialPixelParameters MaterialParameters = GetMaterialPixelParameters(Input.FactoryInterpolants, SvPosition);
 	FPixelMaterialInputs PixelMaterialInputs;
 	CalcMaterialParameters(MaterialParameters, PixelMaterialInputs, SvPosition, bIsFrontFace);
-	GetMaterialClippingShadowDepth(MaterialParameters, PixelMaterialInputs);
+	GetMaterialClippingVelocity(MaterialParameters, PixelMaterialInputs);
+
+#if OUTPUT_PIXEL_DEPTH_OFFSET
+	ApplyPixelDepthOffsetToMaterialParameters(MaterialParameters, PixelMaterialInputs, OutDepth);
+#endif
 
 	// 2d velocity, includes camera an object motion
 	#if SINGLE_PASS_STEREO

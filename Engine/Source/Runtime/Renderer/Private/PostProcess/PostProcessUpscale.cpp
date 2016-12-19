@@ -109,7 +109,7 @@ public:
 		FGlobalShader::SetParameters(Context.RHICmdList, ShaderRHI, Context.View);
 
 		{
-			const FVector2D FOVPerAxis = Context.View.ViewMatrices.GetHalfFieldOfViewPerAxis();
+			const FVector2D FOVPerAxis = Context.View.ViewMatrices.ComputeHalfFieldOfViewPerAxis();
 			const FVector2D ScreenPosToPaniniFactor = FVector2D(FMath::Tan(FOVPerAxis.X), FMath::Tan(FOVPerAxis.Y));
 			const FVector2D PaniniDirection = FVector2D(1.0f, 0.0f) * ScreenPosToPaniniFactor;
 			const FVector2D PaniniPosition = PaniniProjection(PaniniDirection, InPaniniConfig.D, InPaniniConfig.S);
@@ -353,8 +353,7 @@ void FRCPassPostProcessUpscale::Process(FRenderingCompositePassContext& Context)
 	if (View.StereoPass == eSSP_FULL || View.StereoPass == eSSP_LEFT_EYE)
 	{
 		Context.SetViewportAndCallRHI(ViewportGap > 0.0 ? FullClearRect : DestRect);
-		Context.RHICmdList.Clear(true, FLinearColor::Black, false, 1.0f, false, 0, ExcludeRect);
-	}
+		Context.RHICmdList.ClearColorTexture(DestRenderTarget.TargetableTexture, FLinearColor::Black, ExcludeRect); /*LaviniaADD seems like fc Clear was replaced by ClearColorTexture) ; */	}
 	Context.SetViewportAndCallRHI(DestRect);
 
 	// set the state

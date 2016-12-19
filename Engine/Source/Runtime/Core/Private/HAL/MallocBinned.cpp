@@ -1056,9 +1056,28 @@ bool FMallocBinned::GetAllocationSize(void *Original, SIZE_T &SizeOut)
 	{
 		return false;
 	}
+
 	UPTRINT BasePtr;
 	FPoolInfo* Pool = Private::FindPoolInfo(*this, (UPTRINT)Original, BasePtr);
-	SizeOut = Pool->TableIndex < BinnedOSTableIndex ? MemSizeToPoolTable[Pool->TableIndex]->BlockSize : Pool->GetBytes();
+
+	PTRINT OffsetFromBase = (PTRINT)Original - (PTRINT)BasePtr;
+	check(OffsetFromBase >= 0);
+
+	if (Pool->TableIndex < BinnedOSTableIndex)
+	{
+		FPoolTable* Table = MemSizeToPoolTable[Pool->TableIndex];
+
+		uint32 AlignOffset = OffsetFromBase % Table->BlockSize;
+
+		SizeOut = Table->BlockSize - AlignOffset;
+	}
+	else
+	{
+		// if we padded out the allocation for alignment, and then offset the returned pointer from the actual allocation
+		// we need to adjust for that offset. Pool->GetOsBytes() returns the entire size of the allocation, not just the 
+		// usable part that was returned to the caller
+		SizeOut = Pool->GetOsBytes(PageSize, BinnedOSTableIndex) - OffsetFromBase;
+	}
 	return true;
 }
 

@@ -33,7 +33,6 @@ bool IsInstancedStereo(uint PackedIndex)
 	return (PackedIndex & (1 << 31)) != 0;
 }
 
-#if !COMPILER_HLSLCC
 static ViewState ResolvedView;
 	#if SINGLE_PASS_STEREO
 static ViewState ResolvedViewRight;
@@ -48,14 +47,15 @@ ViewState ResolveView()
 #if INSTANCED_STEREO || SINGLE_PASS_STEREO
 static const float EyeOffsetScale[2] = { -1.0, 1.0 };
 static const float4 EyeClipEdge[2] = { float4(-1.0, 0.0, 0.0, 1.0), float4(1.0, 0.0, 0.0, 1.0) };
-
 #if SINGLE_PASS_STEREO
 static const float SinglePassStereoDepthBias = 0.00011;
 #endif
 
 bool bIsSinglePassStereo;
 bool bIsInstancedStereo;
+#endif
 
+#if INSTANCED_STEREO || MOBILE_MULTI_VIEW
 ViewState ResolveView(uint ViewIndex)
 {
 	if (ViewIndex == 0)

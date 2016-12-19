@@ -27,11 +27,31 @@ namespace UnrealBuildTool
 		public int MinorVersion;
 		public int PatchVersion;
 		public int Changelist;
+		public int CompatibleChangelist;
 		public int IsLicenseeVersion;
 		public string BranchName;
 
 		/// <summary>
-		/// Try to read the Build/Build.version file from disk
+		/// Returns the value which can be used as the compatible changelist. Requires that the regular changelist is also set, and defaults to the 
+		/// regular changelist if a specific compatible changelist is not set.
+		/// </summary>
+		public int EffectiveCompatibleChangelist
+		{
+			get { return (Changelist != 0 && CompatibleChangelist != 0)? CompatibleChangelist : Changelist; }
+		}
+
+		/// <summary>
+		/// Try to read a version file from disk
+		/// </summary>
+		/// <param name="Version">The version information</param>
+		/// <returns>True if the version was read sucessfully, false otherwise</returns>
+		public static bool TryRead(out BuildVersion Version)
+		{
+			return TryRead(GetDefaultFileName(), out Version);
+		}
+
+		/// <summary>
+		/// Try to read a version file from disk
 		/// </summary>
 		/// <param name="Version">The version information</param>
 		/// <returns>True if the version was read sucessfully, false otherwise</returns>
@@ -44,6 +64,15 @@ namespace UnrealBuildTool
 				return false;
 			}
 			return TryParse(Object, out Version);
+		}
+
+		/// <summary>
+		/// Get the default path to the build.version file on disk
+		/// </summary>
+		/// <returns>Path to the Build.version file</returns>
+		public static string GetDefaultFileName()
+		{
+			return FileReference.Combine(UnrealBuildTool.EngineDirectory, "Build", "Build.version").FullName;
 		}
 
 		/// <summary>
@@ -62,6 +91,7 @@ namespace UnrealBuildTool
 			}
 
 			Object.TryGetIntegerField("Changelist", out NewVersion.Changelist);
+			Object.TryGetIntegerField("CompatibleChangelist", out NewVersion.CompatibleChangelist);
 			Object.TryGetIntegerField("IsLicenseeVersion", out NewVersion.IsLicenseeVersion);
 			Object.TryGetStringField("BranchName", out NewVersion.BranchName);
 
@@ -75,12 +105,29 @@ namespace UnrealBuildTool
 		/// <param name="Object">The object to read from</param>
 		/// <param name="Version">The resulting version field</param>
 		/// <returns>True if the build version could be read, false otherwise</returns>
-		public void Write(JsonWriter Writer)
+		public void Write(string FileName)
+		{
+			using (JsonWriter Writer = new JsonWriter(FileName))
+			{
+				Writer.WriteObjectStart();
+				WriteProperties(Writer);
+				Writer.WriteObjectEnd();
+			}
+		}
+
+		/// <summary>
+		/// Exports this object as Json
+		/// </summary>
+		/// <param name="Object">The object to read from</param>
+		/// <param name="Version">The resulting version field</param>
+		/// <returns>True if the build version could be read, false otherwise</returns>
+		public void WriteProperties(JsonWriter Writer)
 		{
 			Writer.WriteValue("MajorVersion", MajorVersion);
 			Writer.WriteValue("MinorVersion", MinorVersion);
 			Writer.WriteValue("PatchVersion", PatchVersion);
 			Writer.WriteValue("Changelist", Changelist);
+			Writer.WriteValue("CompatibleChangelist", CompatibleChangelist);
 			Writer.WriteValue("IsLicenseeVersion", IsLicenseeVersion);
 			Writer.WriteValue("BranchName", BranchName);
 		}

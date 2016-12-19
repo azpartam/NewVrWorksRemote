@@ -181,5 +181,9 @@ void FWindowsCursor::Show( bool bShow )
 void FWindowsCursor::Lock( const RECT* const Bounds )
 {
 	// Lock/Unlock the cursor
-	::ClipCursor( Bounds );
+	::ClipCursor(Bounds);
+}
+
+void FWindowsCursor::UpdateClipping()
+{
 }

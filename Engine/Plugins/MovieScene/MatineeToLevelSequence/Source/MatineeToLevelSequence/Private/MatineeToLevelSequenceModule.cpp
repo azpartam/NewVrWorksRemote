@@ -4,6 +4,8 @@
 #include "ModuleInterface.h"
 #include "NotificationManager.h"
 #include "SNotificationList.h"
+#include "Matinee/InterpTrack.h"
+#include "MatineeToLevelSequenceModule.h"
 
 #define LOCTEXT_NAMESPACE "MatineeToLevelSequence"
 
@@ -13,17 +15,16 @@ DEFINE_LOG_CATEGORY(LogMatineeToLevelSequence);
  * Implements the MatineeToLevelSequence module.
  */
 class FMatineeToLevelSequenceModule
-	: public IModuleInterface
+	: public IMatineeToLevelSequenceModule
 {
 public:
-
 	// IModuleInterface interface
 
 	virtual void StartupModule() override
 	{
 		if (GEditor)
 		{
-			GEditor->OnShouldOpenMatinee().BindStatic(ShouldOpenMatinee);
+			GEditor->OnShouldOpenMatinee().BindRaw(this, &FMatineeToLevelSequenceModule::ShouldOpenMatinee);
 		}
 		
 		RegisterMenuExtensions();
@@ -34,13 +35,38 @@ public:
 		UnregisterMenuExtensions();
 	}
 
+ 	FDelegateHandle RegisterTrackConverterForMatineeClass(TSubclassOf<UInterpTrack> InterpTrackClass, FOnConvertMatineeTrack OnConvertMatineeTrack)
+	{
+		if (ExtendedInterpConverters.Contains(InterpTrackClass))
+		{
+			UE_LOG(LogMatineeToLevelSequence, Warning, TEXT("Track converter already registered for: %s"), InterpTrackClass->GetClass());
+			return FDelegateHandle();
+		}
+
+		return ExtendedInterpConverters.Add(InterpTrackClass, OnConvertMatineeTrack).GetHandle();
+	}
+ 	
+	void UnregisterTrackConverterForMatineeClass(FDelegateHandle RemoveDelegate)
+	{
+		for (auto InterpConverter : ExtendedInterpConverters)
+		{
+			if (InterpConverter.Value.GetHandle() == RemoveDelegate)
+			{
+				ExtendedInterpConverters.Remove(*InterpConverter.Key);
+				return;
+			}
+		}
+
+		UE_LOG(LogMatineeToLevelSequence, Warning, TEXT("Attempted to remove track convert that could not be found"));
+	}
+
 protected:
 
 	/** Register menu extensions for the level editor toolbar. */
 	void RegisterMenuExtensions()
 	{
 		// Register level editor menu extender
-		LevelEditorMenuExtenderDelegate = FLevelEditorModule::FLevelViewportMenuExtender_SelectedActors::CreateStatic(&FMatineeToLevelSequenceModule::ExtendLevelViewportContextMenu);
+		LevelEditorMenuExtenderDelegate = FLevelEditorModule::FLevelViewportMenuExtender_SelectedActors::CreateRaw(this, &FMatineeToLevelSequenceModule::ExtendLevelViewportContextMenu);
 		FLevelEditorModule& LevelEditorModule = FModuleManager::LoadModuleChecked<FLevelEditorModule>(TEXT("LevelEditor"));
 		auto& MenuExtenders = LevelEditorModule.GetAllLevelViewportContextMenuExtenders();
 		MenuExtenders.Add(LevelEditorMenuExtenderDelegate);
@@ -62,7 +88,7 @@ protected:
 		}
 	}
 
-	static TSharedRef<FExtender> ExtendLevelViewportContextMenu(const TSharedRef<FUICommandList> CommandList, const TArray<AActor*> SelectedActors)
+	TSharedRef<FExtender> ExtendLevelViewportContextMenu(const TSharedRef<FUICommandList> CommandList, const TArray<AActor*> SelectedActors)
 	{
 		TSharedRef<FExtender> Extender(new FExtender());
 
@@ -82,13 +108,13 @@ protected:
 				"ActorSelectVisibilityLevels",
 				EExtensionHook::After,
 				nullptr,
-				FMenuExtensionDelegate::CreateStatic(&FMatineeToLevelSequenceModule::CreateLevelViewportContextMenuEntries, ActorsToConvert));
+				FMenuExtensionDelegate::CreateRaw(this, &FMatineeToLevelSequenceModule::CreateLevelViewportContextMenuEntries, ActorsToConvert));
 		}
 
 		return Extender;
 	}
 
-	static void CreateLevelViewportContextMenuEntries(FMenuBuilder& MenuBuilder, TArray<TWeakObjectPtr<AActor> > ActorsToConvert)
+	void CreateLevelViewportContextMenuEntries(FMenuBuilder& MenuBuilder, TArray<TWeakObjectPtr<AActor> > ActorsToConvert)
 	{
 		MenuBuilder.BeginSection("LevelSequence", LOCTEXT("LevelSequenceLevelEditorHeading", "Level Sequence"));
 
@@ -96,7 +122,7 @@ protected:
 			LOCTEXT("MenuExtensionConvertMatineeToLevelSequence", "Convert to Level Sequence"),
 			LOCTEXT("MenuExtensionConvertMatineeToLevelSequence_Tooltip", "Convert to Level Sequence"),
 			FSlateIcon(),
-			FExecuteAction::CreateStatic(&FMatineeToLevelSequenceModule::OnConvertMatineeToLevelSequence, ActorsToConvert),
+			FExecuteAction::CreateRaw(this, &FMatineeToLevelSequenceModule::OnConvertMatineeToLevelSequence, ActorsToConvert),
 			NAME_None,
 			EUserInterfaceActionType::Button);
 
@@ -104,7 +130,7 @@ protected:
 	}
 
 	/** Callback when opening a matinee. Prompts the user whether to convert this matinee to a level sequence actor */
-	static bool ShouldOpenMatinee(AMatineeActor* MatineeActor)
+	bool ShouldOpenMatinee(AMatineeActor* MatineeActor)
 	{
 		//@todo Camera anims aren't supported as level sequence assets yet
 		if (MatineeActor->IsA(AMatineeActorCameraAnim::StaticClass()))
@@ -137,7 +163,7 @@ protected:
 	}
 
 	/** Callback for converting a matinee to a level sequence asset. */
-	static void OnConvertMatineeToLevelSequence(TArray<TWeakObjectPtr<AActor> > ActorsToConvert)
+	void OnConvertMatineeToLevelSequence(TArray<TWeakObjectPtr<AActor> > ActorsToConvert)
 	{
 		TArray<TWeakObjectPtr<ALevelSequenceActor> > NewActors;
 
@@ -198,6 +224,30 @@ protected:
 	}
 
 	/** Find or add a folder for the given actor **/
+	static UMovieSceneFolder* FindOrAddFolder(UMovieScene* MovieScene, FName FolderName)
+	{
+		// look for a folder to put us in
+		UMovieSceneFolder* FolderToUse = nullptr;
+		for (UMovieSceneFolder* Folder : MovieScene->GetRootFolders())
+		{
+			if (Folder->GetFolderName() == FolderName)
+			{
+				FolderToUse = Folder;
+				break;
+			}
+		}
+
+		if (FolderToUse == nullptr)
+		{
+			FolderToUse = NewObject<UMovieSceneFolder>(MovieScene, NAME_None, RF_Transactional);
+			FolderToUse->SetFolderName(FolderName);
+			MovieScene->GetRootFolders().Add(FolderToUse);
+		}
+
+		return FolderToUse;
+	}
+
+	/** Find or add a folder for the given actor **/
 	static void FindOrAddFolder(UMovieScene* MovieScene, TWeakObjectPtr<AActor> Actor, FGuid Guid)
 	{
 		FName FolderName(NAME_None);
@@ -222,47 +272,14 @@ protected:
 			FolderName = TEXT("Misc");
 		}
 
-		// look for a folder to put us in
-		UMovieSceneFolder* FolderToUse = nullptr;
-		for (UMovieSceneFolder* Folder : MovieScene->GetRootFolders())
-		{
-			if (Folder->GetFolderName() == FolderName)
-			{
-				FolderToUse = Folder;
-				break;
-			}
-		}
-
-		if (FolderToUse == nullptr)
-		{
-			FolderToUse = NewObject<UMovieSceneFolder>(MovieScene, NAME_None, RF_Transactional);
-			FolderToUse->SetFolderName(FolderName);
-			MovieScene->GetRootFolders().Add(FolderToUse);
-		}
-
+		UMovieSceneFolder* FolderToUse = FindOrAddFolder(MovieScene, FolderName);
 		FolderToUse->AddChildObjectBinding(Guid);
 	}
 
 	/** Add master track to a folder **/
 	static void AddMasterTrackToFolder(UMovieScene* MovieScene, UMovieSceneTrack* MovieSceneTrack, FName FolderName)
 	{
-		UMovieSceneFolder* FolderToUse = nullptr;
-		for (UMovieSceneFolder* Folder : MovieScene->GetRootFolders())
-		{
-			if (Folder->GetFolderName() == FolderName)
-			{
-				FolderToUse = Folder;
-				break;
-			}
-		}
-
-		if (FolderToUse == nullptr)
-		{
-			FolderToUse = NewObject<UMovieSceneFolder>(MovieScene, NAME_None, RF_Transactional);
-			FolderToUse->SetFolderName(FolderName);
-			MovieScene->GetRootFolders().Add(FolderToUse);
-		}
-
+		UMovieSceneFolder* FolderToUse = FindOrAddFolder(MovieScene, FolderName);
 		FolderToUse->AddChildMasterTrack(MovieSceneTrack);
 	}
 
@@ -289,7 +306,7 @@ protected:
 				NewSequence->BindPossessableObject(ObjectGuid, *PropObject, BindingContext);
 			}
 
-			// cbb: String manipulations to get the property path in the rigth form for sequencer
+			// cbb: String manipulations to get the property path in the right form for sequencer
 			FString PropertyName = Property->GetFName().ToString();
 
 			// Special case for Light components which have some deprecated names
@@ -306,36 +323,31 @@ protected:
 				}
 			}
 
-			// Strip the object part of the property path
-			FString PropertyPath = Property->GetPathName();
-			int32 DotPos = INDEX_NONE;
-			if (PropertyPath.FindLastChar(TEXT('.'), DotPos))
+			TArray<UObject*> PropertyArray;
+			UObject* Outer = Property->GetOuter();
+			while (Outer->IsA(UProperty::StaticClass()) || Outer->IsA(UScriptStruct::StaticClass()))
 			{
-				PropertyPath = PropertyPath.RightChop(DotPos+1);
+				PropertyArray.Insert(Outer, 0);
+				Outer = Outer->GetOuter();
 			}
 
-			// Split it into the components
-			TArray<FString> PropertyPaths;
-			PropertyPath.ParseIntoArray(PropertyPaths, TEXT(":"));
-
-			// Reassemble path with "." separators
-			FString NewPropertyPath;
-			for (int32 PropertyIndex=0; PropertyIndex<PropertyPaths.Num()-1; ++PropertyIndex)
-			{		
-				if (NewPropertyPath.Len())
+			FString PropertyPath;
+			for (auto PropertyIt : PropertyArray)
+			{
+				if (PropertyPath.Len())
 				{
-					NewPropertyPath = NewPropertyPath + TEXT(".");
+					PropertyPath = PropertyPath + TEXT(".");
 				}
-				NewPropertyPath = NewPropertyPath + PropertyPaths[PropertyIndex];
+				PropertyPath = PropertyPath + PropertyIt->GetName();
 			}
-			if (NewPropertyPath.Len())
+			if (PropertyPath.Len())
 			{
-				NewPropertyPath = NewPropertyPath + TEXT(".");
+				PropertyPath = PropertyPath + TEXT(".");
 			}
-			NewPropertyPath = NewPropertyPath + PropertyName;
+			PropertyPath = PropertyPath + PropertyName;
 
 			PropertyTrack = NewMovieScene->AddTrack<T>(ObjectGuid);	
-			PropertyTrack->SetPropertyNameAndPath(*PropertyName, NewPropertyPath);
+			PropertyTrack->SetPropertyNameAndPath(*PropertyName, PropertyPath);
 		}
 		else
 		{
@@ -347,7 +359,7 @@ protected:
 	}
 
 	/** Convert an interp group */
-	static void ConvertInterpGroup(UInterpGroup* Group, AActor* GroupActor, UMovieScene* NewMovieScene, UMovieSceneSequence* NewSequence, int32& NumWarnings)
+	void ConvertInterpGroup(UInterpGroup* Group, AActor* GroupActor, UMovieScene* NewMovieScene, UMovieSceneSequence* NewSequence, int32& NumWarnings)
 	{
 		FGuid PossessableGuid;
 
@@ -370,7 +382,11 @@ protected:
 			}
 
 			// Handle each track class
-			if (Track->IsA(UInterpTrackMove::StaticClass()))					
+			if (ExtendedInterpConverters.Find(Track->GetClass()))
+			{
+				ExtendedInterpConverters.Find(Track->GetClass())->Execute(Track, PossessableGuid, NewMovieScene);
+			}
+			else if (Track->IsA(UInterpTrackMove::StaticClass()))
 			{
 				UInterpTrackMove* MatineeMoveTrack = StaticCast<UInterpTrackMove*>(Track);
 
@@ -528,7 +544,7 @@ protected:
 	}
 
 	/** Convert a single matinee to a level sequence asset */
-	static TWeakObjectPtr<ALevelSequenceActor> ConvertSingleMatineeToLevelSequence(TWeakObjectPtr<AActor> ActorToConvert, int32& NumWarnings)
+	TWeakObjectPtr<ALevelSequenceActor> ConvertSingleMatineeToLevelSequence(TWeakObjectPtr<AActor> ActorToConvert, int32& NumWarnings)
 	{
 		UObject* AssetOuter = ActorToConvert->GetOuter();
 		UPackage* AssetPackage = AssetOuter->GetOutermost();
@@ -642,6 +658,8 @@ private:
 
 	FDelegateHandle LevelEditorExtenderDelegateHandle;
 
+	// IMatineeToLevelSequenceModule interface
+	TMap<TSubclassOf<UInterpTrack>, FOnConvertMatineeTrack > ExtendedInterpConverters;
 };
 
 IMPLEMENT_MODULE(FMatineeToLevelSequenceModule, MatineeToLevelSequence);

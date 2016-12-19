@@ -444,7 +444,7 @@ void FDeferredShadingSceneRenderer::RenderAtmosphere(FRHICommandListImmediate& R
 		RHICmdList.SetGPUMask(0);
 
 		//no need to resolve since we used alpha blending
-		SceneContext.FinishRenderingSceneColor(RHICmdList, false);
+		//SceneContext.FinishRenderingSceneColor(RHICmdList, false); /*LaviniaADD  tghis was not in the final */
 	}
 }
 

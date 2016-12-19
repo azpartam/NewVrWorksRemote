@@ -446,6 +446,18 @@ void FEmptyDynamicRHI::RHIEnableDepthBoundsTest(bool bEnable, float MinDepth, fl
 {
 }
 
+void FEmptyDynamicRHI::RHIClearColor(const FLinearColor& Color, FIntRect ExcludeRect)
+{
+}
+
+void FEmptyDynamicRHI::RHIClearDepthStencilTexture(FTextureRHIParamRef Texture, EClearDepthStencil ClearDepthStencil, float Depth, uint32 Stencil, FIntRect ExcludeRect)
+{
+}
+
+void FEmptyDynamicRHI::RHIClearColor(int32 NumClearColors, const FLinearColor* ColorArray, FIntRect ExcludeRect)
+{
+}
+
 void FEmptyDynamicRHI::RHISetSinglePassStereoParameters(bool bEnable, uint32 RenderTargetIndexOffset, uint8 IndependentViewportMaskEnable)
 {
 }

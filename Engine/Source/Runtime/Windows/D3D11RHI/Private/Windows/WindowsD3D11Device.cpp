@@ -302,8 +302,7 @@ void FD3D11DynamicRHIModule::FindAdapter()
 	for(uint32 AdapterIndex = 0; DXGIFactory1->EnumAdapters(AdapterIndex,TempAdapter.GetInitReference()) != DXGI_ERROR_NOT_FOUND; ++AdapterIndex)
 	{
 		// to make sure the array elements can be indexed with AdapterIndex
-		DXGI_ADAPTER_DESC AdapterDesc;
-		ZeroMemory(&AdapterDesc, sizeof(DXGI_ADAPTER_DESC));
+		DXGI_ADAPTER_DESC& AdapterDesc = AdapterDescription[AdapterDescription.AddZeroed()];
 
 		// Check that if adapter supports D3D11.
 		if(TempAdapter)
@@ -374,8 +373,6 @@ void FD3D11DynamicRHIModule::FindAdapter()
 				}
 			}
 		}
-		
-		AdapterDescription.Add(AdapterDesc);
 	}
 
 	if(bFavorNonIntegrated && (bIsAnyAMD || bIsAnyNVIDIA))
@@ -425,7 +422,7 @@ void FD3D11DynamicRHIModule::FindAdapter()
 	}
 }
 
-FDynamicRHI* FD3D11DynamicRHIModule::CreateRHI()
+FDynamicRHI* FD3D11DynamicRHIModule::CreateRHI(ERHIFeatureLevel::Type RequestedFeatureLevel)
 {
 	TRefCountPtr<IDXGIFactory1> DXGIFactory1;
 	SafeCreateDXGIFactory(DXGIFactory1.GetInitReference());
@@ -528,6 +525,7 @@ void FD3D11DynamicRHI::InitD3DDevice()
 				GRHIAdapterName = AdapterDesc.Description;
 				GRHIVendorId = AdapterDesc.VendorId;
 				GRHIDeviceId = AdapterDesc.DeviceId;
+				GRHIDeviceRevision = AdapterDesc.Revision;
 
 				UE_LOG(LogD3D11RHI, Log, TEXT("    GPU DeviceId: 0x%x (for the marketing name, search the web for \"GPU Device Id\")"), 
 					AdapterDesc.DeviceId);

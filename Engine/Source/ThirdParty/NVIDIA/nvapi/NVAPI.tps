@@ -5,22 +5,13 @@
   <Date>2016-03-22T18:16:14.453578-04:00</Date>
   <Function>Allows the display of 3D images from Nvidia graphics cards on capable monitors</Function>
   <Justification />
-  <Platforms>
-    <Platform>PC</Platform>
-  </Platforms>
-  <Products>
-    <Product>UDK</Product>
-    <Product>UE3</Product>
-    <Product>UDK4</Product>
-    <Product>UE4</Product>
-  </Products>
-  <TpsType>Source Code</TpsType>
   <Eula>http://developer.nvidia.com/object/nvapi.html</Eula>
   <RedistributeTo>
     <EndUserGroup>Licensees</EndUserGroup>
     <EndUserGroup>Git</EndUserGroup>
     <EndUserGroup>P4</EndUserGroup>
   </RedistributeTo>
+  <LicenseFolder>/Engine/Source/ThirdParty/Licenses/NVAPI_License.txt</LicenseFolder>
   <Redistribute>false</Redistribute>
   <IsSourceAvailable>false</IsSourceAvailable>
   <NoticeType>Full EULA Text</NoticeType>

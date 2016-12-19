@@ -158,11 +158,12 @@ int32 USoundNode::GetNumSounds(const UPTRINT NodeWaveInstanceHash, FActiveSound&
 	// Default implementation loops through all child nodes and sums the number of sounds.
 	// For most nodes this will result in 1, for node mixers, this will result in multiple sounds.
 	int32 NumSounds = 0;
-	for (USoundNode* ChildNode : ChildNodes)
+	for (int32 i = 0; i < ChildNodes.Num(); ++i)
 	{
-		if (ChildNode)
+		if (ChildNodes[i])
 		{
-			NumSounds += ChildNode->GetNumSounds(NodeWaveInstanceHash, ActiveSound);
+			const UPTRINT ChildNodeWaveInstanceHash = GetNodeWaveInstanceHash(NodeWaveInstanceHash, ChildNodes[i], i);
+			NumSounds += ChildNodes[i]->GetNumSounds(ChildNodeWaveInstanceHash, ActiveSound);
 		}
 	}
 
@@ -175,6 +176,13 @@ void USoundNode::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEv
 	Super::PostEditChangeProperty(PropertyChangedEvent);
 
 	MarkPackageDirty();
+}
+
+void USoundNode::PostLoad()
+{
+	Super::PostLoad();
+	// Make sure sound nodes are transactional (so they work with undo system)
+	SetFlags(RF_Transactional);
 }
 #endif // WITH_EDITOR
 
