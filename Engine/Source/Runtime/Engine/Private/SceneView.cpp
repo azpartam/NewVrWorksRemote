@@ -514,12 +514,14 @@ FVector4 CreateInvDeviceZToWorldZTransform(const FMatrix& ProjMatrix)
 }
 
 FViewMatrices::FViewMatrices(const FSceneViewInitOptions& InitOptions) : FViewMatrices()
-	, VRProjMode(EVRProjectMode::Planar)
+/* LaviniaADD added and removed; don't know why it merged this way
+, VRProjMode(EVRProjectMode::Planar)
 	, bVRProjectEnabled(false)
 	, NonVRProjectViewRect(ViewRect)
 	, MultiResConf(FMultiRes::Configuration_Vive_Aggressive)
 	, LensMatchedShadingConf(FLensMatchedShading::Configuration_Vive_Aggressive)
 	, bAllowSinglePassStereo(false)
+	*/
 {
 	//check(InitOptions.ViewRotationMatrix.GetOrigin().IsNearlyZero());
 

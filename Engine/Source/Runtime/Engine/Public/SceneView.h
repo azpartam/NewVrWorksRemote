@@ -211,6 +211,11 @@ private:
 	FVector2D	ProjectionScale;
 	/** TemporalAA jitter offset currently stored in the projection matrix */
 	FVector2D	TemporalAAProjectionJitter;
+	/*LaviniaADD added params for vrworks
+	bool bAllowSinglePassStereo;
+	FMultiRes::Configuration MultiResConf;
+	FLensMatchedShading::Configuration LensMatchedShadingConf;
+	*/
 
 	/**
 	 * Scale factor to use when computing the size of a sphere in pixels.

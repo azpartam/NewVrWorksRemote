@@ -872,7 +872,7 @@ public:
 		const FViewMatrices& InPrevViewMatrices,
 		FBox* OutTranslucentCascadeBoundsArray, 
 		int32 NumTranslucentCascades,
-		FViewUniformShaderParameters& ViewUniformShaderParameters) const
+		FViewUniformShaderParameters& ViewUniformShaderParameters,
 		bool SupportMultiRes = false) const;
 
 	/** Recreates ViewUniformShaderParameters, taking the view transform from the View Matrices */

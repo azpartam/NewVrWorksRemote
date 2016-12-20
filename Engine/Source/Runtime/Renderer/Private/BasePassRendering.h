@@ -469,7 +469,7 @@ public:
 		const FVertexFactory* VertexFactory,
 		const FMaterial& InMaterialResource,
 		const FSceneView& View,
-		//bool bAllowGlobalFog, /*Lavinia this will probably have to be removed */
+		//bool bAllowGlobalFog, /*LaviniaADD this will probably have to be removed */
 		ESceneRenderTargetsMode::Type TextureMode
 		)
 	{
@@ -1070,10 +1070,10 @@ public:
 			// Set the light-map policy.
 			LightMapPolicy.Set(RHICmdList, VertexShader, !UseDebugViewPS() ? PixelShader : nullptr, VertexShader, PixelShader, VertexFactory, MaterialRenderProxy, View);
 
-			VertexShader->SetParameters(RHICmdList, MaterialRenderProxy, VertexFactory, *MaterialResource, *View, SceneTextureMode, PolicyContext.bIsInstancedStereo, bUseDownsampledTranslucencyViewUniformBuffer,PolicyContext.bIsInstancedStereo, PolicyContext.bIsSinglePassStereo); /*LaviniaADD added last 2  params */
+			VertexShader->SetParameters(RHICmdList, MaterialRenderProxy, VertexFactory, *MaterialResource, *View, SceneTextureMode, PolicyContext.bIsInstancedStereo, bUseDownsampledTranslucencyViewUniformBuffer, PolicyContext.bIsSinglePassStereo); /*LaviniaADD added last 2  params */
 
 			if (View->bVRProjectEnabled || PolicyContext.bIsSinglePassStereo)
-				FastGeometryShader->SetParameters(RHICmdList, MaterialRenderProxy, VertexFactory, *MaterialResource, *View, bAllowGlobalFog, SceneTextureMode);
+				FastGeometryShader->SetParameters(RHICmdList, MaterialRenderProxy, VertexFactory, *MaterialResource, *View, SceneTextureMode); /*LaviniaADD removed fog*/
 
 			if(HullShader)
 			{
@@ -1373,7 +1373,7 @@ public:
 		ESceneRenderTargetsMode::Type InTextureMode,
 		ERHIFeatureLevel::Type InFeatureLevel, 
 		const bool InbIsInstancedStereo = false,
-		const bool InbUseMobileMultiViewMask = false
+		const bool InbUseMobileMultiViewMask = false,
 		const bool InbIsSinglePassStereo = false /*LaviniaADD */
 		):
 		Mesh(InMesh),
@@ -1387,7 +1387,7 @@ public:
 		TextureMode(InTextureMode),
 		FeatureLevel(InFeatureLevel), 
 		bIsInstancedStereo(InbIsInstancedStereo), 
-		bUseMobileMultiViewMask(InbUseMobileMultiViewMask)
+		bUseMobileMultiViewMask(InbUseMobileMultiViewMask),
 		bIsSinglePassStereo(InbIsSinglePassStereo) /*LaviniaADD */
 	{
 	}
@@ -1403,8 +1403,8 @@ public:
 		ESceneRenderTargetsMode::Type InTextureMode,
 		ERHIFeatureLevel::Type InFeatureLevel, 
 		bool InbIsInstancedStereo = false, 
-		bool InbUseMobileMultiViewMask = false
-		const bool InbIsSinglePassStereo = false /*LaviniaAdd */
+		bool InbUseMobileMultiViewMask = false,
+		bool InbIsSinglePassStereo = false /*LaviniaAdd */
 		) :
 		Mesh(InMesh),
 		BatchElementMask(InBatchElementMask),
@@ -1417,7 +1417,7 @@ public:
 		TextureMode(InTextureMode),
 		FeatureLevel(InFeatureLevel),
 		bIsInstancedStereo(InbIsInstancedStereo), 
-		bUseMobileMultiViewMask(InbUseMobileMultiViewMask)
+		bUseMobileMultiViewMask(InbUseMobileMultiViewMask),
 		bIsSinglePassStereo(InbIsSinglePassStereo) /*LaviniaADD */ 
 	{
 	}

@@ -561,7 +561,7 @@ void FViewInfo::SetupUniformBufferParameters(
 	const FViewMatrices& InPrevViewMatrices,
 	FBox* OutTranslucentCascadeBoundsArray, 
 	int32 NumTranslucentCascades,
-	FViewUniformShaderParameters& ViewUniformShaderParameters) const
+	FViewUniformShaderParameters& ViewUniformShaderParameters,
 	bool  SupportMultiRes) const /*LaviniaADD */
 {
 	check(Family);
@@ -834,6 +834,8 @@ void FViewInfo::SetupUniformBufferParameters(
 
 	
 	ViewUniformShaderParameters.DistanceFieldAOSpecularOcclusionMode = GDistanceFieldAOSpecularOcclusionMode;
+
+	const FIntPoint BufferSize = SceneContext.GetBufferSizeXY();/*LaviniaADD added this calc which was present before in the function this code was originally which was CreateUniformBuffer*/
 	ViewUniformShaderParameters.RenderTargetToViewRectUVScaleBias = FVector4(
 		FVector2D(BufferSize) / FVector2D(ViewRect.Size()),
 		-FVector2D(ViewRect.Min) / FVector2D(ViewRect.Size()));

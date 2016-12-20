@@ -432,7 +432,7 @@ void InitHitProxyRender(FRHICommandListImmediate& RHICmdList, const FSceneRender
 		RHICmdList.ClearColorTexture(OutHitProxyRT->GetRenderTargetItem().TargetableTexture, FLinearColor::White, FIntRect());
 	}
 	RHICmdList.SetGPUMask(0);
-	return HitProxyRT;
+	//return HitProxyRT; /*LaviniaADD merged but removed */
 }
 
 static void DoRenderHitProxies(FRHICommandListImmediate& RHICmdList, const FSceneRenderer* SceneRenderer, TRefCountPtr<IPooledRenderTarget> HitProxyRT, TRefCountPtr<IPooledRenderTarget> HitProxyDepthRT)

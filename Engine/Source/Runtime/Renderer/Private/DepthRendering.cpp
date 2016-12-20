@@ -1451,7 +1451,9 @@ bool FDeferredShadingSceneRenderer::RenderPrePassHMD(FRHICommandListImmediate& R
 		FLinearColor ClearColor(0, 0, 0);
 		float ClearDepth = 1.f; // we plan to clear Z to near plane, then overwrite the visible octagon to far plane
 		uint32 ClearStencil = 0;
-		RHICmdList.Clear(false, ClearColor, true, ClearDepth, true, ClearStencil, FIntRect());
+//		RHICmdList.Clear(false, ClearColor, true, ClearDepth, true, ClearStencil, FIntRect());
+		RHICmdList.ClearDepthStencilTexture(SceneContext.GetSceneDepthTexture(), EClearDepthStencil::Depth, ClearDepth, ClearStencil, FIntRect()); /*LaviniaADD not sure if we should use EClearDepthStencil::Depth tbc*/
+		
 	}
 
 	RHICmdList.SetBlendState(TStaticBlendState<CW_NONE>::GetRHI());

@@ -11,8 +11,8 @@ namespace UnrealBuildTool.Rules
 					"OculusRift/Private",
  					"../../../../Source/Runtime/Renderer/Private",
  					"../../../../Source/ThirdParty/Oculus/Common",
-                    "../../../../Source/Runtime/Engine/Classes/Components"
-                    "../../../../Source/ThirdParty/NVIDIA/nvapi",
+                    "../../../../Source/Runtime/Engine/Classes/Components",
+                    "../../../../Source/ThirdParty/NVIDIA/nvapi"
 					// ... add other private include paths required here ...
 				});
 
@@ -33,7 +33,7 @@ namespace UnrealBuildTool.Rules
 					"ImageWrapper",
                     "MediaAssets",
 					"Analytics",
-					"UtilityShaders",
+					"UtilityShaders"
 				});
 
 			if (UEBuildConfiguration.bBuildEditor == true)
