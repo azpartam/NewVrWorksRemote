@@ -2238,6 +2238,59 @@ void FD3D12CommandContext::RHISubmitCommandsHint()
 		PendingFence = nullptr;
 	}
 }
+/*LaviniaADD missing fc needed for SPS*/
+void FD3D12CommandContext::RHISetSinglePassStereoParameters(bool bEnable, uint32 RenderTargetIndexOffset, uint8 IndependentViewportMaskEnable)
+{
+	UE_LOG(LogD3D12RHI, Fatal, TEXT("D3D12 RHI does not support SPS!"));
+}
+void FD3D12CommandContext::RHISetGPUMask(uint32 Mask)
+{
+	UE_LOG(LogD3D12RHI, Fatal, TEXT("D3D12 RHI does not support GPU MASK - no sli"));
+}
+void FD3D12CommandContext::RHICopyResourceToGPU(FTextureRHIParamRef SourceTextureRHI, FTextureRHIParamRef DestTextureRHI, uint32 DestGPUIndex, uint32 SrcGPUIndex, const FResolveParams& ResolveParams)
+{
+	UE_LOG(LogD3D12RHI, Fatal, TEXT("D3D12 RHI does not support CopyResourcetoGPU"));
+}
+void FD3D12CommandContext::RHISetMultipleScissorRects(bool bEnable, uint32 Num, const FIntRect* Rects)
+{
+	UE_LOG(LogD3D12RHI, Fatal, TEXT("D3D12 RHI does not support MultipleScissorRects"));
+}
+void FD3D12CommandContext::RHISetModifiedWMode(const FLensMatchedShading::Configuration& Conf, const bool bWarpForward, const bool bEnable)
+{
+	UE_LOG(LogD3D12RHI, Fatal, TEXT("D3D12 RHI does not support ModifiedWMode"));
+}
+void FD3D12CommandContext::RHISetModifiedWModeStereo(const FLensMatchedShading::StereoConfiguration& Conf, const bool bWarpForward, const bool bEnable)
+{
+	UE_LOG(LogD3D12RHI, Fatal, TEXT("D3D12 RHI does not support Modified Mode Stereo!"));
+}
+
+
+FGeometryShaderRHIRef  FD3D12CommandContext::(const TArray<uint8>& Code)
+{
+	UE_LOG(LogD3D12RHI, Fatal, TEXT("D3D12 RHI does not support Modified Mode Stereo!"));
+	return nullptr;
+}
+FVertexShaderRHIRef FD3D12CommandContext::RHICreateVertexShaderWithSinglePassStereo(const TArray<uint8>& Code)
+{
+	UE_LOG(LogD3D12RHI, Fatal, TEXT("D3D12 RHI does not support Modified Mode Stereo!"));
+	return nullptr;
+}
+FHullShaderRHIRef FD3D12CommandContext::RHICreateHullShaderWithSinglePassStereo(const TArray<uint8>& Code)
+{
+	UE_LOG(LogD3D12RHI, Fatal, TEXT("D3D12 RHI does not support Modified Mode Stereo!"));
+	return nullptr;
+}
+FDomainShaderRHIRef FD3D12CommandContext::RHICreateDomainShaderWithSinglePassStereo(const TArray<uint8>& Code)
+{
+	UE_LOG(LogD3D12RHI, Fatal, TEXT("D3D12 RHI does not support Modified Mode Stereo!"));
+	return nullptr;
+}
+FGeometryShaderRHIRef FD3D12CommandContext::RHICreateFastGeometryShader_2(const TArray<uint8>& Code, uint32 Usage)
+{
+	UE_LOG(LogD3D12RHI, Fatal, TEXT("D3D12 RHI does not support Modified Mode Stereo!"));
+	return nullptr;
+}
+/*LaviniaADD end*/
 
 #define USE_COPY_QUEUE_FOR_RESOURCE_SYNC 1
 /*

@@ -39,6 +39,13 @@ public:
 	virtual FBlendStateRHIRef RHICreateBlendState(const FBlendStateInitializerRHI& Initializer) final override;
 	virtual FVertexDeclarationRHIRef RHICreateVertexDeclaration(const FVertexDeclarationElementList& Elements) final override;
 	virtual FPixelShaderRHIRef RHICreatePixelShader(const TArray<uint8>& Code) final override;
+	/*LaviniaADD missing declarations*/
+	FDomainShaderRHIRef RHICreateDomainShaderWithSinglePassStereo(const TArray<uint8>& Code);
+	FVertexShaderRHIRef RHICreateVertexShaderWithSinglePassStereo(const TArray<uint8>& Code);
+	FGeometryShaderRHIRef RHICreateFastGeometryShader(const TArray<uint8>& Code);
+	FGeometryShaderRHIRef RHICreateFastGeometryShader_2(const TArray<uint8>& Code, uint32 Usage);
+	FHullShaderRHIRef RHICreateHullShaderWithSinglePassStereo(const TArray<uint8>& Code);
+	/*LaviniaADD end missing decl*/
 	virtual FVertexShaderRHIRef RHICreateVertexShader(const TArray<uint8>& Code) final override;
 	virtual FHullShaderRHIRef RHICreateHullShader(const TArray<uint8>& Code) final override;
 	virtual FDomainShaderRHIRef RHICreateDomainShader(const TArray<uint8>& Code) final override;

@@ -315,6 +315,23 @@ public:
 	virtual FTextureCubeRHIRef RHICreateTextureCubeArray_RenderThread(class FRHICommandListImmediate& RHICmdList, uint32 Size, uint32 ArraySize, uint8 Format, uint32 NumMips, uint32 Flags, FRHIResourceCreateInfo& CreateInfo);
 	virtual FRenderQueryRHIRef RHICreateRenderQuery_RenderThread(class FRHICommandListImmediate& RHICmdList, ERenderQueryType QueryType);
 
+	/*LaviniaADD missing fc def inherited from FDynamicRHI */
+	/** Creates a geometry shader with special restrictions/capabilities. */
+	// FlushType: Wait RHI Thread
+	virtual FGeometryShaderRHIRef RHICreateFastGeometryShader(const TArray<uint8>& Code);
+	// FlushType: Wait RHI Thread
+	virtual FVertexShaderRHIRef RHICreateVertexShaderWithSinglePassStereo(const TArray<uint8>& Code);
+
+	// FlushType: Wait RHI Thread
+	virtual FHullShaderRHIRef RHICreateHullShaderWithSinglePassStereo(const TArray<uint8>& Code);
+
+	// FlushType: Wait RHI Thread
+	virtual FDomainShaderRHIRef RHICreateDomainShaderWithSinglePassStereo(const TArray<uint8>& Code);
+
+	// FlushType: Wait RHI Thread
+	virtual FGeometryShaderRHIRef RHICreateFastGeometryShader_2(const TArray<uint8>& Code, uint32 Usage);
+
+	/*LaviniaADD end */
 	virtual void RHISwitchToAFRIfApplicable();
 
 	template<class BufferType>

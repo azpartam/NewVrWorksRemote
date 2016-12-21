@@ -282,6 +282,15 @@ public:
 	virtual void RHIPopEvent() final override;
 	virtual void RHISubmitCommandsHint() final override;
 
+	/*LaviniaADD missing functions needed - no impl, just to get it to compile*/
+	virtual void RHISetSinglePassStereoParameters(bool bEnable, uint32 RenderTargetIndexOffset, uint8 IndependentViewportMaskEnable);
+	virtual void RHISetGPUMask(uint32 Mask);
+	virtual void RHICopyResourceToGPU(FTextureRHIParamRef SourceTextureRHI, FTextureRHIParamRef DestTextureRHI, uint32 DestGPUIndex, uint32 SrcGPUIndex, const FResolveParams& ResolveParams);
+	virtual void RHISetMultipleScissorRects(bool bEnable, uint32 Num, const FIntRect* Rects);
+	virtual void RHISetModifiedWMode(const FLensMatchedShading::Configuration& Conf, const bool bWarpForward, const bool bEnable);
+	virtual void RHISetModifiedWModeStereo(const FLensMatchedShading::StereoConfiguration& Conf, const bool bWarpForward, const bool bEnable);
+	/*LaviniaADD end*/
+
 	// IRHICommandContext interface
 	virtual void RHIAutomaticCacheFlushAfterComputeShader(bool bEnable) final override;
 	virtual void RHIFlushComputeShaderCache() final override;
@@ -365,6 +374,24 @@ public:
 	virtual void RHIClearMRTImpl(bool bClearColor, int32 NumClearColors, const FLinearColor* ColorArray, bool bClearDepth, float Depth, bool bClearStencil, uint32 Stencil, FIntRect ExcludeRect);
 
 	virtual void UpdateMemoryStats();
+
+	/*LaviniaADD missing fc def inherited from FDynamicRHI */
+	/** Creates a geometry shader with special restrictions/capabilities. */
+	// FlushType: Wait RHI Thread
+	virtual FGeometryShaderRHIRef RHICreateFastGeometryShader(const TArray<uint8>& Code);
+	// FlushType: Wait RHI Thread
+	virtual FVertexShaderRHIRef RHICreateVertexShaderWithSinglePassStereo(const TArray<uint8>& Code);
+
+	// FlushType: Wait RHI Thread
+	virtual FHullShaderRHIRef RHICreateHullShaderWithSinglePassStereo(const TArray<uint8>& Code);
+
+	// FlushType: Wait RHI Thread
+	virtual FDomainShaderRHIRef RHICreateDomainShaderWithSinglePassStereo(const TArray<uint8>& Code);
+
+	// FlushType: Wait RHI Thread
+	virtual FGeometryShaderRHIRef RHICreateFastGeometryShader_2(const TArray<uint8>& Code, uint32 Usage);
+
+	/*LaviniaADD end */
 
 	// When using Alternate Frame Rendering some temporal effects i.e. effects which consume GPU work from previous frames must sychronize their resources
 	// to prevent visual corruption.
@@ -812,6 +839,33 @@ public:
 	{
 		PhysicalContexts[Index] = Context;
 	}
+	/*LaviniaADD missing functions needed - no impl, just to get it to compile*/
+	FORCEINLINE virtual void RHISetSinglePassStereoParameters(bool bEnable, uint32 RenderTargetIndexOffset, uint8 IndependentViewportMaskEnable)
+	{
+		ContextRedirect(RHISetSinglePassStereoParameters(bEnable, RenderTargetIndexOffset, IndependentViewportMaskEnable));
+	}
+	FORCEINLINE virtual void RHISetGPUMask(uint32 Mask)
+	{
+		ContextRedirect(RHISetGPUMask(Mask));
+	}
+	FORCEINLINE virtual void RHICopyResourceToGPU(FTextureRHIParamRef SourceTextureRHI, FTextureRHIParamRef DestTextureRHI, uint32 DestGPUIndex, uint32 SrcGPUIndex, const FResolveParams& ResolveParams)
+	{
+		ContextRedirect(RHICopyResourceToGPU(SourceTextureRHI, DestTextureRHI, DestGPUIndex, SrcGPUIndex, ResolveParams));
+	}
+	FORCEINLINE virtual void RHISetMultipleScissorRects(bool bEnable, uint32 Num, const FIntRect* Rects)
+	{
+		ContextRedirect(RHISetMultipleScissorRects(bEnable, Num, Rects));
+	}
+	FORCEINLINE virtual void RHISetModifiedWMode(const FLensMatchedShading::Configuration& Conf, const bool bWarpForward, const bool bEnable)
+	{
+		ContextRedirect(RHISetModifiedWMode(Conf, bWarpForward, bEnable));
+	}
+	FORCEINLINE virtual void RHISetModifiedWModeStereo(const FLensMatchedShading::StereoConfiguration& Conf, const bool bWarpForward, const bool bEnable)
+	{
+		ContextRedirect(RHISetModifiedWModeStereo(Conf, bWarpForward, bEnable));
+	}
+	/*LaviniaADD end*/
+
 
 private:
 	uint32 CurrentDeviceIndex;

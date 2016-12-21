@@ -507,6 +507,40 @@ void FD3D12DynamicRHI::GetBestSupportedMSAASetting(DXGI_FORMAT PlatformFormat, u
 	return;
 }
 
+/*LaviniaADD missing fc def inherited from FDynamicRHI */
+/** Creates a geometry shader with special restrictions/capabilities. */
+
+FGeometryShaderRHIRef FD3D12DynamicRHI::RHICreateFastGeometryShader(const TArray<uint8>& Code)
+{
+	UE_LOG(LogD3D12RHI, Fatal, TEXT("D3D12 Dynamic RHI does not support FastGS"));
+	return nullptr;
+}
+FVertexShaderRHIRef FD3D12DynamicRHI::RHICreateVertexShaderWithSinglePassStereo(const TArray<uint8>& Code)
+{
+	UE_LOG(LogD3D12RHI, Fatal, TEXT("D3D12 Dynamic RHI does not support Vertex Shader SPS"));
+	return nullptr;
+}
+
+FHullShaderRHIRef FD3D12DynamicRHI::RHICreateHullShaderWithSinglePassStereo(const TArray<uint8>& Code)
+{
+	UE_LOG(LogD3D12RHI, Fatal, TEXT("D3D12 Dynamic RHI does not support Hull Shader with SPS"));
+	return nullptr;
+}
+FDomainShaderRHIRef FD3D12DynamicRHI::RHICreateDomainShaderWithSinglePassStereo(const TArray<uint8>& Code)
+{
+	UE_LOG(LogD3D12RHI, Fatal, TEXT("D3D12 Dynamic RHI does not support Domaine shader with SPS"));
+	return nullptr;
+}
+
+FGeometryShaderRHIRef FD3D12DynamicRHI::RHICreateFastGeometryShader_2(const TArray<uint8>& Code, uint32 Usage)
+{
+	UE_LOG(LogD3D12RHI, Fatal, TEXT("D3D12 Dynamic RHI does not support FastGS_2"));
+	return nullptr;
+}
+
+
+/*LaviniaADD end */
+
 void FD3D12DynamicRHI::RHISwitchToAFRIfApplicable()
 {
 	FD3D12Adapter& Adapter = GetAdapter();
