@@ -37,7 +37,7 @@ static ViewState ResolvedView;
 	#if SINGLE_PASS_STEREO
 static ViewState ResolvedViewRight;
 	#endif
-#endif
+
 
 ViewState ResolveView()
 {

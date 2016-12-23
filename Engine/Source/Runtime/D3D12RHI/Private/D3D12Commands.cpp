@@ -2265,9 +2265,9 @@ void FD3D12CommandContext::RHISetModifiedWModeStereo(const FLensMatchedShading::
 }
 
 
-FGeometryShaderRHIRef  FD3D12CommandContext::(const TArray<uint8>& Code)
+FGeometryShaderRHIRef  FD3D12CommandContext::RHICreateFastGeometryShader(const TArray<uint8>& Code)
 {
-	UE_LOG(LogD3D12RHI, Fatal, TEXT("D3D12 RHI does not support Modified Mode Stereo!"));
+	UE_LOG(LogD3D12RHI, Fatal, TEXT("D3D12 RHI does not support RHICreateFastGeometryShader"));
 	return nullptr;
 }
 FVertexShaderRHIRef FD3D12CommandContext::RHICreateVertexShaderWithSinglePassStereo(const TArray<uint8>& Code)
@@ -2277,17 +2277,17 @@ FVertexShaderRHIRef FD3D12CommandContext::RHICreateVertexShaderWithSinglePassSte
 }
 FHullShaderRHIRef FD3D12CommandContext::RHICreateHullShaderWithSinglePassStereo(const TArray<uint8>& Code)
 {
-	UE_LOG(LogD3D12RHI, Fatal, TEXT("D3D12 RHI does not support Modified Mode Stereo!"));
+	UE_LOG(LogD3D12RHI, Fatal, TEXT("D3D12 RHI does not support RHICreateHullShaderWithSinglePassStereo!"));
 	return nullptr;
 }
 FDomainShaderRHIRef FD3D12CommandContext::RHICreateDomainShaderWithSinglePassStereo(const TArray<uint8>& Code)
 {
-	UE_LOG(LogD3D12RHI, Fatal, TEXT("D3D12 RHI does not support Modified Mode Stereo!"));
+	UE_LOG(LogD3D12RHI, Fatal, TEXT("D3D12 RHI does not support RHICreateDomainShaderWithSinglePassStereo!"));
 	return nullptr;
 }
 FGeometryShaderRHIRef FD3D12CommandContext::RHICreateFastGeometryShader_2(const TArray<uint8>& Code, uint32 Usage)
 {
-	UE_LOG(LogD3D12RHI, Fatal, TEXT("D3D12 RHI does not support Modified Mode Stereo!"));
+	UE_LOG(LogD3D12RHI, Fatal, TEXT("D3D12 RHI does not supportRHICreateFastGeometryShader_2!"));
 	return nullptr;
 }
 /*LaviniaADD end*/
