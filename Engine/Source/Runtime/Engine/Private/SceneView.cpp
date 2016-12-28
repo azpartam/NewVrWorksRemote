@@ -799,7 +799,7 @@ FSceneView::FSceneView(const FSceneViewInitOptions& InitOptions)
 	static const auto MobileMultiViewCVar = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("vr.MobileMultiView"));
 	bIsMobileMultiViewEnabled = (MobileMultiViewCVar && MobileMultiViewCVar->GetValueOnAnyThread() != 0);
 
-	bShouldBindInstancedViewUB = bIsInstancedStereoEnabled || bIsMobileMultiViewEnabled;
+	bShouldBindInstancedViewUB = bIsInstancedStereoEnabled || bIsMobileMultiViewEnabled; /* Lavinia : wondering in SPS should be included here too*/
 
 	// If the device doesn't support mobile multi-view, disable it. 
 	bIsMobileMultiViewEnabled = bIsMobileMultiViewEnabled && GSupportsMobileMultiView;
