@@ -262,7 +262,7 @@ private:
 				BoundShaderStateInput.GeometryShaderRHI);
 
 			// Determine if the drawing policy supports multi-res, and if so, create MultiResBoundShaderState as well.
-			FGeometryShaderRHIRef VRProjectFastGS = DrawingPolicy.GetMultiResFastGS();
+			FGeometryShaderRHIRef VRProjectFastGS = DrawingPolicy.GetMultiResFastGS(); 
 			if (VRProjectFastGS.IsValid())
 			{
 				MultiResBoundShaderState = RHICreateBoundShaderState(

@@ -396,24 +396,24 @@ uint GetEyeIndexFromViewportIndex(uint ViewportIndex)
 
 
 // Data in View constanst buffer for converting vr projection
-//  Needs to integrate with instance stereo
-//	float2 LinearToVRProjectSplitsX;
-//	float2 LinearToVRProjectSplitsY;
-//	float2 LinearToVRProjectX0;
-//	float2 LinearToVRProjectX1;
-//	float2 LinearToVRProjectX2;
-//	float2 LinearToVRProjectY0;
-//	float2 LinearToVRProjectY1;
-//	float2 LinearToVRProjectY2;
-//	
-//	float2 VRProjectToLinearSplitsX;
-//	float2 VRProjectToLinearSplitsY;
-//	float2 VRProjectToLinearX0;
-//	float2 VRProjectToLinearX1;
-//	float2 VRProjectToLinearX2;
-//	float2 VRProjectToLinearY0;
-//	float2 VRProjectToLinearY1;
-//	float2 VRProjectToLinearY2;
+// Needs to integrate with instance stereo
+//float2 LinearToVRProjectSplitsX;
+//float2 LinearToVRProjectSplitsY;
+//float2 LinearToVRProjectX0;
+//float2 LinearToVRProjectX1;
+//float2 LinearToVRProjectX2;
+//float2 LinearToVRProjectY0;
+//float2 LinearToVRProjectY1;
+//float2 LinearToVRProjectY2;
+//
+//float2 VRProjectToLinearSplitsX;
+//float2 VRProjectToLinearSplitsY;
+//float2 VRProjectToLinearX0;
+//float2 VRProjectToLinearX1;
+//float2 VRProjectToLinearX2;
+//float2 VRProjectToLinearY0;
+//float2 VRProjectToLinearY1;
+//float2 VRProjectToLinearY2;
 
 
 /*

@@ -654,7 +654,8 @@ void FShaderResource::InitRHI()
 		if (Target.IsFastGeometryShader)
 		{
 			//@todo - not using the cache
-			GeometryShader = RHICreateFastGeometryShader_2(Code, 0);
+//			GeometryShader = RHICreateFastGeometryShader_2(Code, 0);
+			GeometryShader = RHICreateFastGeometryShader_2(UncompressedCode, 0);
 		}
 		else if(SpecificType)
 		{
